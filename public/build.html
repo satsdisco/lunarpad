@@ -847,7 +847,7 @@ a:hover { color: var(--accent); }
       </div>
     </div>
 
-    <div class="demo-day-info" id="demoDayInfo"></div>
+    <div class="demo-day-info" id="demoDayInfo" style="display:none"></div>
 
     <div class="speaker-list" id="speakerList"></div>
 
@@ -1160,12 +1160,8 @@ async function loadSpeakers() {
 
   const infoEl = document.getElementById('demoDayInfo');
   const dateStr = new Date(nextDemoDay.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
-  infoEl.innerHTML = `
-    <div class="icon">🗓</div>
-    <div class="demo-day-info-text">
-      <div class="demo-day-info-title">${esc(nextDemoDay.name)}</div>
-      <div class="demo-day-info-date">${dateStr}${nextDemoDay.location ? ' · ' + esc(nextDemoDay.location) : ''}</div>
-    </div>`;
+  // Info already shown in events section
+  infoEl.style.display = 'none';
 
   try {
     const res = await fetch('/api/speakers?event=' + encodeURIComponent(nextDemoDay.id));
@@ -1189,10 +1185,11 @@ function renderSpeakerList() {
       sp.deck_id    ? `<a href="/deck/${esc(sp.deck_id)}" target="_blank" rel="noopener" class="spk-link">📽 View Deck</a>` : '',
     ].filter(Boolean).join('');
     return `
-    <div class="speaker-row" id="spk-${esc(sp.id)}">
+    <div class="speaker-row" id="spk-${esc(sp.id)}" ${sp.deck_id ? `onclick="window.location='/deck/${sp.deck_id}'" style="cursor:pointer"` : ''}>
       <div class="speaker-info">
         <div class="speaker-name">${esc(sp.name)}</div>
-        <div class="speaker-project">${esc(sp.project || sp.project_title)}</div>
+        <div class="speaker-project">${sp.deck_id ? `<a href="/deck/${esc(sp.deck_id)}" class="project-link" onclick="event.stopPropagation()">${esc(sp.project || sp.project_title)} →</a>` : esc(sp.project || sp.project_title)}</div>
+        ${sp.description ? `<div class="speaker-desc">${esc(sp.description)}</div>` : ''}
         ${links ? `<div class="spk-links">${links}</div>` : ''}
       </div>
       <span class="speaker-duration">${esc(sp.duration)} min</span>
