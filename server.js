@@ -298,6 +298,7 @@ app.get('/auth/google/callback', async (req, res) => {
 const bcrypt = require('bcryptjs');
 
 app.post('/auth/register', async (req, res) => {
+  return res.status(403).json({ error: 'Registration is currently closed' });
   const { username, password, name } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   if (username.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
