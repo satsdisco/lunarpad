@@ -527,12 +527,16 @@ function renderMiniCal() {
     const eventCls = hasEvent ? ' has-event' : '';
 
     let content = '';
+    const evTypeColors = { 'demo-day': '#7c5cfc', 'hackathon': '#39d98a', 'bounty': '#d4a843', 'workshop': '#3CCBDA', 'meetup': '#f472b6' };
+    let evColor = '';
     if (hasEvent) {
+      const evType = events[0].type || events[0].event_type || 'demo-day';
+      evColor = evTypeColors[evType] || '#7c5cfc';
       const icons = events.map(ev => getEventIcon(ev.type || ev.event_type || 'demo-day')).join('');
       content = `<div class="cal-cell-content">${icons}</div>`;
     }
 
-    days += `<div class="cal-cell${todayCls}${eventCls}"${click}>
+    days += `<div class="cal-cell${todayCls}${eventCls}"${click}${evColor ? ` style="--ev-color:${evColor}"` : ''}>
       <div class="cal-cell-num">${d}</div>
       ${content}
     </div>`;

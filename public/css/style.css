@@ -888,13 +888,14 @@ a:hover { color: var(--accent); }
 }
 .cal-cell.has-event {
   cursor: pointer;
-  background: rgba(124,92,252,0.04);
+  background: color-mix(in srgb, var(--ev-color, var(--accent)) 8%, transparent);
+  border-color: color-mix(in srgb, var(--ev-color, var(--accent)) 20%, transparent);
 }
 .cal-cell.has-event:hover {
-  background: rgba(124,92,252,0.08);
+  background: color-mix(in srgb, var(--ev-color, var(--accent)) 15%, transparent);
 }
 .cal-cell.has-event .cal-cell-num {
-  color: var(--text); font-weight: 700;
+  color: var(--ev-color, var(--text)); font-weight: 700;
 }
 
 /* Event content inside cells */
@@ -908,10 +909,10 @@ a:hover { color: var(--accent); }
 .cal-icon {
   width: 20px; height: 20px; flex-shrink: 0;
 }
-.cal-icon-demo { color: var(--accent); filter: drop-shadow(0 0 4px var(--accent-glow)); }
-.cal-icon-hack { color: var(--accent); filter: drop-shadow(0 0 4px var(--accent-glow)); }
-.cal-icon-bounty { color: var(--btc-gold); filter: drop-shadow(0 0 4px rgba(212,168,67,0.3)); }
-.cal-icon-workshop { color: var(--btc-gold); filter: drop-shadow(0 0 4px rgba(212,168,67,0.3)); }
+.cal-icon-demo { color: #7c5cfc; filter: drop-shadow(0 0 4px rgba(124,92,252,0.3)); }
+.cal-icon-hack { color: #39d98a; filter: drop-shadow(0 0 4px rgba(57,217,138,0.3)); }
+.cal-icon-bounty { color: #d4a843; filter: drop-shadow(0 0 4px rgba(212,168,67,0.3)); }
+.cal-icon-workshop { color: #3CCBDA; filter: drop-shadow(0 0 4px rgba(60,203,218,0.3)); }
 
 .add-to-cal {
   display: inline-flex; align-items: center; gap: 4px;
