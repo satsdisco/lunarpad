@@ -645,6 +645,24 @@ a:hover { color: var(--accent); }
 }
 .footer::before { content: '// '; }
 
+/* ─── Comments Section ───────────────────────────────────────────────────── */
+.comments-section { margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px; }
+.comments-header { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: 16px; }
+.comments-header::before { content: '# '; color: var(--dim); }
+.comment-form { margin-bottom: 24px; }
+.comment-form textarea { width: 100%; padding: 10px 12px; background: transparent; border: 1px solid var(--border); color: var(--text); font-size: 0.85rem; font-family: var(--font); outline: none; resize: vertical; min-height: 60px; }
+.comment-form textarea:focus { border-color: var(--accent); }
+.comment-form-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.comment-list { display: flex; flex-direction: column; gap: 1px; }
+.comment-item { padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; gap: 12px; }
+.comment-body { flex: 1; }
+.comment-author { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.comment-time { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted2); margin-left: 8px; }
+.comment-text { font-size: 0.85rem; color: var(--text2); line-height: 1.5; margin-top: 4px; }
+.comment-vote { flex-shrink: 0; }
+.sign-in-prompt { font-size: 0.82rem; color: var(--muted2); padding: 12px 0; }
+.sign-in-prompt a { color: var(--accent); }
+
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .header { padding: 0 1rem; flex-wrap: wrap; height: auto; min-height: 48px; }
@@ -705,6 +723,12 @@ a:hover { color: var(--accent); }
       <label>Embed this presentation</label>
       <code id="embedCode"></code>
     </div>
+
+    <div class="comments-section">
+      <div class="comments-header" id="commentsHeader">Comments</div>
+      <div id="commentFormArea"></div>
+      <div class="comment-list" id="commentList"></div>
+    </div>
   </div>
 </div>
 
@@ -764,6 +788,9 @@ a:hover { color: var(--accent); }
     // Load votes
     loadVotes(deck.id);
 
+    // Load comments
+    loadComments(deck.id);
+
     // Delete
     document.getElementById('deleteBtn').addEventListener('click', async () => {
       if (!confirm('Delete this presentation? This cannot be undone.')) return;
@@ -816,6 +843,100 @@ a:hover { color: var(--accent); }
 
   function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+  function timeAgo(dateStr) {
+    const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+    if (diff < 60) return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  let currentUser = null;
+
+  async function loadComments(deckId) {
+    const [commRes, meRes] = await Promise.all([
+      fetch(`/api/decks/${deckId}/comments`),
+      fetch('/api/me'),
+    ]);
+    const comments = await commRes.json();
+    const meData = await meRes.json();
+    currentUser = meData.user;
+
+    const header = document.getElementById('commentsHeader');
+    header.textContent = `Comments (${comments.length})`;
+
+    const formArea = document.getElementById('commentFormArea');
+    if (currentUser) {
+      formArea.innerHTML = `
+        <div class="comment-form">
+          <textarea id="commentInput" placeholder="Add a comment..."></textarea>
+          <div class="comment-form-actions">
+            <button class="btn btn-primary btn-sm" id="commentSubmit">Post Comment</button>
+          </div>
+        </div>`;
+      document.getElementById('commentSubmit').addEventListener('click', () => postComment(deckId));
+      document.getElementById('commentInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) postComment(deckId);
+      });
+    } else {
+      formArea.innerHTML = `<p class="sign-in-prompt"><a href="/auth/google">Sign in</a> to comment</p>`;
+    }
+
+    renderComments(comments);
+  }
+
+  function renderComments(comments) {
+    const list = document.getElementById('commentList');
+    if (!comments.length) {
+      list.innerHTML = '<p class="sign-in-prompt">No comments yet. Be the first!</p>';
+      return;
+    }
+    list.innerHTML = comments.map(c => `
+      <div class="comment-item" id="comment-${esc(c.id)}">
+        <div class="comment-body">
+          <span class="comment-author">${esc(c.author_name)}</span>
+          <span class="comment-time">${timeAgo(c.created_at)}</span>
+          <div class="comment-text">${esc(c.content)}</div>
+        </div>
+        <div class="comment-vote">
+          <button class="vote-btn btn-sm ${c.voted ? 'voted' : ''}" id="cvbtn-${esc(c.id)}"
+            onclick="toggleCommentVote('${esc(c.id)}', this)">
+            <span class="arrow">▲</span>
+            <span id="cvcount-${esc(c.id)}">${c.votes}</span>
+          </button>
+        </div>
+      </div>`).join('');
+  }
+
+  async function postComment(deckId) {
+    const input = document.getElementById('commentInput');
+    const content = input.value.trim();
+    if (!content) return;
+    const btn = document.getElementById('commentSubmit');
+    btn.disabled = true;
+    const res = await fetch(`/api/decks/${deckId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    btn.disabled = false;
+    if (!res.ok) { alert('Failed to post comment'); return; }
+    input.value = '';
+    loadComments(deckId);
+  }
+
+  async function toggleCommentVote(commentId, btn) {
+    const res = await fetch('/api/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'comment', id: commentId }),
+    });
+    const data = await res.json();
+    document.getElementById('cvcount-' + commentId).textContent = data.votes;
+    btn.classList.toggle('voted', data.voted);
+    if (data.error) { alert(data.error); }
+  }
+
   loadDeck();
 </script>
 <script>
@@ -834,6 +955,7 @@ async function initAuth() {
             <span>${data.user.name || data.user.email}</span>
           </div>
           <div class="user-dropdown">
+            <a href="/">My Profile</a>
             <a href="/auth/logout">Sign out</a>
           </div>
         </div>`;

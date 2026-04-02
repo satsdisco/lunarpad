@@ -48,6 +48,17 @@ db.exec(`
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (target_type, target_id, voter_ip)
   );
+
+  CREATE TABLE IF NOT EXISTS comments (
+    id          TEXT PRIMARY KEY,
+    deck_id     TEXT NOT NULL,
+    user_id     TEXT,
+    author_name TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (deck_id) REFERENCES decks(id)
+  );
+
   CREATE TABLE IF NOT EXISTS decks (
     id          TEXT PRIMARY KEY,
     title       TEXT NOT NULL,
@@ -643,11 +654,11 @@ app.post('/api/projects', requireAuth, (req, res) => {
 
 // ─── Unified Vote API ─────────────────────────────────────────────────────────
 
-// POST /api/vote — body: { type: 'deck'|'speaker'|'project', id }
+// POST /api/vote — body: { type: 'deck'|'speaker'|'project'|'comment', id }
 app.post('/api/vote', requireAuth, (req, res) => {
   const { type, id } = req.body;
-  if (!['deck', 'speaker', 'project'].includes(type) || !id) {
-    return res.status(400).json({ error: 'type (deck|speaker|project) and id required' });
+  if (!['deck', 'speaker', 'project', 'comment'].includes(type) || !id) {
+    return res.status(400).json({ error: 'type (deck|speaker|project|comment) and id required' });
   }
   const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
   const existing = stmts.hasVoted.get(type, id, voter);
@@ -663,13 +674,63 @@ app.post('/api/vote', requireAuth, (req, res) => {
 // GET /api/vote/count?type=X&id=Y
 app.get('/api/vote/count', (req, res) => {
   const { type, id } = req.query;
-  if (!['deck', 'speaker', 'project'].includes(type) || !id) {
+  if (!['deck', 'speaker', 'project', 'comment'].includes(type) || !id) {
     return res.status(400).json({ error: 'type and id required' });
   }
   const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
   const count = stmts.getVoteCount.get(type, id).c;
   const voted = !!stmts.hasVoted.get(type, id, voter);
   res.json({ votes: count, voted });
+});
+
+// GET /api/vote/check?type=X&ids=id1,id2,id3
+app.get('/api/vote/check', (req, res) => {
+  const { type, ids } = req.query;
+  if (!['deck', 'speaker', 'project', 'comment'].includes(type) || !ids) {
+    return res.status(400).json({ error: 'type and ids required' });
+  }
+  const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  const idList = ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, 100);
+  const result = {};
+  for (const id of idList) {
+    result[id] = {
+      votes: stmts.getVoteCount.get(type, id).c,
+      voted: !!stmts.hasVoted.get(type, id, voter),
+    };
+  }
+  res.json(result);
+});
+
+// ─── Comments API ─────────────────────────────────────────────────────────────
+
+// GET /api/decks/:id/comments — list comments (newest first) with vote counts
+app.get('/api/decks/:id/comments', (req, res) => {
+  const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  const comments = db.prepare(`
+    SELECT c.*, COALESCE(v.vote_count, 0) as votes
+    FROM comments c
+    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'comment' GROUP BY target_id) v ON c.id = v.target_id
+    WHERE c.deck_id = ?
+    ORDER BY c.created_at DESC
+  `).all(req.params.id);
+  // Attach per-user voted status
+  for (const c of comments) {
+    c.voted = !!stmts.hasVoted.get('comment', c.id, voter);
+  }
+  res.json(comments);
+});
+
+// POST /api/decks/:id/comments — add comment (requires auth)
+app.post('/api/decks/:id/comments', requireAuth, (req, res) => {
+  const { content } = req.body;
+  if (!content || !content.trim()) return res.status(400).json({ error: 'content required' });
+  const deck = stmts.getById.get(req.params.id);
+  if (!deck) return res.status(404).json({ error: 'Deck not found' });
+  const id = crypto.randomUUID();
+  db.prepare('INSERT INTO comments (id, deck_id, user_id, author_name, content) VALUES (?, ?, ?, ?, ?)').run(
+    id, req.params.id, req.user.id, req.user.name || req.user.email || 'Anonymous', content.trim()
+  );
+  res.json({ id, author_name: req.user.name || req.user.email || 'Anonymous', content: content.trim(), votes: 0, voted: false, created_at: new Date().toISOString() });
 });
 
 // GET /api/events/:id/bounties

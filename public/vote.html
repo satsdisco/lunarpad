@@ -824,7 +824,7 @@ function renderSpeakerRow(sp, rank) {
       <div class="rank-badge ${rankClass}">${rankLabel}</div>
       <div class="speaker-info">
         <div class="speaker-name">${esc(sp.name)}</div>
-        <div class="speaker-project">${esc(sp.project || sp.project_title)}</div>
+        <div class="speaker-project">${sp.deck_id ? `<a href="/deck/${esc(sp.deck_id)}" style="color:inherit;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(sp.project || sp.project_title)}</a>` : esc(sp.project || sp.project_title)}</div>
         ${desc}
         ${links ? `<div class="spk-links">${links}</div>` : ''}
       </div>
@@ -913,6 +913,7 @@ async function initAuth() {
             <span>${data.user.name || data.user.email}</span>
           </div>
           <div class="user-dropdown">
+            <a href="/">My Profile</a>
             <a href="/auth/logout">Sign out</a>
           </div>
         </div>`;
