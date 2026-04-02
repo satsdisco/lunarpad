@@ -527,6 +527,8 @@ a:hover { color: var(--accent); }
 .speaker-row .speaker-info { flex: 1; min-width: 0; }
 .speaker-row .speaker-name { font-size: 0.9rem; font-weight: 700; color: var(--text); }
 .speaker-row .speaker-project { font-size: 0.8rem; color: var(--accent); margin-top: 1px; }
+.project-link { color: var(--accent); text-decoration: none; transition: all .15s; }
+.project-link:hover { color: var(--accent-hover); text-decoration: underline; }
 .speaker-row .speaker-desc { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 .spk-links { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .spk-link {
@@ -824,7 +826,7 @@ function renderSpeakerRow(sp, rank) {
       <div class="rank-badge ${rankClass}">${rankLabel}</div>
       <div class="speaker-info">
         <div class="speaker-name">${esc(sp.name)}</div>
-        <div class="speaker-project">${sp.deck_id ? `<a href="/deck/${esc(sp.deck_id)}" style="color:inherit;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(sp.project || sp.project_title)}</a>` : esc(sp.project || sp.project_title)}</div>
+        <div class="speaker-project">${sp.deck_id ? `<a href="/deck/${esc(sp.deck_id)}" class="project-link">${esc(sp.project || sp.project_title)} →</a>` : esc(sp.project || sp.project_title)}</div>
         ${desc}
         ${links ? `<div class="spk-links">${links}</div>` : ''}
       </div>

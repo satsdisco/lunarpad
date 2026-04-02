@@ -527,6 +527,8 @@ a:hover { color: var(--accent); }
 .speaker-row .speaker-info { flex: 1; min-width: 0; }
 .speaker-row .speaker-name { font-size: 0.9rem; font-weight: 700; color: var(--text); }
 .speaker-row .speaker-project { font-size: 0.8rem; color: var(--accent); margin-top: 1px; }
+.project-link { color: var(--accent); text-decoration: none; transition: all .15s; }
+.project-link:hover { color: var(--accent-hover); text-decoration: underline; }
 .speaker-row .speaker-desc { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 .spk-links { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .spk-link {
@@ -938,11 +940,11 @@ function renderEventCard(ev) {
           <span>🗓 ${dateStr}</span>
           ${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}
         </div>
-        <div class="countdown" id="countdown-${esc(ev.id)}">
-          <div class="countdown-unit"><div class="countdown-val" id="cd-d-${esc(ev.id)}">--</div><div class="countdown-label">Days</div></div>
-          <div class="countdown-unit"><div class="countdown-val" id="cd-h-${esc(ev.id)}">--</div><div class="countdown-label">Hrs</div></div>
-          <div class="countdown-unit"><div class="countdown-val" id="cd-m-${esc(ev.id)}">--</div><div class="countdown-label">Min</div></div>
-          <div class="countdown-unit"><div class="countdown-val" id="cd-s-${esc(ev.id)}">--</div><div class="countdown-label">Sec</div></div>
+        <div class="event-countdown" id="countdown-${esc(ev.id)}">
+          <div class="countdown-chip"><div class="countdown-chip-val" id="cd-d-${esc(ev.id)}">--</div><div class="countdown-chip-label">Days</div></div>
+          <div class="countdown-chip"><div class="countdown-chip-val" id="cd-h-${esc(ev.id)}">--</div><div class="countdown-chip-label">Hrs</div></div>
+          <div class="countdown-chip"><div class="countdown-chip-val" id="cd-m-${esc(ev.id)}">--</div><div class="countdown-chip-label">Min</div></div>
+          <div class="countdown-chip"><div class="countdown-chip-val" id="cd-s-${esc(ev.id)}">--</div><div class="countdown-chip-label">Sec</div></div>
         </div>
         <div class="event-bounties" id="evbounties-${esc(ev.id)}"></div>
         <button class="btn btn-ghost btn-sm" onclick="toggleRsvp('${esc(ev.id)}')">✉️ RSVP</button>

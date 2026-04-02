@@ -527,6 +527,8 @@ a:hover { color: var(--accent); }
 .speaker-row .speaker-info { flex: 1; min-width: 0; }
 .speaker-row .speaker-name { font-size: 0.9rem; font-weight: 700; color: var(--text); }
 .speaker-row .speaker-project { font-size: 0.8rem; color: var(--accent); margin-top: 1px; }
+.project-link { color: var(--accent); text-decoration: none; transition: all .15s; }
+.project-link:hover { color: var(--accent-hover); text-decoration: underline; }
 .speaker-row .speaker-desc { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 .spk-links { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .spk-link {
@@ -644,24 +646,6 @@ a:hover { color: var(--accent); }
   font-family: var(--font-mono);
 }
 .footer::before { content: '// '; }
-
-/* ─── Comments Section ───────────────────────────────────────────────────── */
-.comments-section { margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px; }
-.comments-header { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: 16px; }
-.comments-header::before { content: '# '; color: var(--dim); }
-.comment-form { margin-bottom: 24px; }
-.comment-form textarea { width: 100%; padding: 10px 12px; background: transparent; border: 1px solid var(--border); color: var(--text); font-size: 0.85rem; font-family: var(--font); outline: none; resize: vertical; min-height: 60px; }
-.comment-form textarea:focus { border-color: var(--accent); }
-.comment-form-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
-.comment-list { display: flex; flex-direction: column; gap: 1px; }
-.comment-item { padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; gap: 12px; }
-.comment-body { flex: 1; }
-.comment-author { font-size: 0.82rem; font-weight: 600; color: var(--text); }
-.comment-time { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted2); margin-left: 8px; }
-.comment-text { font-size: 0.85rem; color: var(--text2); line-height: 1.5; margin-top: 4px; }
-.comment-vote { flex-shrink: 0; }
-.sign-in-prompt { font-size: 0.82rem; color: var(--muted2); padding: 12px 0; }
-.sign-in-prompt a { color: var(--accent); }
 
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
