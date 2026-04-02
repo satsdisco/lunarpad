@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project — DeckPad</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="logo"><span class="mark">◆</span> DeckPad</a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab">Decks</a>
+    <a href="/build" class="nav-tab active">Build in Public</a>
+    <a href="/vote" class="nav-tab">Vote</a>
+  </nav>
+  <div class="header-actions" id="authArea">
+    <a href="/upload" class="btn btn-primary">⬆ Upload Deck</a>
+    <div id="userArea"></div>
+  </div>
+</header>
+
+<div class="container viewer-page">
+  <a href="/build" class="viewer-back">Back to projects</a>
+
+  <div id="projectContent">
+    <div class="empty-state"><p>Loading...</p></div>
+  </div>
+</div>
+
+<footer class="footer">DeckPad — Your stage for HTML presentations</footer>
+
+<script>
+const projectId = window.location.pathname.split('/').pop();
+
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
+}
+
+async function loadProject() {
+  try {
+    const res = await fetch('/api/projects/' + projectId);
+    if (!res.ok) { document.getElementById('projectContent').innerHTML = '<div class="empty-state"><h3>Project not found</h3></div>'; return; }
+    const p = await res.json();
+
+    document.title = p.name + ' — DeckPad';
+
+    const tags = typeof p.tags === 'string' ? p.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const catClass = p.category ? 'cat-' + p.category : '';
+    const statusMap = { idea: 'Idea', building: 'Building', shipped: 'Shipped' };
+
+    document.getElementById('projectContent').innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div>
+          <h1 class="viewer-title">${esc(p.name)}</h1>
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:4px">by <strong style="color:var(--text)">${esc(p.builder)}</strong></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="card-tag ${catClass}" style="font-size:0.7rem">${esc(p.category || 'project')}</span>
+          <span class="card-tag" style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${statusMap[p.status] || p.status}</span>
+        </div>
+      </div>
+
+      ${p.bounty_title ? `<div style="margin-bottom:16px"><span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--btc-gold);padding:4px 12px;border:1px solid rgba(242,177,52,.2);border-radius:100px;background:rgba(242,177,52,.06)">⚡ ${esc(p.bounty_title)}</span></div>` : ''}
+
+      <div class="viewer-desc">${esc(p.description)}</div>
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+        ${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join('')}
+      </div>
+
+      <div class="viewer-actions">
+        ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="btn">⌥ Repository</a>` : ''}
+        ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="btn">↗ Live Demo</a>` : ''}
+        <button class="vote-btn" id="projVoteBtn" onclick="voteProject()">
+          <span class="arrow">▲</span>
+          <span id="projVoteCount">${p.votes || 0}</span>
+        </button>
+      </div>
+
+      <div class="comments-section">
+        <div class="comments-header">Comments</div>
+        <div id="commentFormArea"></div>
+        <div id="commentList"></div>
+      </div>
+    `;
+
+    loadComments();
+    loadVoteState();
+  } catch(e) {
+    document.getElementById('projectContent').innerHTML = '<div class="empty-state"><h3>Failed to load project</h3></div>';
+  }
+}
+
+async function loadVoteState() {
+  try {
+    const res = await fetch('/api/vote/count?type=project&id=' + projectId);
+    const data = await res.json();
+    document.getElementById('projVoteCount').textContent = data.votes;
+    if (data.voted) document.getElementById('projVoteBtn').classList.add('voted');
+  } catch {}
+}
+
+async function voteProject() {
+  try {
+    const res = await fetch('/api/vote', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({type:'project',id:projectId}) });
+    const data = await res.json();
+    document.getElementById('projVoteCount').textContent = data.votes;
+    document.getElementById('projVoteBtn').classList.toggle('voted', data.voted);
+  } catch {}
+}
+
+async function loadComments() {
+  const formArea = document.getElementById('commentFormArea');
+  const list = document.getElementById('commentList');
+  try {
+    const meRes = await fetch('/api/me');
+    const me = await meRes.json();
+    if (me.user) {
+      formArea.innerHTML = `
+        <div class="comment-form">
+          <textarea id="commentText" placeholder="Add a comment..." onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter')postComment()"></textarea>
+          <div class="comment-form-actions">
+            <button class="btn btn-primary btn-sm" onclick="postComment()">Comment</button>
+          </div>
+        </div>`;
+    } else {
+      formArea.innerHTML = '<p class="sign-in-prompt"><a href="/auth/google">Sign in</a> to comment</p>';
+    }
+
+    const res = await fetch('/api/projects/' + projectId + '/comments');
+    const comments = await res.json();
+    if (!comments.length) { list.innerHTML = '<p class="sign-in-prompt">No comments yet.</p>'; return; }
+    list.innerHTML = comments.map(c => `
+      <div class="comment-item">
+        <div class="comment-body">
+          <span class="comment-author">${esc(c.author_name)}</span>
+          <span class="comment-time">${timeAgo(c.created_at)}</span>
+          <div class="comment-text">${esc(c.content)}</div>
+        </div>
+        <button class="vote-btn btn-sm ${c.voted ? 'voted' : ''}" onclick="voteComment('${esc(c.id)}', this)">
+          <span class="arrow">▲</span>
+          <span>${c.votes || 0}</span>
+        </button>
+      </div>`).join('');
+  } catch { list.innerHTML = '<p class="sign-in-prompt">Could not load comments.</p>'; }
+}
+
+async function postComment() {
+  const text = document.getElementById('commentText').value.trim();
+  if (!text) return;
+  try {
+    const res = await fetch('/api/projects/' + projectId + '/comments', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: text })
+    });
+    if (res.ok) { document.getElementById('commentText').value = ''; loadComments(); }
+    else { const e = await res.json(); alert(e.error || 'Failed'); }
+  } catch { alert('Failed to post comment'); }
+}
+
+async function voteComment(id, btn) {
+  try {
+    const res = await fetch('/api/vote', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'comment',id}) });
+    const data = await res.json();
+    btn.classList.toggle('voted', data.voted);
+    btn.querySelector('span:last-child').textContent = data.votes;
+  } catch {}
+}
+
+loadProject();
+</script>
+<script>
+async function initAuth() {
+  try {
+    const res = await fetch('/api/me');
+    const data = await res.json();
+    const area = document.getElementById('userArea');
+    if (!area) return;
+    if (data.user) {
+      area.innerHTML = `<div class="user-menu"><div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')"><img src="${data.user.avatar || ''}" alt="" onerror="this.style.display='none'"><span>${data.user.name || data.user.email}</span></div><div class="user-dropdown"><a href="/">My Profile</a><a href="/auth/logout">Sign out</a></div></div>`;
+      document.addEventListener('click', e => { if (!e.target.closest('.user-menu')) document.querySelectorAll('.user-dropdown').forEach(d => d.classList.remove('open')); });
+    } else {
+      area.innerHTML = '<a href="/auth/google" class="sign-in-btn">Sign in with Google</a>';
+    }
+  } catch {}
+}
+initAuth();
+</script>
+</body>
+</html>

@@ -595,7 +595,7 @@ function renderProjectCards(projects) {
       (p.demo_url||p.demo) ? `<a href="${esc(p.demo_url||p.demo)}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">↗ Demo</a>` : ''
     ].filter(Boolean).join('');
     return `
-      <div class="project-card" id="proj-${esc(p.id)}">
+      <div class="project-card" id="proj-${esc(p.id)}" onclick="window.location='/project/'+this.id.replace('proj-','')" style="cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
           <div>
             <div class="project-name">${esc(p.name)}</div>
