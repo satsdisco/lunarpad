@@ -71,6 +71,7 @@
             <span class="section-title">Projects</span>
             <button class="btn btn-sm" onclick="document.getElementById('projectModal').classList.add('open')">+ Submit</button>
           </div>
+          <div class="tag-bar" id="projectTagBar"></div>
           <div class="project-grid" id="projectsGrid"></div>
         </div>
 
@@ -546,7 +547,38 @@ async function loadProjects() {
   }
 }
 
+let allProjects = [];
+let activeProjectTag = null;
+
+function renderProjectTags(projects) {
+  const tagBar = document.getElementById('projectTagBar');
+  const tagSet = new Set();
+  projects.forEach(p => {
+    if (p.category) tagSet.add(p.category);
+    if (typeof p.tags === 'string') p.tags.split(',').forEach(t => { if(t.trim()) tagSet.add(t.trim()); });
+  });
+  const tags = [...tagSet].sort();
+  tagBar.innerHTML = `<div class="tag-chip ${!activeProjectTag ? 'active' : ''}" onclick="filterProjects(null)">All</div>` +
+    tags.map(t => `<div class="tag-chip ${activeProjectTag === t ? 'active' : ''}" onclick="filterProjects('${t}')">${t}</div>`).join('');
+}
+
+function filterProjects(tag) {
+  activeProjectTag = tag;
+  const filtered = tag ? allProjects.filter(p => {
+    const ptags = typeof p.tags === 'string' ? p.tags.split(',').map(t=>t.trim()) : [];
+    return p.category === tag || ptags.includes(tag);
+  }) : allProjects;
+  renderProjectCards(filtered);
+  renderProjectTags(allProjects);
+}
+
 function renderProjects(projects) {
+  allProjects = projects;
+  renderProjectTags(projects);
+  renderProjectCards(projects);
+}
+
+function renderProjectCards(projects) {
   const grid = document.getElementById('projectsGrid');
   if (!projects.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🛠</div><h3>No projects yet</h3><p>Submit yours and build in public!</p></div>`;
@@ -577,8 +609,8 @@ function renderProjects(projects) {
         ${links ? `<div class="spk-links" style="margin-bottom:8px">${links}</div>` : ''}
         <div class="project-footer">
           <span></span>
-          <button class="project-upvote" id="proj-vote-${esc(p.id)}" onclick="voteProject('${esc(p.id)}')">
-            🔺 <span id="proj-count-${esc(p.id)}">${p.votes || 0}</span>
+          <button class="project-upvote" id="proj-vote-${esc(p.id)}" onclick="event.stopPropagation(); voteProject('${esc(p.id)}')">
+            ▲ <span id="proj-count-${esc(p.id)}">${p.votes || 0}</span>
           </button>
         </div>
       </div>`;
