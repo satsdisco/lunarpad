@@ -118,10 +118,18 @@
   // Submit
   document.getElementById('uploadForm').addEventListener('submit', async e => {
     e.preventDefault();
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      document.querySelector('.drop-zone').style.borderColor = 'var(--danger)';
+      alert('Please select an .html or .zip file first');
+      return;
+    }
 
     const title = document.getElementById('title').value.trim();
-    if (!title) { alert('Title is required'); return; }
+    if (!title) {
+      document.getElementById('title').style.borderColor = 'var(--danger)';
+      alert('Title is required');
+      return;
+    }
 
     submitBtn.disabled = true;
     submitBtn.textContent = 'Uploading...';

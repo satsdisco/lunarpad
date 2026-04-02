@@ -1383,6 +1383,12 @@ const server = app.listen(PORT, () => {
   seedPlatformData();
 });
 
+// SPA catch-all — serve index for unknown routes
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
+  res.sendFile(path.join(ROOT, 'public', 'index.html'));
+});
+
 // Handle multer errors
 app.use((err, req, res, next) => {
   if (err.code === 'LIMIT_FILE_SIZE') {

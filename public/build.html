@@ -45,12 +45,12 @@
             <span class="section-title">Upcoming Events</span>
             <button class="btn btn-sm" id="createEventBtn" style="display:none" onclick="document.getElementById('eventCreateModal').classList.add('open')">+ Create Event</button>
           </div>
-          <div class="event-grid" id="eventsGrid">
-            <div class="empty-state" style="grid-column:1/-1">
-              <div class="icon">📅</div>
-              <h3>Loading events…</h3>
-            </div>
+          <div class="event-carousel-wrap">
+            <button class="carousel-nav prev" onclick="scrollCarousel(-1)">‹</button>
+            <div class="event-carousel" id="eventsGrid"></div>
+            <button class="carousel-nav next" onclick="scrollCarousel(1)">›</button>
           </div>
+          <div class="mini-cal" id="miniCal"></div>
         </div>
 
         <div class="section-block" id="section-speakers" style="display:none">
@@ -355,6 +355,7 @@ async function loadEvents() {
     }
     grid.innerHTML = eventsData.map(ev => renderEventCard(ev)).join('');
     startCountdowns();
+    renderMiniCal();
     eventsData.forEach(ev => loadEventBounties(ev.id));
 
     // Find next demo-day for speaker section
@@ -451,6 +452,65 @@ function updateCountdowns() {
 function startCountdowns() {
   updateCountdowns();
   setInterval(updateCountdowns, 1000);
+}
+
+// ─── Carousel ───
+function scrollCarousel(dir) {
+  const c = document.getElementById('eventsGrid');
+  c.scrollBy({ left: dir * 320, behavior: 'smooth' });
+}
+
+// ─── Mini Calendar ───
+let calMonth, calYear;
+
+function renderMiniCal() {
+  const now = new Date();
+  if (!calMonth) { calMonth = now.getMonth(); calYear = now.getFullYear(); }
+  const el = document.getElementById('miniCal');
+  const first = new Date(calYear, calMonth, 1);
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  let startDay = first.getDay() - 1; if (startDay < 0) startDay = 6;
+  const monthName = first.toLocaleString('en', { month: 'long', year: 'numeric' });
+
+  // Find event dates
+  const eventDates = new Set();
+  const eventDateMap = {};
+  eventsData.forEach(ev => {
+    if (!ev.date) return;
+    const d = new Date(ev.date);
+    if (d.getMonth() === calMonth && d.getFullYear() === calYear) {
+      const day = d.getDate();
+      eventDates.add(day);
+      eventDateMap[day] = ev.id;
+    }
+  });
+
+  const todayDate = now.getDate();
+  const isCurrentMonth = now.getMonth() === calMonth && now.getFullYear() === calYear;
+
+  let days = '';
+  for (let i = 0; i < startDay; i++) days += '<div class="mini-cal-day empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cls = [];
+    if (isCurrentMonth && d === todayDate) cls.push('today');
+    if (eventDates.has(d)) cls.push('has-event');
+    const click = eventDateMap[d] ? ` onclick="window.location='/event/${eventDateMap[d]}'"` : '';
+    days += `<div class="mini-cal-day ${cls.join(' ')}"${click}>${d}</div>`;
+  }
+
+  el.innerHTML = `
+    <div class="mini-cal-header">
+      <div class="mini-cal-title">${monthName}</div>
+      <div class="mini-cal-nav">
+        <button onclick="calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderMiniCal()">‹</button>
+        <button onclick="calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderMiniCal()">›</button>
+      </div>
+    </div>
+    <div class="mini-cal-grid">
+      <div class="mini-cal-day-label">Mo</div><div class="mini-cal-day-label">Tu</div><div class="mini-cal-day-label">We</div>
+      <div class="mini-cal-day-label">Th</div><div class="mini-cal-day-label">Fr</div><div class="mini-cal-day-label">Sa</div><div class="mini-cal-day-label">Su</div>
+      ${days}
+    </div>`;
 }
 
 // ─── Speakers ─────────────────────────────────────────────────────────────

@@ -90,7 +90,7 @@
 </header>
 
 <div class="container" style="padding-top:24px;padding-bottom:64px;">
-  <a href="/build" class="viewer-back">Back to events</a>
+  <a href="javascript:history.back()" class="viewer-back">Back</a>
   <div id="eventContent"><div class="empty-state"><p>Loading...</p></div></div>
 </div>
 
@@ -132,6 +132,7 @@ async function loadEvent() {
           <div class="event-hero-actions">
             <button class="btn" onclick="document.getElementById('rsvpSection').style.display=document.getElementById('rsvpSection').style.display==='none'?'block':'none'">RSVP</button>
             <button class="btn btn-primary" onclick="document.getElementById('signupSection').style.display=document.getElementById('signupSection').style.display==='none'?'block':'none'">Present at this Event</button>
+            <a class="add-to-cal" id="addToCalBtn" style="display:none">📅 Add to Calendar</a>
           </div>
           <div class="event-hero-countdown">
             <div class="cd-unit"><div class="cd-val" id="cd-d">--</div><div class="cd-label">Days</div></div>
@@ -190,6 +191,17 @@ async function loadEvent() {
 
     startCountdown();
     loadDecksDropdown();
+
+    // Add to Calendar (Google Calendar link)
+    if (ev.date) {
+      const calBtn = document.getElementById('addToCalBtn');
+      const start = ev.date.replace(/-/g, '') + (ev.time ? 'T' + ev.time.replace(/:/g, '') + '00' : '');
+      const end = ev.date.replace(/-/g, '') + (ev.time ? 'T' + String(parseInt(ev.time) + 2).padStart(2,'0') + ev.time.slice(2).replace(/:/g, '') + '00' : '');
+      const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(ev.name)}&dates=${start}/${end}&details=${encodeURIComponent(ev.description || '')}&location=${encodeURIComponent(ev.location || '')}`;
+      calBtn.href = gcalUrl;
+      calBtn.target = '_blank';
+      calBtn.style.display = '';
+    }
   } catch(e) {
     document.getElementById('eventContent').innerHTML = '<div class="empty-state"><h3>Event not found</h3></div>';
   }
