@@ -187,7 +187,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieSession({
   name: 'deckpad_session',
   keys: [process.env.SESSION_SECRET || 'dev-secret-change-me'],
-  maxAge: 90 * 24 * 60 * 60 * 1000, // 90 days
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   sameSite: 'lax',
   secure: process.env.NODE_ENV === 'production',
 }));
