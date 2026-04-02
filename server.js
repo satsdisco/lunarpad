@@ -191,7 +191,7 @@ app.use(cookieSession({
   keys: [process.env.SESSION_SECRET || 'dev-secret-change-me'],
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   sameSite: 'lax',
-  secure: process.env.NODE_ENV === 'production',
+  secure: false, // handled by Cloudflare tunnel
 }));
 
 // Rolling sessions — refresh cookie on each request
