@@ -29,6 +29,29 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="editProjectModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('open')">&times;</button>
+    <div class="modal-title">Edit Project</div>
+    <div class="form-group"><label>Name</label><input type="text" id="editProjName"></div>
+    <div class="form-group"><label>Description</label><textarea id="editProjDesc"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Status</label><select id="editProjStatus"><option value="idea">Idea</option><option value="building">Building</option><option value="shipped">Shipped</option></select></div>
+      <div class="form-group"><label>Category</label><select id="editProjCategory"><option value="">None</option><option value="tool">Tool</option><option value="game">Game</option><option value="fun">Fun</option><option value="productivity">Productivity</option><option value="finance">Finance</option><option value="social">Social</option><option value="privacy">Privacy</option><option value="education">Education</option></select></div>
+    </div>
+    <div class="form-group"><label>Tags</label><input type="text" id="editProjTags"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Repo URL</label><input type="url" id="editProjRepo"></div>
+      <div class="form-group"><label>Demo URL</label><input type="url" id="editProjDemo"></div>
+    </div>
+    <div class="form-group"><label>Attach Deck</label><select id="editProjDeck"><option value="">None</option></select></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProject()">Save</button>
+    </div>
+  </div>
+</div>
+
 <footer class="footer">LunarPad — Build. Ship. Earn sats.</footer>
 
 <script>
@@ -51,6 +74,7 @@ async function loadProject() {
     const res = await fetch('/api/projects/' + projectId);
     if (!res.ok) { document.getElementById('projectContent').innerHTML = '<div class="empty-state"><h3>Project not found</h3></div>'; return; }
     const p = await res.json();
+    currentProject = p;
 
     document.title = p.name + ' — LunarPad';
 
@@ -82,6 +106,7 @@ async function loadProject() {
         ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="btn">⌥ Repository</a>` : ''}
         ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="btn">↗ Live Demo</a>` : ''}
         ${p.deck_id ? `<a href="/deck/${esc(p.deck_id)}" class="btn">📽 Presentation</a>` : ''}
+        <button class="btn" id="editProjectBtn" style="display:none" onclick="openEditProject()">Edit</button>
         <button class="vote-btn" id="projVoteBtn" onclick="voteProject()">
           <span class="arrow">▲</span>
           <span id="projVoteCount">${p.votes || 0}</span>
@@ -97,6 +122,7 @@ async function loadProject() {
 
     loadComments();
     loadVoteState();
+    checkOwnership();
   } catch(e) {
     document.getElementById('projectContent').innerHTML = '<div class="empty-state"><h3>Failed to load project</h3></div>';
   }
@@ -176,6 +202,54 @@ async function voteComment(id, btn) {
     btn.classList.toggle('voted', data.voted);
     btn.querySelector('span:last-child').textContent = data.votes;
   } catch {}
+}
+
+let currentProject = null;
+
+async function checkOwnership() {
+  try {
+    const r = await fetch('/api/me');
+    const me = await r.json();
+    if (me.user && currentProject && (currentProject.user_id === me.user.id || !currentProject.user_id)) {
+      document.getElementById('editProjectBtn').style.display = '';
+    }
+  } catch {}
+}
+
+function openEditProject() {
+  const p = currentProject;
+  if (!p) return;
+  document.getElementById('editProjName').value = p.name || '';
+  document.getElementById('editProjDesc').value = p.description || '';
+  document.getElementById('editProjStatus').value = p.status || 'building';
+  document.getElementById('editProjCategory').value = p.category || '';
+  document.getElementById('editProjTags').value = p.tags || '';
+  document.getElementById('editProjRepo').value = p.repo_url || '';
+  document.getElementById('editProjDemo').value = p.demo_url || '';
+  document.getElementById('editProjDeck').value = p.deck_id || '';
+  // Load decks dropdown
+  fetch('/api/decks?limit=48').then(r=>r.json()).then(data=>{
+    const sel = document.getElementById('editProjDeck');
+    sel.innerHTML = '<option value="">None</option>';
+    (data.decks||[]).forEach(d => { const o=document.createElement('option'); o.value=d.id; o.textContent=d.title; if(d.id===p.deck_id)o.selected=true; sel.appendChild(o); });
+  });
+  document.getElementById('editProjectModal').classList.add('open');
+}
+
+async function saveProject() {
+  const body = {
+    name: document.getElementById('editProjName').value.trim(),
+    description: document.getElementById('editProjDesc').value.trim(),
+    status: document.getElementById('editProjStatus').value,
+    category: document.getElementById('editProjCategory').value,
+    tags: document.getElementById('editProjTags').value.trim(),
+    repo_url: document.getElementById('editProjRepo').value.trim(),
+    demo_url: document.getElementById('editProjDemo').value.trim(),
+    deck_id: document.getElementById('editProjDeck').value || null,
+  };
+  const r = await fetch('/api/projects/' + projectId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (r.ok) { document.getElementById('editProjectModal').classList.remove('open'); loadProject(); }
+  else { const e = await r.json().catch(()=>({})); alert(e.error || 'Save failed'); }
 }
 
 loadProject();

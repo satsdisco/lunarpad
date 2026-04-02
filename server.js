@@ -706,6 +706,41 @@ app.post('/api/projects', requireAuth, (req, res) => {
   res.json({ id });
 });
 
+// PUT /api/projects/:id — edit project (owner only)
+app.put('/api/projects/:id', requireAuth, (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Not found' });
+  if (project.user_id && req.user?.id !== project.user_id) return res.status(403).json({ error: 'Not your project' });
+  const { name, description, status, tags, category, repo_url, demo_url, deck_id } = req.body;
+  db.prepare(`UPDATE projects SET
+    name = COALESCE(?, name), description = COALESCE(?, description),
+    status = COALESCE(?, status), tags = COALESCE(?, tags),
+    category = COALESCE(?, category), repo_url = ?, demo_url = ?, deck_id = ?
+    WHERE id = ?`).run(
+    name || null, description || null, status || null,
+    Array.isArray(tags) ? tags.join(',') : (tags || null),
+    category || null, repo_url || null, demo_url || null, deck_id || null,
+    req.params.id
+  );
+  res.json({ ok: true });
+});
+
+// PUT /api/decks/:id — edit deck (owner only)
+app.put('/api/decks/:id', requireAuth, (req, res) => {
+  const deck = db.prepare('SELECT * FROM decks WHERE id = ?').get(req.params.id);
+  if (!deck) return res.status(404).json({ error: 'Not found' });
+  if (deck.uploaded_by && req.user?.id !== deck.uploaded_by) return res.status(403).json({ error: 'Not your deck' });
+  const { title, description, tags, github_url, demo_url } = req.body;
+  db.prepare(`UPDATE decks SET
+    title = COALESCE(?, title), description = COALESCE(?, description),
+    tags = COALESCE(?, tags), github_url = ?, demo_url = ?
+    WHERE id = ?`).run(
+    title || null, description || null, tags || null,
+    github_url || null, demo_url || null, req.params.id
+  );
+  res.json({ ok: true });
+});
+
 // GET /api/projects/:id — single project with bounty info
 app.get('/api/projects/:id', (req, res) => {
   const row = db.prepare(`
