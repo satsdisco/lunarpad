@@ -73,7 +73,7 @@ a:hover { color: var(--accent); }
   display: flex; align-items: center; gap: 0;
 }
 .logo .mark { color: var(--accent); }
-.logo .logo-slash { color: var(--muted2); font-weight: 400; }
+.logo .logo-slash { color: var(--text); font-weight: 400; }
 .logo .logo-accent { color: var(--btc-gold); }
 .logo { letter-spacing: 0; }
 
@@ -869,7 +869,7 @@ a:hover { color: var(--accent); }
 .cal-cell {
   background: var(--bg); min-height: 48px;
   padding: 4px 6px; display: flex; flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   transition: background .15s;
 }
 .cal-cell:not(.empty):hover { background: var(--glass2); }
@@ -897,7 +897,8 @@ a:hover { color: var(--accent); }
 /* Event content inside cells */
 .cal-cell-content {
   display: flex; align-items: center; justify-content: center;
-  flex: 1; min-height: 0;
+  flex: 1; min-height: 0; width: 100%;
+  margin-top: -20px;
 }
 
 /* Event type icons */

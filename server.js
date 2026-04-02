@@ -1400,7 +1400,12 @@ function seedPlatformData() {
 
   console.log('[seed] Inserting platform data...');
 
-  // Events — always the second Friday of every month
+  // Events
+  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    crypto.randomUUID(), 'LR Hackathon #1',
+    'Our first hackathon. Build something with AI in one day. Solo or team. Ship by end of day to qualify.',
+    'hackathon', '2026-04-03', '09:00', 'Dubai Office + Remote'
+  );
   const eventId = crypto.randomUUID();
   db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
     eventId, 'LR Demo Day #1',
@@ -1433,6 +1438,7 @@ function seedPlatformData() {
     { title: 'Build a Voting System for Presentations', description: 'Add upvote/downvote capabilities to the DeckPad presentation gallery so the community can surface the best content.', sats_amount: 10000, status: 'completed', tags: 'deckpad,voting,frontend', event_id: null },
     { title: 'Best Demo at LR Demo Day #1', description: 'Best overall demo at the first LR Demo Day. Judged by audience vote. Ship something real.', sats_amount: 50000, status: 'open', tags: 'deckpad,platform,fullstack', event_id: eventId },
     { title: 'LNURL-Auth Integration', description: 'Integrate LNURL-Auth so builders can log in with their Lightning wallet — no email, no password, just a QR code scan.', sats_amount: 25000, status: 'open', tags: 'lightning,auth,bitcoin', event_id: null },
+    { title: 'Automating the Trading Engine', description: 'Build automation for the banking house trading engine. Connect LPs, implement smart order routing, and enable automated execution across OTC desks. The team that ships a working prototype wins 1 BTC.', sats_amount: 100000000, status: 'open', tags: 'trading,automation,execution,bitcoin', event_id: null },
   ];
   for (const b of bounties) {
     db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, status, tags, event_id) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
