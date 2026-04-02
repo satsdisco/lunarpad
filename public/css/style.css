@@ -755,6 +755,81 @@ a:hover { color: var(--accent); }
 }
 .sign-in-prompt a { color: var(--accent); }
 
+/* ─── Event Carousel ───────────────────────────────────────────────────────── */
+.event-carousel-wrap {
+  position: relative; margin-bottom: 24px;
+}
+.event-carousel {
+  display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 4px 0 12px; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.event-carousel::-webkit-scrollbar { display: none; }
+.event-carousel .event-card {
+  min-width: 300px; max-width: 340px; flex-shrink: 0;
+  scroll-snap-align: start;
+}
+.carousel-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(12,14,20,.85); border: 1px solid var(--border);
+  border-radius: 50%; width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--muted); font-size: 1rem;
+  backdrop-filter: blur(8px); transition: all .15s; z-index: 2;
+}
+.carousel-nav:hover { border-color: var(--accent); color: var(--accent); }
+.carousel-nav.prev { left: -12px; }
+.carousel-nav.next { right: -12px; }
+
+/* Mini Calendar */
+.mini-cal { margin-bottom: 24px; }
+.mini-cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.mini-cal-title {
+  font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; color: var(--text);
+}
+.mini-cal-nav {
+  display: flex; gap: 4px;
+}
+.mini-cal-nav button {
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: var(--radius); width: 28px; height: 28px;
+  color: var(--muted); cursor: pointer; font-size: 0.8rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; font-family: var(--font);
+}
+.mini-cal-nav button:hover { border-color: var(--accent); color: var(--accent); }
+.mini-cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+  text-align: center;
+}
+.mini-cal-day-label {
+  font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700;
+  color: var(--muted2); padding: 4px 0; text-transform: uppercase;
+}
+.mini-cal-day {
+  font-size: 0.75rem; padding: 6px 0; border-radius: var(--radius);
+  color: var(--muted2); transition: all .15s;
+}
+.mini-cal-day.today { color: var(--text); font-weight: 700; }
+.mini-cal-day.has-event {
+  color: var(--accent); font-weight: 700;
+  background: var(--accent-dim); cursor: pointer;
+}
+.mini-cal-day.has-event:hover { background: rgba(57,217,138,.15); }
+.mini-cal-day.empty { visibility: hidden; }
+
+.add-to-cal {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 4px 10px; cursor: pointer; transition: all .15s;
+  background: none; text-decoration: none;
+}
+.add-to-cal:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ─── Modals ──────────────────────────────────────────────────────────────── */
 .modal-overlay {
   display: none; position: fixed; inset: 0; z-index: 500;
