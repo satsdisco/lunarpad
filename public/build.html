@@ -199,6 +199,14 @@
   </div>
 </div>
 
+<!-- Bounty Detail Modal -->
+<div class="modal-overlay" id="bountyModal">
+  <div class="modal-content" style="max-width:560px">
+    <button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('open')">&times;</button>
+    <div id="bountyModalBody"></div>
+  </div>
+</div>
+
 <footer class="footer">DeckPad — Your stage for HTML presentations</footer>
 
 <script>
@@ -238,21 +246,15 @@ async function loadBounties() {
       const statusClass = { open: 'open', claimed: 'claimed', completed: 'completed' }[b.status] || 'open';
       const statusLabel = { open: 'Open', claimed: 'Claimed', completed: 'Completed' }[b.status] || b.status;
       const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
-      const deadline = b.deadline ? `<span class="bounty-deadline">⏰ Deadline: ${esc(new Date(b.deadline).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>` : '';
+      const deadline = b.deadline ? `<span class="bounty-deadline">Deadline: ${esc(new Date(b.deadline).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>` : '';
       return `
-        <div class="bounty-card">
+        <div class="bounty-card" onclick="expandBounty('${esc(b.id)}')" style="cursor:pointer">
           <div class="bounty-header">
             <div class="bounty-title">${esc(b.title)}</div>
             <span class="bounty-status ${statusClass}">${statusLabel}</span>
           </div>
-          <div class="bounty-desc">${esc(b.description)}</div>
-          <div>
-            <div class="bounty-sats">⚡ ${Number(b.sats_amount || 0).toLocaleString()} sats</div>
-          </div>
-          ${tags ? `<div class="card-tags">${tags}</div>` : ''}
-          <div class="bounty-footer">
-            ${deadline}
-          </div>
+          <div class="bounty-sats">⚡ ${Number(b.sats_amount || 0).toLocaleString()} sats</div>
+          ${tags ? `<div class="card-tags" style="margin-top:8px">${tags}</div>` : ''}
         </div>`;
     }).join('');
   } catch {
@@ -591,6 +593,55 @@ async function submitProject() {
 
 async function voteProject(id) {
   toggleVote('project', id, document.getElementById('proj-vote-' + id), 'proj-count-' + id);
+}
+
+// ─── Bounty Detail ────────────────────────────────────────────────────────
+async function expandBounty(id) {
+  try {
+    const res = await fetch('/api/bounties/' + id);
+    const b = await res.json();
+    const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const statusClass = { open: 'open', claimed: 'claimed', completed: 'completed' }[b.status] || 'open';
+    const statusLabel = { open: 'Open', claimed: 'Claimed', completed: 'Completed' }[b.status] || b.status;
+    const participants = b.participants || [];
+    let meRes = await fetch('/api/me');
+    let me = await meRes.json();
+    let alreadyJoined = me.user && participants.some(p => p.user_name === me.user.name);
+    const modal = document.getElementById('bountyModal');
+    document.getElementById('bountyModalBody').innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+        <div style="font-size:1.1rem;font-weight:700;color:var(--text);flex:1">${esc(b.title)}</div>
+        <span class="bounty-status ${statusClass}" style="margin-left:12px">${statusLabel}</span>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:1.3rem;font-weight:800;color:var(--btc-gold);margin-bottom:16px">&#9889; ${Number(b.sats_amount || 0).toLocaleString()} sats</div>
+      <div style="font-size:0.88rem;color:var(--text2);line-height:1.6;padding:16px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px">${esc(b.description)}</div>
+      ${tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">' + tags.map(t => '<span class="card-tag">' + esc(t) + '</span>').join('') + '</div>' : ''}
+      <div style="padding-top:16px;border-top:1px solid var(--border)">
+        <div style="font-family:var(--font-mono);font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:12px"># Participants (${participants.length})</div>
+        ${participants.length ? participants.map(p => '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:0.85rem;color:var(--text)">' + esc(p.user_name) + '</span></div>').join('') : '<div style="font-size:0.82rem;color:var(--muted2);padding:8px 0">No participants yet</div>'}
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;align-items:center">
+        ${b.status === 'open' && !alreadyJoined ? '<button class="btn btn-primary" onclick="joinBounty(\'' + esc(b.id) + '\')">Join Bounty</button>' : ''}
+        ${alreadyJoined ? '<button class="btn btn-danger" onclick="leaveBounty(\'' + esc(b.id) + '\')">Leave</button><span style="font-size:0.8rem;color:var(--accent)">&#10003; Participating</span>' : ''}
+        ${b.status !== 'open' ? '<span style="font-size:0.8rem;color:var(--muted2)">Bounty ' + b.status + '</span>' : ''}
+      </div>`;
+    modal.classList.add('open');
+  } catch(e) { console.error('Failed to load bounty:', e); }
+}
+
+async function joinBounty(id) {
+  try {
+    const res = await fetch('/api/bounties/' + id + '/join', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    if (res.ok) expandBounty(id);
+    else { const d = await res.json(); alert(d.error || 'Could not join'); }
+  } catch { alert('Failed to join bounty'); }
+}
+
+async function leaveBounty(id) {
+  try {
+    const res = await fetch('/api/bounties/' + id + '/leave', { method: 'DELETE' });
+    if (res.ok) expandBounty(id);
+  } catch { alert('Failed to leave bounty'); }
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────

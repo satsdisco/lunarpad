@@ -89,6 +89,15 @@ db.exec(`
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS bounty_participants (
+    id          TEXT PRIMARY KEY,
+    bounty_id   TEXT NOT NULL,
+    user_id     TEXT,
+    user_name   TEXT NOT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (bounty_id) REFERENCES bounties(id)
+  );
+
   CREATE TABLE IF NOT EXISTS events (
     id           TEXT PRIMARY KEY,
     name         TEXT NOT NULL,
@@ -505,7 +514,32 @@ app.post('/api/bounties', requireAuth, (req, res) => {
 app.get('/api/bounties/:id', (req, res) => {
   const row = db.prepare('SELECT * FROM bounties WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
+  row.participants = db.prepare('SELECT id, user_name, created_at FROM bounty_participants WHERE bounty_id = ? ORDER BY created_at ASC').all(req.params.id);
   res.json(row);
+});
+
+// Join a bounty
+app.post('/api/bounties/:id/join', requireAuth, (req, res) => {
+  const bounty = db.prepare('SELECT * FROM bounties WHERE id = ?').get(req.params.id);
+  if (!bounty) return res.status(404).json({ error: 'Not found' });
+  const userId = req.user?.id || null;
+  const userName = req.user?.name || req.body.name || 'Anonymous';
+  // Check if already joined
+  const existing = db.prepare('SELECT id FROM bounty_participants WHERE bounty_id = ? AND (user_id = ? OR user_name = ?)').get(req.params.id, userId, userName);
+  if (existing) return res.status(409).json({ error: 'Already participating' });
+  const id = require('crypto').randomUUID();
+  db.prepare('INSERT INTO bounty_participants (id, bounty_id, user_id, user_name) VALUES (?, ?, ?, ?)').run(id, req.params.id, userId, userName);
+  const participants = db.prepare('SELECT id, user_name, created_at FROM bounty_participants WHERE bounty_id = ? ORDER BY created_at ASC').all(req.params.id);
+  res.json({ ok: true, participants });
+});
+
+// Leave a bounty
+app.delete('/api/bounties/:id/leave', requireAuth, (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Login required' });
+  db.prepare('DELETE FROM bounty_participants WHERE bounty_id = ? AND user_id = ?').run(req.params.id, userId);
+  const participants = db.prepare('SELECT id, user_name, created_at FROM bounty_participants WHERE bounty_id = ? ORDER BY created_at ASC').all(req.params.id);
+  res.json({ ok: true, participants });
 });
 
 // ─── Events API ───────────────────────────────────────────────────────────────
