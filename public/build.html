@@ -755,6 +755,35 @@ a:hover { color: var(--accent); }
   .event-card { flex-direction: column; gap: 10px; }
   .rsvp-form { flex-direction: column; }
 }
+
+/* Modals */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,.65); backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  justify-content: center; align-items: flex-start;
+  padding: 80px 20px; overflow-y: auto;
+}
+.modal-overlay.open { display: flex; }
+.modal-content {
+  background: #12151e; border: 1px solid rgba(255,255,255,.1);
+  border-radius: 14px; padding: 28px 32px; max-width: 520px; width: 100%;
+  position: relative; box-shadow: 0 24px 80px rgba(0,0,0,.5);
+}
+.modal-close {
+  position: absolute; top: 12px; right: 16px;
+  background: none; border: none; color: var(--muted); font-size: 1.4rem;
+  cursor: pointer; font-family: var(--font); line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+.modal-title {
+  font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 20px;
+}
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+@media (max-width: 768px) {
+  .modal-overlay { padding: 40px 16px; }
+  .modal-content { padding: 20px; }
+}
 </style>
 </head>
 <body>
@@ -777,7 +806,7 @@ a:hover { color: var(--accent); }
   <div class="container">
     <div class="section-header">
       <div class="section-header-text">
-        <h2>⚡ Active Bounties</h2>
+        <h2>Active Bounties</h2>
         <p>Contribute to open tasks and earn sats</p>
       </div>
     </div>
@@ -795,7 +824,7 @@ a:hover { color: var(--accent); }
   <div class="container">
     <div class="section-header">
       <div class="section-header-text">
-        <h2>📅 Upcoming Events</h2>
+        <h2>Upcoming Events</h2>
         <p>Demos, workshops, and community meetups</p>
       </div>
     </div>
@@ -813,7 +842,7 @@ a:hover { color: var(--accent); }
   <div class="container">
     <div class="section-header">
       <div class="section-header-text">
-        <h2>🎤 Sign Up to Present</h2>
+        <h2>Sign Up to Present</h2>
         <p>Claim a slot at the next demo day</p>
       </div>
     </div>
@@ -822,8 +851,17 @@ a:hover { color: var(--accent); }
 
     <div class="speaker-list" id="speakerList"></div>
 
-    <div class="speaker-signup-form">
-      <h3>Add yourself to the lineup</h3>
+    <div style="text-align:center;padding:16px 0;">
+      <button class="btn btn-primary" onclick="document.getElementById('speakerModal').classList.add('open')">+ Sign Up to Present</button>
+    </div>
+  </div>
+</div>
+
+<!-- Speaker Signup Modal -->
+<div class="modal-overlay" id="speakerModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('open')">&times;</button>
+    <div class="modal-title">Sign Up to Present</div>
       <div class="form-row">
         <div class="form-group">
           <label>Your Name</label>
@@ -864,10 +902,10 @@ a:hover { color: var(--accent); }
           </select>
         </div>
       </div>
-      <div class="form-submit-row">
-        <button class="btn btn-primary" onclick="submitSpeaker()">🎤 Join the Lineup</button>
+      <div class="modal-actions">
+        <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitSpeaker(); this.closest('.modal-overlay').classList.remove('open')">Submit</button>
       </div>
-    </div>
   </div>
 </div>
 
@@ -876,14 +914,16 @@ a:hover { color: var(--accent); }
   <div class="container">
     <div class="section-header">
       <div class="section-header-text">
-        <h2>🛠 Projects Being Built in Public</h2>
+        <h2>Projects Being Built in Public</h2>
         <p>Follow along as community members ship in the open</p>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="toggleProjectForm()">+ Submit Project</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('projectModal').classList.add('open')">+ Submit Project</button>
     </div>
 
-    <div class="inline-form-wrap" id="projectFormWrap">
-      <div class="inline-form-title">Tell us about your project</div>
+    <div class="modal-overlay" id="projectModal">
+    <div class="modal-content">
+    <button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('open')">&times;</button>
+    <div class="modal-title">Submit a Project</div>
       <div class="form-row">
         <div class="form-group">
           <label>Project Name</label>
@@ -922,10 +962,11 @@ a:hover { color: var(--accent); }
           <input type="url" id="projDemo" placeholder="https://…">
         </div>
       </div>
-      <div class="form-submit-row">
-        <button class="btn btn-ghost btn-sm" onclick="toggleProjectForm()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitProject()">🛠 Submit Project</button>
+      <div class="modal-actions">
+        <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitProject(); this.closest('.modal-overlay').classList.remove('open')">Submit</button>
       </div>
+    </div>
     </div>
 
     <div class="projects-grid" id="projectsGrid">
