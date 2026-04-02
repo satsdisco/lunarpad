@@ -187,8 +187,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieSession({
   name: 'deckpad_session',
   keys: [process.env.SESSION_SECRET || 'dev-secret-change-me'],
-  maxAge: 30 * 24 * 60 * 60 * 1000,
+  maxAge: 90 * 24 * 60 * 60 * 1000, // 90 days
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
 }));
+
+// Rolling sessions — refresh cookie on each request
+app.use((req, res, next) => {
+  if (req.session) req.session.nowInMinutes = Math.floor(Date.now() / 60000);
+  next();
+});
 
 app.use((req, res, next) => {
   if (req.session && req.session.userId) {

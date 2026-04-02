@@ -4,231 +4,48 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LunarPad</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'JetBrains Mono', monospace;
-    background: #0c0e14;
-    color: #c0c0c0;
-    line-height: 1.7;
-    padding: 3rem 2.5rem;
-    max-width: 720px;
-    margin: 0 auto;
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
+  .landing { max-width: 480px; margin: 0 auto; padding: 80px 24px; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+  .landing-logo { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 800; color: var(--text); margin-bottom: 24px; }
+  .landing-logo .slash { color: var(--text); font-weight: 400; margin: 0 -1px; }
+  .landing-logo .accent { color: var(--btc-gold); }
+  .landing-desc { font-size: 0.9rem; color: var(--muted); line-height: 1.7; margin-bottom: 32px; }
+  .landing-features { list-style: none; margin-bottom: 40px; }
+  .landing-features li { font-size: 0.82rem; color: var(--muted); padding: 6px 0; }
+  .landing-features li::before { content: '→ '; color: var(--accent); font-family: var(--font-mono); }
+  .landing-features li strong { color: var(--text2); }
+  .landing-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 28px; font-size: 0.85rem; font-weight: 600;
+    color: #fff; background: var(--accent);
+    border: none; border-radius: var(--radius); cursor: pointer;
+    transition: all .2s; text-decoration: none;
+    font-family: var(--font);
   }
-
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    opacity: 0.03;
-    pointer-events: none;
-    z-index: 999;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-size: 128px 128px;
-  }
-
-  ::selection { background: #39d98a; color: #fff; }
-
-  a { color: #e0e0e0; text-decoration: none; }
-  a:hover { color: #39d98a; }
-
-  .accent { color: #f7931a; }
-
-  header { padding: 5rem 0 2rem; }
-
-  h1 {
-    font-size: 3.2rem;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-    color: #fff;
-    line-height: 1;
-    margin-bottom: 1rem;
-  }
-
-  .tagline {
-    color: #666;
-    font-size: 0.85rem;
-  }
-  .tagline::before {
-    content: '> ';
-    color: #39d98a;
-  }
-
-  .divider {
-    color: #1a1a1a;
-    font-size: 0.7rem;
-    margin: 2.5rem 0;
-    overflow: hidden;
-    white-space: nowrap;
-  }
-
-  h2 {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-    color: #39d98a;
-    margin-bottom: 1.2rem;
-  }
-  h2::before { content: '# '; color: #3a4050; }
-
-  .desc-block {
-    padding-left: 1rem;
-    border-left: 2px solid #1a1a1a;
-  }
-  .desc {
-    font-size: 0.85rem;
-    margin-bottom: 0.5rem;
-    color: #888;
-  }
-  .desc strong { color: #e0e0e0; font-weight: 700; }
-  .desc .hl { color: #e0e0e0; }
-
-  ul { list-style: none; }
-  ul li {
-    font-size: 0.85rem;
-    margin-bottom: 0.7rem;
-    color: #888;
-  }
-  ul li::before {
-    content: '→ ';
-    color: #333;
-  }
-  ul li strong { color: #e0e0e0; font-weight: 700; }
-
-  .login-section {
-    padding: 2rem 0;
-  }
-
-  .login-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.82rem;
-    color: #fff;
-    background: #39d98a;
-    border: 1px solid #39d98a;
-    border-radius: 10px;
-    padding: 0.8rem 2.2rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-decoration: none;
-    font-weight: 700;
-    letter-spacing: 0;
-  }
-  .login-btn:hover {
-    background: #57e09e;
-    border-color: #57e09e;
-    color: #fff;
-    transform: translateY(-1px);
-  }
-  .login-btn svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .login-hint {
-    font-size: 0.7rem;
-    color: #333;
-    margin-top: 1rem;
-  }
-  .login-hint::before { content: '// '; }
-
-  .status {
-    display: inline-block;
-    font-size: 0.65rem;
-    color: #333;
-    border: 1px solid #1a1a1a;
-    padding: 0.3rem 0.8rem;
-    margin-top: 1.5rem;
-  }
-  .status .dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #3dd68c;
-    margin-right: 6px;
-    vertical-align: middle;
-  }
-
-  footer {
-    padding: 4rem 0 2rem;
-    font-size: 0.65rem;
-    color: #222;
-  }
-  footer::before { content: '// '; }
-  footer a { color: #333; }
-  footer a:hover { color: #39d98a; }
-
-  @media (max-width: 480px) {
-    body { padding: 1.5rem; }
-    h1 { font-size: 2.2rem; }
-    header { padding: 3rem 0 1.5rem; }
-  }
+  .landing-btn:hover { background: var(--accent-hover); color: #fff; transform: translateY(-1px); }
+  .landing-btn svg { width: 18px; height: 18px; }
+  .landing-footer { margin-top: 48px; font-family: var(--font-mono); font-size: 0.65rem; color: var(--dim); }
+  .landing-footer a { color: var(--muted2); }
+  .landing-footer a:hover { color: var(--accent); }
+  @media (max-width: 480px) { .landing { padding: 40px 20px; } .landing-logo { font-size: 1.3rem; } }
 </style>
 </head>
 <body>
-
-  <header>
-    <h1>LunarPad</h1>
-    <div class="tagline">present. build. vote. — html presentations for teams.</div>
-  </header>
-
-  <div class="divider">────────────────────────────────────────────────────────────────</div>
-
-  <section>
-    <h2>What</h2>
-    <div class="desc-block">
-      <div class="desc">A platform for <strong>HTML presentations</strong>. Upload any deck — <span class="hl">reveal.js</span>, <span class="hl">Slidev</span>, <span class="hl">Marp</span>, or raw HTML — and share it with your team.</div>
-      <div class="desc">Built for <strong>hackathons</strong>, <strong>demo days</strong>, and teams that build in public.</div>
-    </div>
-  </section>
-
-  <div class="divider">────────────────────────────────────────────────────────────────</div>
-
-  <section>
-    <h2>Features</h2>
-    <ul>
-      <li><strong>Upload</strong> — drag & drop .html or .zip. auto-thumbnails. sandboxed viewer.</li>
-      <li><strong>Present</strong> — fullscreen mode. embed codes. shareable links.</li>
-      <li><strong>Build in Public</strong> — bounties, project showcase, speaker signups.</li>
-      <li><strong>Demo Days</strong> — create events, manage lineups, live voting.</li>
-      <li><strong>Vote</strong> — audience upvotes. leaderboards. prize pools.</li>
-    </ul>
-  </section>
-
-  <div class="divider">────────────────────────────────────────────────────────────────</div>
-
-  <section class="login-section">
-    <h2>Enter</h2>
-    <a href="/auth/google" class="login-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-      sign in with google
-    </a>
-    <div class="login-hint">workspace accounts supported. your decks stay private.</div>
-  </section>
-
-  <div class="divider">────────────────────────────────────────────────────────────────</div>
-
-  <section>
-    <div class="status"><span class="dot"></span>operational — v1.0</div>
-  </section>
-
-  <footer>
-    <a href="https://github.com/satsdisco/LunarPad">source</a> · open source · built by <a href="https://satsdisco.com">satsdisco</a>
-  </footer>
-
-<script>
-  // If already logged in, redirect to gallery
-  fetch('/api/me').then(r => r.json()).then(d => {
-    if (d.user) window.location.href = '/';
-  }).catch(() => {});
-</script>
+<div class="landing">
+  <div class="landing-logo">Lunar<span class="slash">\</span><span class="accent">Pad</span></div>
+  <div class="landing-desc">Build. Ship. Earn sats.<br>A platform for presentations, projects, and demo days.</div>
+  <ul class="landing-features">
+    <li><strong>Present</strong> — upload HTML decks, share with your team</li>
+    <li><strong>Build</strong> — showcase projects, join bounties, compete</li>
+    <li><strong>Vote</strong> — upvote the best builds at demo days</li>
+  </ul>
+  <a href="/auth/google" class="landing-btn">
+    <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+    Sign in with Google
+  </a>
+  <div class="landing-footer"><a href="https://github.com/satsdisco/deckpad">source</a> · open source</div>
+</div>
+<script>fetch('/api/me').then(r=>r.json()).then(d=>{if(d.user)window.location.href='/';}).catch(()=>{});</script>
 </body>
 </html>
