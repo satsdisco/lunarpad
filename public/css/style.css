@@ -13,10 +13,10 @@
   --muted: #8b93a3;
   --muted2: #5c6478;
   --dim: #3a4050;
-  --accent: #6c9eff;
-  --accent-hover: #8bb4ff;
-  --accent-dim: rgba(108,158,255,.10);
-  --accent-glow: rgba(108,158,255,.06);
+  --accent: #4ae3b5;
+  --accent-hover: #6aedc8;
+  --accent-dim: rgba(74,227,181,.10);
+  --accent-glow: rgba(74,227,181,.06);
   --danger: #e5484d;
   --success: #3dd68c;
   --radius: 10px;
@@ -374,11 +374,26 @@ a:hover { color: var(--accent); }
 .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
 .event-card {
   background: var(--glass); border: 1px solid var(--border);
-  padding: 16px; display: flex; gap: 16px;
+  padding: 20px; display: flex; flex-direction: column; gap: 0;
   border-radius: var(--radius-lg);
   transition: all .2s; backdrop-filter: blur(8px);
 }
 .event-card:hover { border-color: var(--border2); }
+.event-card-body { display: flex; flex-direction: column; gap: 10px; }
+.event-details { font-size: 0.82rem; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.event-type-badge {
+  font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--accent);
+  border: 1px solid var(--accent); padding: 3px 10px;
+  border-radius: 100px; display: inline-block; width: fit-content;
+}
+.form-submit-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.rsvp-form-wrap {
+  display: none; margin-top: 16px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.rsvp-form-wrap.open { display: block; }
+.rsvp-form-title { font-size: 0.85rem; font-weight: 600; color: var(--text); margin-bottom: 12px; }
 .event-date-badge {
   flex-shrink: 0; width: 48px; height: 48px;
   border: 1px solid var(--accent);
@@ -423,7 +438,7 @@ a:hover { color: var(--accent); }
   font-family: var(--font-mono);
 }
 .vote-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-.vote-btn.voted { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 12px rgba(108,158,255,.15); }
+.vote-btn.voted { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 12px rgba(74,227,181,.15); }
 .vote-btn .arrow { font-size: 0.8rem; line-height: 1; }
 
 /* Project showcase */
