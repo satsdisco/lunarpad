@@ -173,6 +173,14 @@ const stmts = {
 // ─── Express app ─────────────────────────────────────────────────────────────
 
 const app = express();
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -303,8 +311,8 @@ function requireAdmin(req, res, next) {
   res.status(403).json({ error: "Admin access required" });
 }
 
-// Promote user to admin by email
-app.post("/api/admin/promote", function(req, res) {
+// Promote user to admin by email (admin only)
+app.post("/api/admin/promote", requireAuth, requireAdmin, function(req, res) {
   var email = req.body.email;
   if (!email) return res.status(400).json({ error: "email required" });
   db.prepare("UPDATE users SET is_admin = 1 WHERE email = ?").run(email);
@@ -469,9 +477,13 @@ app.post('/api/decks/:id/view', (req, res) => {
 });
 
 // DELETE /api/decks/:id
-app.delete('/api/decks/:id', (req, res) => {
+app.delete('/api/decks/:id', requireAuth, (req, res) => {
   const deck = stmts.getById.get(req.params.id);
   if (!deck) return res.status(404).json({ error: 'Not found' });
+  // Only owner or admin can delete
+  if (deck.uploaded_by && deck.uploaded_by !== req.user?.id && !req.user?.is_admin) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
 
   // Remove files
   const deckDir = path.join(UPLOADS_DIR, deck.id);
@@ -661,7 +673,7 @@ app.get('/api/events/:id/speakers', (req, res) => {
 
 // ─── RSVPs API ────────────────────────────────────────────────────────────────
 
-app.post('/api/events/:id/rsvp', (req, res) => {
+app.post('/api/events/:id/rsvp', requireAuth, (req, res) => {
   const { name, email } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
