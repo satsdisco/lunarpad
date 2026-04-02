@@ -1256,14 +1256,17 @@ function seedPlatformData() {
     );
   }
 
-  // Speakers
+  // Speakers — link to first two demo decks
+  const allDecks = db.prepare('SELECT id, title FROM decks ORDER BY created_at ASC').all();
+  const deckId1 = allDecks[0]?.id || null;
+  const deckId2 = allDecks[1]?.id || null;
   const speakers = [
-    { name: 'satsdisco', project_title: 'DeckPad', description: 'HTML presentation hosting platform with auto-thumbnails, voting, and a community gallery.', duration: 10, github_url: 'https://github.com/satsdisco/deckpad', demo_url: 'https://deckpad.app' },
-    { name: 'noderunner', project_title: 'LNConnect', description: 'A simple dashboard for monitoring your Lightning node channels, capacity, and routing fees in real-time.', duration: 5, github_url: 'https://github.com/noderunner/lnconnect', demo_url: '' },
+    { name: 'satsdisco', project_title: 'DeckPad', description: 'HTML presentation hosting platform with auto-thumbnails, voting, and a community gallery.', duration: 10, github_url: 'https://github.com/satsdisco/deckpad', demo_url: 'https://decks.satsdisco.com', deck_id: deckId1 },
+    { name: 'noderunner', project_title: 'LNConnect', description: 'A simple dashboard for monitoring your Lightning node channels, capacity, and routing fees in real-time.', duration: 5, github_url: 'https://github.com/noderunner/lnconnect', demo_url: '', deck_id: deckId2 },
   ];
   for (const s of speakers) {
-    db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      crypto.randomUUID(), eventId, s.name, s.project_title, s.description, s.duration, s.github_url || null, s.demo_url || null
+    db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url, deck_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      crypto.randomUUID(), eventId, s.name, s.project_title, s.description, s.duration, s.github_url || null, s.demo_url || null, s.deck_id || null
     );
   }
 
