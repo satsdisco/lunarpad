@@ -13,10 +13,10 @@
   --muted: #8b93a3;
   --muted2: #5c6478;
   --dim: #3a4050;
-  --accent: #4ae3b5;
-  --accent-hover: #6aedc8;
-  --accent-dim: rgba(74,227,181,.10);
-  --accent-glow: rgba(74,227,181,.06);
+  --accent: #00ff41;
+  --accent-hover: #33ff66;
+  --accent-dim: rgba(0,255,65,.08);
+  --accent-glow: rgba(0,255,65,.05);
   --danger: #e5484d;
   --success: #3dd68c;
   --radius: 10px;
@@ -438,7 +438,7 @@ a:hover { color: var(--accent); }
   font-family: var(--font-mono);
 }
 .vote-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-.vote-btn.voted { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 12px rgba(74,227,181,.15); }
+.vote-btn.voted { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 12px rgba(0,255,65,.15); }
 .vote-btn .arrow { font-size: 0.8rem; line-height: 1; }
 
 /* Project showcase */
