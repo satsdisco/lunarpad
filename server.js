@@ -171,7 +171,8 @@ app.get('/css/style.css', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=3600');
   res.sendFile(path.join(ROOT, 'public', 'css', 'style.css'));
 });
-app.use(express.static(path.join(ROOT, 'public')));
+// Serve static files but NOT index.html (auth wall handles /)
+app.use(express.static(path.join(ROOT, 'public'), { index: false }));
 app.use('/thumbnails', express.static(THUMBNAILS_DIR));
 
 // ─── Presentation file serving (sandboxed) ───────────────────────────────────
@@ -270,14 +271,27 @@ app.get('/api/me', (req, res) => {
   }
 });
 
+// ─── Auth middleware ──────────────────────────────────────────────────────────
+
+function requireAuth(req, res, next) {
+  if (req.user) return next();
+  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Login required' });
+  res.redirect('/welcome');
+}
+
 // ─── Page routes ─────────────────────────────────────────────────────────────
 
-app.get('/',         (_, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
-app.get('/upload',   (_, res) => res.sendFile(path.join(ROOT, 'public', 'upload.html')));
-app.get('/deck/:id', (_, res) => res.sendFile(path.join(ROOT, 'public', 'deck.html')));
-app.get('/build',    (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));
-app.get('/vote',     (_, res) => res.sendFile(path.join(ROOT, 'public', 'vote.html')));
-app.get('/admin',    (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
+app.get('/welcome', (req, res) => {
+  if (req.user) return res.redirect('/');
+  res.sendFile(path.join(ROOT, 'public', 'welcome.html'));
+});
+
+app.get('/',         requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
+app.get('/upload',   requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'upload.html')));
+app.get('/deck/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'deck.html')));
+app.get('/build',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));
+app.get('/vote',     requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'vote.html')));
+app.get('/admin',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
 
 // ─── Upload ──────────────────────────────────────────────────────────────────
 
@@ -291,7 +305,7 @@ const upload = multer({
   },
 });
 
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', requireAuth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const { title = '', author = 'Anonymous', description = '', tags = '', github_url = '', demo_url = '' } = req.body;
@@ -352,7 +366,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 // ─── API routes ──────────────────────────────────────────────────────────────
 
 // GET /api/decks?search=&tags=&sort=newest&page=1&limit=12
-app.get('/api/decks', (req, res) => {
+app.get('/api/decks', requireAuth, (req, res) => {
   const search = (req.query.search || '').trim();
   const tagsFilter = (req.query.tags || '').trim();
   const sort = req.query.sort || 'newest';
@@ -393,7 +407,7 @@ app.get('/api/decks', (req, res) => {
 });
 
 // GET /api/decks/tags — all unique tags for filter chips
-app.get('/api/tags', (req, res) => {
+app.get('/api/tags', requireAuth, (req, res) => {
   const rows = stmts.allTags.all();
   const tagSet = new Set();
   for (const row of rows) {
@@ -469,7 +483,7 @@ app.get('/api/bounties', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/bounties', (req, res) => {
+app.post('/api/bounties', requireAuth, (req, res) => {
   const { title, description, sats_amount, sats, deadline, status, tags, event_id } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: 'title required' });
   const id = crypto.randomUUID();
@@ -491,7 +505,7 @@ app.get('/api/bounties/:id', (req, res) => {
 
 // ─── Events API ───────────────────────────────────────────────────────────────
 
-app.get('/api/events', (req, res) => {
+app.get('/api/events', requireAuth, (req, res) => {
   const rows = db.prepare("SELECT *, event_type as type FROM events ORDER BY date ASC, time ASC").all();
   for (const ev of rows) {
     ev.speakers = db.prepare(`
@@ -505,7 +519,7 @@ app.get('/api/events', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/events', (req, res) => {
+app.post('/api/events', requireAuth, (req, res) => {
   const { name, description, event_type, date, time, location, virtual_link } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   if (!date) return res.status(400).json({ error: 'date required' });
@@ -553,7 +567,7 @@ app.get('/api/speakers', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/speakers', (req, res) => {
+app.post('/api/speakers', requireAuth, (req, res) => {
   const { event_id, eventId, name, project_title, project, description, duration, github_url, demo_url, deck_id } = req.body;
   const eid = event_id || eventId;
   const ptitle = project_title || project;
@@ -612,7 +626,7 @@ app.get('/api/projects', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/projects', (req, res) => {
+app.post('/api/projects', requireAuth, (req, res) => {
   const { name, builder, description, status, tags, repo_url, repo, demo_url, demo } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   if (!builder || !builder.trim()) return res.status(400).json({ error: 'builder required' });
@@ -630,7 +644,7 @@ app.post('/api/projects', (req, res) => {
 // ─── Unified Vote API ─────────────────────────────────────────────────────────
 
 // POST /api/vote — body: { type: 'deck'|'speaker'|'project', id }
-app.post('/api/vote', (req, res) => {
+app.post('/api/vote', requireAuth, (req, res) => {
   const { type, id } = req.body;
   if (!['deck', 'speaker', 'project'].includes(type) || !id) {
     return res.status(400).json({ error: 'type (deck|speaker|project) and id required' });
