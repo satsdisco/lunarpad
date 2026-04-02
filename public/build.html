@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build in Public — DeckPad</title>
+<style>
+/* ─── DeckPad Global Styles ──────────────────────────────────────────────── */
+:root {
+  --bg: #050505; --surface: #0e0e0e; --surface2: #161616;
+  --border: #1e1e1e; --border2: #2a2a2a;
+  --gold: #f5c518; --gold2: #c89f15; --gold-glow: rgba(245,197,24,.12);
+  --text: #eee; --muted: #777; --muted2: #555;
+  --radius: 12px; --radius-lg: 16px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+a { color: var(--gold); text-decoration: none; }
+a:hover { color: var(--gold2); }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; background: rgba(5,5,5,.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.logo { font-size: 1.4em; font-weight: 800; color: var(--gold); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+.logo span { font-size: 1.3em; }
+.header-actions { display: flex; gap: 12px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all .15s ease; }
+.btn-primary { background: var(--gold); color: #000; }
+.btn-primary:hover { background: var(--gold2); transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+.btn-ghost:hover { border-color: var(--gold2); color: var(--text); }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; transition: transform .2s ease, border-color .2s, box-shadow .2s; }
+.card:hover { transform: translateY(-3px); border-color: var(--border2); box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.card-body { padding: 20px; }
+.card-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; line-height: 1.3; }
+.card-meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.card-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; }
+.card-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; background: rgba(245,197,24,.06); color: var(--gold2); border: 1px solid rgba(245,197,24,.12); }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 11px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 14px; outline: none; font-family: inherit; transition: border-color .2s; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--gold2); }
+.form-group textarea { resize: vertical; min-height: 80px; }
+.form-group select option { background: var(--surface); }
+.footer { text-align: center; padding: 32px; font-size: 13px; color: var(--muted2); border-top: 1px solid var(--border); }
+.nav-tabs { display: flex; align-items: center; gap: 2px; }
+.nav-tab { padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; position: relative; transition: color .15s; }
+.nav-tab::after { content: ''; position: absolute; bottom: -21px; left: 14px; right: 14px; height: 2px; background: var(--gold); border-radius: 2px; opacity: 0; transition: opacity .15s; }
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--gold); }
+.nav-tab.active::after { opacity: 1; }
+@media (max-width: 640px) {
+  .header { padding: 16px 20px; gap: 12px; flex-wrap: wrap; }
+  .logo { font-size: 1.2em; }
+  .nav-tabs { gap: 0; order: 3; width: 100%; border-top: 1px solid var(--border); padding-top: 8px; }
+  .nav-tab::after { bottom: -9px; }
+}
+
+/* ─── Page-specific styles ───────────────────────────────────────────────── */
+.section-wrap {
+  padding: 48px 0;
+}
+.section-wrap + .section-wrap {
+  border-top: 1px solid var(--border);
+}
+.section-tinted {
+  background: rgba(14,14,14,.6);
+}
+.section-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 28px; gap: 12px; flex-wrap: wrap;
+}
+.section-header h2 {
+  font-size: 22px; font-weight: 800; color: var(--text);
+}
+.section-header p {
+  font-size: 14px; color: var(--muted);
+}
+.section-header-text { display: flex; flex-direction: column; gap: 4px; }
+
+/* ─── Bounty Cards ───────────────────────────────────────────────────────── */
+.bounties-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.bounty-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  display: flex; flex-direction: column; gap: 12px;
+  transition: transform .2s ease, border-color .2s, box-shadow .2s;
+}
+.bounty-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border2);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.bounty-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+}
+.bounty-title { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.bounty-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.bounty-sats {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 26px; font-weight: 800; color: var(--gold); letter-spacing: -0.5px;
+}
+.bounty-sats-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 600;
+}
+.badge-open { background: var(--gold-glow); color: var(--gold); border: 1px solid rgba(245,197,24,.25); }
+.badge-claimed { background: rgba(59,130,246,.1); color: #3b82f6; border: 1px solid rgba(59,130,246,.25); }
+.badge-completed { background: rgba(34,197,94,.1); color: #22c55e; border: 1px solid rgba(34,197,94,.25); }
+.bounty-footer {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border);
+}
+.bounty-deadline { font-size: 11px; color: var(--muted2); }
+
+/* ─── Events ─────────────────────────────────────────────────────────────── */
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.event-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: transform .2s ease, border-color .2s, box-shadow .2s;
+}
+.event-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border2);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.event-card-body { padding: 20px; }
+.event-name { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.event-type-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  background: rgba(245,197,24,.08); color: var(--gold2); border: 1px solid rgba(245,197,24,.15);
+  margin-bottom: 10px;
+}
+.event-details { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.event-details span { display: flex; align-items: center; gap: 6px; }
+.countdown {
+  display: flex; gap: 8px; margin-bottom: 16px;
+}
+.countdown-unit {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 6px; text-align: center;
+}
+.countdown-val { font-size: 20px; font-weight: 800; color: var(--gold); line-height: 1; }
+.countdown-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+.rsvp-form-wrap {
+  border-top: 1px solid var(--border);
+  padding: 16px 20px 20px;
+  display: none;
+  background: var(--surface2);
+}
+.rsvp-form-wrap.open { display: block; }
+.rsvp-form-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 14px; }
+
+/* ─── Speaker Signup ─────────────────────────────────────────────────────── */
+.speaker-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.speaker-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+  transition: border-color .15s;
+}
+.speaker-row:hover { border-color: var(--border2); }
+.speaker-info { flex: 1; min-width: 0; }
+.speaker-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.speaker-project { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.speaker-duration {
+  font-size: 11px; font-weight: 600; color: var(--muted2);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 8px; flex-shrink: 0;
+}
+.speaker-upvote {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  cursor: pointer; display: flex; align-items: center; gap: 5px;
+  transition: all .15s; flex-shrink: 0;
+}
+.speaker-upvote:hover, .speaker-upvote.voted {
+  border-color: var(--gold2); color: var(--gold); background: var(--gold-glow);
+}
+.speaker-signup-form {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 22px;
+}
+.speaker-signup-form h3 { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.demo-day-info {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 20px;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 22px;
+}
+.demo-day-info .icon { font-size: 28px; }
+.demo-day-info-text { }
+.demo-day-info-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.demo-day-info-date { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* ─── Projects ───────────────────────────────────────────────────────────── */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.project-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: transform .2s ease, border-color .2s, box-shadow .2s;
+}
+.project-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border2);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.project-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+}
+.project-title { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.project-builder { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.project-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.badge-idea { background: rgba(119,119,119,.12); color: var(--muted); border: 1px solid rgba(119,119,119,.2); }
+.badge-building { background: var(--gold-glow); color: var(--gold); border: 1px solid rgba(245,197,24,.25); }
+.badge-shipped { background: rgba(34,197,94,.1); color: #22c55e; border: 1px solid rgba(34,197,94,.25); }
+.project-links {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;
+}
+.project-link {
+  font-size: 11px; padding: 3px 10px; border-radius: 6px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--muted); transition: all .15s;
+}
+.project-link:hover { border-color: var(--gold2); color: var(--gold); }
+.project-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.project-upvote {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  cursor: pointer; display: flex; align-items: center; gap: 5px;
+  transition: all .15s;
+}
+.project-upvote:hover, .project-upvote.voted {
+  border-color: var(--gold2); color: var(--gold); background: var(--gold-glow);
+}
+.inline-form-wrap {
+  margin-top: 20px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px;
+  display: none;
+}
+.inline-form-wrap.open { display: block; }
+.inline-form-title { font-size: 15px; font-weight: 700; margin-bottom: 18px; }
+.form-submit-row {
+  display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px;
+}
+.empty-state {
+  text-align: center; padding: 56px 20px;
+  grid-column: 1 / -1;
+}
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.empty-state p { color: var(--muted); font-size: 14px; }
+
+@media (max-width: 640px) {
+  .form-row { grid-template-columns: 1fr; }
+  .bounties-grid, .events-grid, .projects-grid { grid-template-columns: 1fr; }
+  .section-wrap { padding: 32px 0; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="logo"><span>🎭</span> DeckPad</a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab">Decks</a>
+    <a href="/build" class="nav-tab active">Build in Public</a>
+    <a href="/vote" class="nav-tab">Vote</a>
+  </nav>
+  <div class="header-actions">
+    <a href="/upload" class="btn btn-primary">⬆ Upload Deck</a>
+  </div>
+</header>
+
+<!-- Section A: Active Bounties -->
+<div class="section-wrap" id="section-bounties">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-header-text">
+        <h2>⚡ Active Bounties</h2>
+        <p>Contribute to open tasks and earn sats</p>
+      </div>
+    </div>
+    <div class="bounties-grid" id="bountiesGrid">
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="icon">⚡</div>
+        <h3>Loading bounties…</h3>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section B: Upcoming Events -->
+<div class="section-wrap section-tinted" id="section-events">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-header-text">
+        <h2>📅 Upcoming Events</h2>
+        <p>Demos, workshops, and community meetups</p>
+      </div>
+    </div>
+    <div class="events-grid" id="eventsGrid">
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="icon">📅</div>
+        <h3>Loading events…</h3>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section C: Speaker Signup -->
+<div class="section-wrap" id="section-speakers" style="display:none">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-header-text">
+        <h2>🎤 Sign Up to Present</h2>
+        <p>Claim a slot at the next demo day</p>
+      </div>
+    </div>
+
+    <div class="demo-day-info" id="demoDayInfo"></div>
+
+    <div class="speaker-list" id="speakerList"></div>
+
+    <div class="speaker-signup-form">
+      <h3>Add yourself to the lineup</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" id="spkName" placeholder="Jane Smith">
+        </div>
+        <div class="form-group">
+          <label>Project Title</label>
+          <input type="text" id="spkProject" placeholder="My awesome project">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Short Description</label>
+        <textarea id="spkDesc" placeholder="What will you be presenting?"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Duration</label>
+        <select id="spkDuration">
+          <option value="5">5 minutes</option>
+          <option value="10" selected>10 minutes</option>
+          <option value="15">15 minutes</option>
+        </select>
+      </div>
+      <div class="form-submit-row">
+        <button class="btn btn-primary" onclick="submitSpeaker()">🎤 Join the Lineup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section D: Projects Being Built in Public -->
+<div class="section-wrap section-tinted" id="section-projects">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-header-text">
+        <h2>🛠 Projects Being Built in Public</h2>
+        <p>Follow along as community members ship in the open</p>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="toggleProjectForm()">+ Submit Project</button>
+    </div>
+
+    <div class="inline-form-wrap" id="projectFormWrap">
+      <div class="inline-form-title">Tell us about your project</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Project Name</label>
+          <input type="text" id="projName" placeholder="My cool project">
+        </div>
+        <div class="form-group">
+          <label>Builder Name</label>
+          <input type="text" id="projBuilder" placeholder="Your name">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="projDesc" placeholder="What are you building and why?"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Status</label>
+          <select id="projStatus">
+            <option value="idea">💡 Idea</option>
+            <option value="building" selected>🔨 Building</option>
+            <option value="shipped">🚀 Shipped</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tags (comma-separated)</label>
+          <input type="text" id="projTags" placeholder="web, ai, tool">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Repo URL (optional)</label>
+          <input type="url" id="projRepo" placeholder="https://github.com/…">
+        </div>
+        <div class="form-group">
+          <label>Demo URL (optional)</label>
+          <input type="url" id="projDemo" placeholder="https://…">
+        </div>
+      </div>
+      <div class="form-submit-row">
+        <button class="btn btn-ghost btn-sm" onclick="toggleProjectForm()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitProject()">🛠 Submit Project</button>
+      </div>
+    </div>
+
+    <div class="projects-grid" id="projectsGrid">
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="icon">🛠</div>
+        <h3>Loading projects…</h3>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">DeckPad — Your stage for HTML presentations</footer>
+
+<script>
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+// ─── State ────────────────────────────────────────────────────────────────
+let eventsData = [];
+let speakersData = [];
+let nextDemoDay = null;
+let countdownTimers = {};
+
+// ─── Bounties ─────────────────────────────────────────────────────────────
+async function loadBounties() {
+  const grid = document.getElementById('bountiesGrid');
+  try {
+    const res = await fetch('/api/bounties');
+    const bounties = await res.json();
+    if (!bounties.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚡</div><h3>No active bounties</h3><p>Check back soon for new opportunities</p></div>`;
+      return;
+    }
+    grid.innerHTML = bounties.map(b => {
+      const statusClass = { open: 'badge-open', claimed: 'badge-claimed', completed: 'badge-completed' }[b.status] || 'badge-open';
+      const statusLabel = { open: 'Open', claimed: 'Claimed', completed: 'Completed' }[b.status] || b.status;
+      const tags = (b.tags || []).map(t => `<span class="card-tag">${esc(t)}</span>`).join('');
+      const deadline = b.deadline ? `<span class="bounty-deadline">⏰ Deadline: ${esc(new Date(b.deadline).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>` : '';
+      return `
+        <div class="bounty-card">
+          <div class="bounty-header">
+            <div class="bounty-title">${esc(b.title)}</div>
+            <span class="badge ${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="bounty-desc">${esc(b.description)}</div>
+          <div>
+            <div class="bounty-sats">⚡ ${Number(b.sats || 0).toLocaleString()}</div>
+            <div class="bounty-sats-label">sats</div>
+          </div>
+          ${tags ? `<div class="card-tags">${tags}</div>` : ''}
+          <div class="bounty-footer">
+            ${deadline}
+          </div>
+        </div>`;
+    }).join('');
+  } catch {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚡</div><h3>Could not load bounties</h3><p>API unavailable</p></div>`;
+  }
+}
+
+// ─── Events ───────────────────────────────────────────────────────────────
+async function loadEvents() {
+  const grid = document.getElementById('eventsGrid');
+  try {
+    const res = await fetch('/api/events');
+    eventsData = await res.json();
+    if (!eventsData.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📅</div><h3>No upcoming events</h3><p>Nothing scheduled yet — stay tuned</p></div>`;
+      return;
+    }
+    grid.innerHTML = eventsData.map(ev => renderEventCard(ev)).join('');
+    startCountdowns();
+
+    // Find next demo-day for speaker section
+    const now = new Date();
+    const demoDays = eventsData.filter(ev =>
+      (ev.type || '').toLowerCase().includes('demo') &&
+      new Date(ev.date) > now
+    ).sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (demoDays.length) {
+      nextDemoDay = demoDays[0];
+      loadSpeakers();
+    }
+  } catch {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📅</div><h3>Could not load events</h3><p>API unavailable</p></div>`;
+  }
+}
+
+function renderEventCard(ev) {
+  const dateStr = ev.date
+    ? new Date(ev.date).toLocaleDateString('en', { weekday:'short', month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })
+    : 'TBD';
+  return `
+    <div class="event-card" id="event-${esc(ev.id)}">
+      <div class="event-card-body">
+        <div class="event-type-badge">${esc(ev.type || 'Event')}</div>
+        <div class="event-name">${esc(ev.name)}</div>
+        <div class="event-details">
+          <span>🗓 ${dateStr}</span>
+          ${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}
+        </div>
+        <div class="countdown" id="countdown-${esc(ev.id)}">
+          <div class="countdown-unit"><div class="countdown-val" id="cd-d-${esc(ev.id)}">--</div><div class="countdown-label">Days</div></div>
+          <div class="countdown-unit"><div class="countdown-val" id="cd-h-${esc(ev.id)}">--</div><div class="countdown-label">Hrs</div></div>
+          <div class="countdown-unit"><div class="countdown-val" id="cd-m-${esc(ev.id)}">--</div><div class="countdown-label">Min</div></div>
+          <div class="countdown-unit"><div class="countdown-val" id="cd-s-${esc(ev.id)}">--</div><div class="countdown-label">Sec</div></div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleRsvp('${esc(ev.id)}')">✉️ RSVP</button>
+      </div>
+      <div class="rsvp-form-wrap" id="rsvp-${esc(ev.id)}">
+        <div class="rsvp-form-title">RSVP for ${esc(ev.name)}</div>
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" id="rsvp-name-${esc(ev.id)}" placeholder="Jane Smith">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="rsvp-email-${esc(ev.id)}" placeholder="you@example.com">
+        </div>
+        <div class="form-submit-row">
+          <button class="btn btn-ghost btn-sm" onclick="toggleRsvp('${esc(ev.id)}')">Cancel</button>
+          <button class="btn btn-primary btn-sm" onclick="submitRsvp('${esc(ev.id)}')">Confirm RSVP</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleRsvp(id) {
+  const wrap = document.getElementById('rsvp-' + id);
+  if (wrap) wrap.classList.toggle('open');
+}
+
+async function submitRsvp(id) {
+  const name = document.getElementById('rsvp-name-' + id)?.value.trim();
+  const email = document.getElementById('rsvp-email-' + id)?.value.trim();
+  if (!name || !email) return alert('Please fill in your name and email.');
+  try {
+    await fetch('/api/events/' + id + '/rsvp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email })
+    });
+    toggleRsvp(id);
+    const btn = document.querySelector(`#event-${id} .btn-ghost`);
+    if (btn) { btn.textContent = '✅ RSVP\'d'; btn.disabled = true; }
+  } catch {
+    alert('RSVP failed — please try again.');
+  }
+}
+
+// ─── Countdown Timers ─────────────────────────────────────────────────────
+function updateCountdowns() {
+  const now = Date.now();
+  eventsData.forEach(ev => {
+    if (!ev.date) return;
+    const target = new Date(ev.date).getTime();
+    const diff = target - now;
+    const id = ev.id;
+    if (diff <= 0) {
+      ['d','h','m','s'].forEach(u => {
+        const el = document.getElementById('cd-' + u + '-' + id);
+        if (el) el.textContent = '0';
+      });
+      return;
+    }
+    const days = Math.floor(diff / 86400000);
+    const hrs  = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    const set = (u, v) => { const el = document.getElementById('cd-' + u + '-' + id); if (el) el.textContent = String(v).padStart(2,'0'); };
+    set('d', days); set('h', hrs); set('m', mins); set('s', secs);
+  });
+}
+
+function startCountdowns() {
+  updateCountdowns();
+  setInterval(updateCountdowns, 1000);
+}
+
+// ─── Speakers ─────────────────────────────────────────────────────────────
+async function loadSpeakers() {
+  if (!nextDemoDay) return;
+  document.getElementById('section-speakers').style.display = '';
+
+  const infoEl = document.getElementById('demoDayInfo');
+  const dateStr = new Date(nextDemoDay.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  infoEl.innerHTML = `
+    <div class="icon">🗓</div>
+    <div class="demo-day-info-text">
+      <div class="demo-day-info-title">${esc(nextDemoDay.name)}</div>
+      <div class="demo-day-info-date">${dateStr}${nextDemoDay.location ? ' · ' + esc(nextDemoDay.location) : ''}</div>
+    </div>`;
+
+  try {
+    const res = await fetch('/api/speakers?event=' + encodeURIComponent(nextDemoDay.id));
+    speakersData = await res.json();
+    renderSpeakerList();
+  } catch {
+    document.getElementById('speakerList').innerHTML = '<p style="color:var(--muted);font-size:13px">Could not load speaker lineup.</p>';
+  }
+}
+
+function renderSpeakerList() {
+  const list = document.getElementById('speakerList');
+  if (!speakersData.length) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No speakers yet — be the first to sign up!</p>';
+    return;
+  }
+  list.innerHTML = speakersData.map(sp => `
+    <div class="speaker-row" id="spk-${esc(sp.id)}">
+      <div class="speaker-info">
+        <div class="speaker-name">${esc(sp.name)}</div>
+        <div class="speaker-project">${esc(sp.project)}</div>
+      </div>
+      <span class="speaker-duration">${esc(sp.duration)} min</span>
+      <button class="speaker-upvote" id="spk-vote-${esc(sp.id)}" onclick="voteSpeaker('${esc(sp.id)}')">
+        🔺 <span id="spk-count-${esc(sp.id)}">${sp.votes || 0}</span>
+      </button>
+    </div>`).join('');
+}
+
+async function submitSpeaker() {
+  const name = document.getElementById('spkName').value.trim();
+  const project = document.getElementById('spkProject').value.trim();
+  const desc = document.getElementById('spkDesc').value.trim();
+  const duration = document.getElementById('spkDuration').value;
+  if (!name || !project) return alert('Please enter your name and project title.');
+  try {
+    await fetch('/api/speakers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, project, description: desc, duration: Number(duration), eventId: nextDemoDay?.id })
+    });
+    document.getElementById('spkName').value = '';
+    document.getElementById('spkProject').value = '';
+    document.getElementById('spkDesc').value = '';
+    const res = await fetch('/api/speakers' + (nextDemoDay ? '?event=' + encodeURIComponent(nextDemoDay.id) : ''));
+    speakersData = await res.json();
+    renderSpeakerList();
+  } catch {
+    alert('Submission failed — please try again.');
+  }
+}
+
+async function voteSpeaker(id) {
+  const btn = document.getElementById('spk-vote-' + id);
+  if (btn?.classList.contains('voted')) return;
+  try {
+    const res = await fetch('/api/speakers/' + id + '/vote', { method: 'POST' });
+    const data = await res.json();
+    const countEl = document.getElementById('spk-count-' + id);
+    if (countEl) countEl.textContent = data.votes ?? (parseInt(countEl.textContent) + 1);
+    btn?.classList.add('voted');
+  } catch {
+    // optimistic update
+    const countEl = document.getElementById('spk-count-' + id);
+    if (countEl) countEl.textContent = parseInt(countEl.textContent) + 1;
+    btn?.classList.add('voted');
+  }
+}
+
+// ─── Projects ─────────────────────────────────────────────────────────────
+async function loadProjects() {
+  const grid = document.getElementById('projectsGrid');
+  try {
+    const res = await fetch('/api/projects');
+    const projects = await res.json();
+    renderProjects(projects);
+  } catch {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🛠</div><h3>Could not load projects</h3><p>API unavailable</p></div>`;
+  }
+}
+
+function renderProjects(projects) {
+  const grid = document.getElementById('projectsGrid');
+  if (!projects.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🛠</div><h3>No projects yet</h3><p>Submit yours and build in public!</p></div>`;
+    return;
+  }
+  grid.innerHTML = projects.map(p => {
+    const statusMap = { idea: ['badge-idea','💡 Idea'], building: ['badge-building','🔨 Building'], shipped: ['badge-shipped','🚀 Shipped'] };
+    const [statusCls, statusLabel] = statusMap[p.status] || ['badge-idea', p.status];
+    const tags = (p.tags || []).map(t => `<span class="card-tag">${esc(t)}</span>`).join('');
+    const links = [
+      p.repo ? `<a href="${esc(p.repo)}" target="_blank" rel="noopener" class="project-link">📦 Repo</a>` : '',
+      p.demo ? `<a href="${esc(p.demo)}" target="_blank" rel="noopener" class="project-link">🚀 Demo</a>` : ''
+    ].filter(Boolean).join('');
+    return `
+      <div class="project-card" id="proj-${esc(p.id)}">
+        <div class="project-header">
+          <div>
+            <div class="project-title">${esc(p.name)}</div>
+            <div class="project-builder">by ${esc(p.builder)}</div>
+          </div>
+          <span class="badge ${statusCls}">${statusLabel}</span>
+        </div>
+        <div class="project-desc">${esc(p.description)}</div>
+        ${tags ? `<div class="card-tags">${tags}</div>` : ''}
+        ${links ? `<div class="project-links">${links}</div>` : ''}
+        <div class="project-footer">
+          <span></span>
+          <button class="project-upvote" id="proj-vote-${esc(p.id)}" onclick="voteProject('${esc(p.id)}')">
+            🔺 <span id="proj-count-${esc(p.id)}">${p.votes || 0}</span>
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleProjectForm() {
+  document.getElementById('projectFormWrap').classList.toggle('open');
+}
+
+async function submitProject() {
+  const name = document.getElementById('projName').value.trim();
+  const builder = document.getElementById('projBuilder').value.trim();
+  const desc = document.getElementById('projDesc').value.trim();
+  const status = document.getElementById('projStatus').value;
+  const tags = document.getElementById('projTags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const repo = document.getElementById('projRepo').value.trim();
+  const demo = document.getElementById('projDemo').value.trim();
+  if (!name || !builder) return alert('Please enter a project name and builder name.');
+  try {
+    await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, builder, description: desc, status, tags, repo, demo })
+    });
+    ['projName','projBuilder','projDesc','projTags','projRepo','projDemo'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('projStatus').value = 'building';
+    toggleProjectForm();
+    const res = await fetch('/api/projects');
+    renderProjects(await res.json());
+  } catch {
+    alert('Submission failed — please try again.');
+  }
+}
+
+async function voteProject(id) {
+  const btn = document.getElementById('proj-vote-' + id);
+  if (btn?.classList.contains('voted')) return;
+  try {
+    const res = await fetch('/api/projects/' + id + '/vote', { method: 'POST' });
+    const data = await res.json();
+    const countEl = document.getElementById('proj-count-' + id);
+    if (countEl) countEl.textContent = data.votes ?? (parseInt(countEl.textContent) + 1);
+    btn?.classList.add('voted');
+  } catch {
+    const countEl = document.getElementById('proj-count-' + id);
+    if (countEl) countEl.textContent = parseInt(countEl.textContent) + 1;
+    btn?.classList.add('voted');
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadBounties();
+  loadEvents();
+  loadProjects();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — DeckPad</title>
+<style>
+:root {
+  --bg: #050505; --surface: #0e0e0e; --surface2: #161616;
+  --border: #1e1e1e; --border2: #2a2a2a;
+  --gold: #f5c518; --gold2: #c89f15; --gold-glow: rgba(245,197,24,.12);
+  --text: #eee; --muted: #777; --muted2: #555;
+  --radius: 12px; --radius-lg: 16px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+a { color: var(--gold); text-decoration: none; }
+a:hover { color: var(--gold2); }
+.container { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; background: rgba(5,5,5,.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.logo { font-size: 1.4em; font-weight: 800; color: var(--gold); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+.logo span { font-size: 1.3em; }
+.header-actions { display: flex; gap: 12px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all .15s ease; }
+.btn-primary { background: var(--gold); color: #000; }
+.btn-primary:hover { background: var(--gold2); transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+.btn-ghost:hover { border-color: var(--gold2); color: var(--text); }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+.btn-danger { background: transparent; color: #ef4444; border: 1px solid #3f1111; }
+.btn-danger:hover { background: #3f1111; border-color: #ef4444; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.card-body { padding: 24px; }
+.card-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.card-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 11px 14px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; color: var(--text); font-size: 14px; outline: none; font-family: inherit; transition: border-color .2s; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--gold2); }
+.form-group textarea { resize: vertical; min-height: 80px; }
+.form-group select option { background: var(--surface2); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.footer { text-align: center; padding: 32px; font-size: 13px; color: var(--muted2); border-top: 1px solid var(--border); }
+.nav-tabs { display: flex; align-items: center; gap: 2px; }
+.nav-tab { padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; position: relative; transition: color .15s; }
+.nav-tab::after { content: ''; position: absolute; bottom: -21px; left: 14px; right: 14px; height: 2px; background: var(--gold); border-radius: 2px; opacity: 0; transition: opacity .15s; }
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--gold); }
+.nav-tab.active::after { opacity: 1; }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 32px 0 48px; }
+.section-title { font-size: 20px; font-weight: 800; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--surface2); }
+.status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.status-open { background: rgba(245,197,24,.1); color: var(--gold); border: 1px solid rgba(245,197,24,.2); }
+.status-completed { background: rgba(34,197,94,.1); color: #22c55e; border: 1px solid rgba(34,197,94,.2); }
+.status-claimed { background: rgba(59,130,246,.1); color: #60a5fa; border: 1px solid rgba(59,130,246,.2); }
+.flash { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; font-weight: 500; display: none; }
+.flash-success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25); color: #22c55e; }
+.flash-error { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25); color: #ef4444; }
+@media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .header { padding: 16px 20px; gap: 12px; flex-wrap: wrap; } .logo { font-size: 1.2em; } .nav-tabs { gap: 0; order: 3; width: 100%; border-top: 1px solid var(--border); padding-top: 8px; } .nav-tab::after { bottom: -9px; } }
+
+/* ─── Admin-specific extras ──────────────────────────────────────────────── */
+.hero-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin: 28px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.hero-banner .hero-icon { font-size: 1.5em; flex-shrink: 0; }
+.hero-banner .hero-label { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.hero-banner .hero-sub { color: var(--muted); font-size: 13px; }
+.col-stack { display: flex; flex-direction: column; gap: 24px; }
+.table-wrap { overflow-x: auto; }
+.empty-state { text-align: center; padding: 28px 16px; color: var(--muted); font-size: 13px; }
+.rsvp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.rsvp-count { font-size: 13px; color: var(--muted); font-weight: 500; }
+.rsvp-count strong { color: var(--gold); }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="logo"><span>🎭</span> DeckPad</a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab">Decks</a>
+    <a href="/build" class="nav-tab">Build in Public</a>
+    <a href="/vote" class="nav-tab">Vote</a>
+  </nav>
+  <div class="header-actions">
+    <a href="/upload" class="btn btn-primary">⬆ Upload Deck</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="hero-banner">
+    <span class="hero-icon">⚙️</span>
+    <div>
+      <div class="hero-label">Admin Panel</div>
+      <div class="hero-sub">No auth — LNURL-Auth coming soon</div>
+    </div>
+  </div>
+
+  <div class="admin-grid">
+
+    <!-- ═══ LEFT COLUMN ══════════════════════════════════════════════════ -->
+    <div class="col-stack">
+
+      <!-- Create Bounty -->
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Create Bounty</div>
+          <div class="card-subtitle">Post a new task with a sats reward</div>
+
+          <div id="bounty-flash-success" class="flash flash-success"></div>
+          <div id="bounty-flash-error" class="flash flash-error"></div>
+
+          <form id="bounty-form" novalidate>
+            <div class="form-group">
+              <label for="b-title">Title</label>
+              <input id="b-title" type="text" placeholder="e.g. Add dark mode toggle" required>
+            </div>
+            <div class="form-group">
+              <label for="b-description">Description</label>
+              <textarea id="b-description" placeholder="Describe the task in detail…"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="b-sats">Sats Amount</label>
+                <input id="b-sats" type="number" min="1" placeholder="10000" required>
+              </div>
+              <div class="form-group">
+                <label for="b-deadline">Deadline <span style="font-weight:400;color:var(--muted2)">(optional)</span></label>
+                <input id="b-deadline" type="date">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="b-status">Status</label>
+                <select id="b-status">
+                  <option value="open">Open</option>
+                  <option value="claimed">Claimed</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="b-tags">Tags</label>
+                <input id="b-tags" type="text" placeholder="ui, lightning, bug (comma-separated)">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%">Post Bounty</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Bounties List -->
+      <div class="card">
+        <div class="card-body">
+          <div class="section-title">⚡ Bounties</div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Sats</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody id="bounties-tbody">
+                <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /left -->
+
+    <!-- ═══ RIGHT COLUMN ═════════════════════════════════════════════════ -->
+    <div class="col-stack">
+
+      <!-- Create Event -->
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Create Event</div>
+          <div class="card-subtitle">Schedule a demo day, hackathon or meetup</div>
+
+          <div id="event-flash-success" class="flash flash-success"></div>
+          <div id="event-flash-error" class="flash flash-error"></div>
+
+          <form id="event-form" novalidate>
+            <div class="form-group">
+              <label for="e-name">Event Name</label>
+              <input id="e-name" type="text" placeholder="e.g. DeckPad Demo Day #3" required>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="e-type">Type</label>
+                <select id="e-type">
+                  <option value="demo-day">Demo Day</option>
+                  <option value="hackathon">Hackathon</option>
+                  <option value="workshop">Workshop</option>
+                  <option value="meetup">Meetup</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="e-date">Date</label>
+                <input id="e-date" type="date" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="e-time">Time</label>
+                <input id="e-time" type="time">
+              </div>
+              <div class="form-group">
+                <label for="e-location">Location</label>
+                <input id="e-location" type="text" placeholder="e.g. Austin, TX">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="e-link">Virtual Link <span style="font-weight:400;color:var(--muted2)">(optional)</span></label>
+              <input id="e-link" type="url" placeholder="https://meet.example.com/deckpad">
+            </div>
+            <div class="form-group">
+              <label for="e-description">Description</label>
+              <textarea id="e-description" placeholder="What to expect, agenda, guests…"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%">Create Event</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- View RSVPs -->
+      <div class="card">
+        <div class="card-body">
+          <div class="section-title">📋 RSVPs</div>
+
+          <div class="form-group" style="margin-bottom:20px">
+            <label for="rsvp-event-select">Select Event</label>
+            <select id="rsvp-event-select">
+              <option value="">— choose an event —</option>
+            </select>
+          </div>
+
+          <div id="rsvp-panel">
+            <div class="empty-state">Select an event to view RSVPs</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /right -->
+
+  </div><!-- /admin-grid -->
+</div><!-- /container -->
+
+<footer class="footer">
+  DeckPad &mdash; internal admin &mdash; <a href="/">back to gallery</a>
+</footer>
+
+<script>
+/* ─── Helpers ───────────────────────────────────────────────────────────── */
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function showFlash(el, msg, type) {
+  el.textContent = msg;
+  el.className = 'flash flash-' + type;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+  catch { return iso; }
+}
+
+function statusBadge(s) {
+  const cls = { open: 'status-open', claimed: 'status-claimed', completed: 'status-completed' }[s] || 'status-open';
+  return `<span class="status-badge ${cls}">${esc(s)}</span>`;
+}
+
+/* ─── Bounties ──────────────────────────────────────────────────────────── */
+async function loadBounties() {
+  const tbody = document.getElementById('bounties-tbody');
+  try {
+    const res = await fetch('/api/bounties');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.bounties ?? []);
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No bounties yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(b => `
+      <tr>
+        <td>${esc(b.title)}</td>
+        <td>⚡ ${esc(b.sats ?? b.amount ?? 0)}</td>
+        <td>${statusBadge(b.status)}</td>
+        <td>${fmtDate(b.createdAt ?? b.created_at)}</td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Could not load bounties</td></tr>';
+  }
+}
+
+document.getElementById('bounty-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const ok = document.getElementById('bounty-flash-success');
+  const er = document.getElementById('bounty-flash-error');
+
+  const title = document.getElementById('b-title').value.trim();
+  const sats  = document.getElementById('b-sats').value.trim();
+  if (!title || !sats) {
+    showFlash(er, 'Title and Sats Amount are required.', 'error');
+    return;
+  }
+
+  const payload = {
+    title,
+    description: document.getElementById('b-description').value.trim(),
+    sats: Number(sats),
+    deadline: document.getElementById('b-deadline').value || null,
+    status: document.getElementById('b-status').value,
+    tags: document.getElementById('b-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+  };
+
+  try {
+    const res = await fetch('/api/bounties', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => 'Unknown error');
+      throw new Error(msg || 'HTTP ' + res.status);
+    }
+    showFlash(ok, 'Bounty created successfully!', 'success');
+    this.reset();
+    loadBounties();
+  } catch (err) {
+    showFlash(er, 'Error: ' + err.message, 'error');
+  }
+});
+
+/* ─── Events ────────────────────────────────────────────────────────────── */
+async function loadEvents() {
+  const sel = document.getElementById('rsvp-event-select');
+  const current = sel.value;
+  try {
+    const res = await fetch('/api/events');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.events ?? []);
+
+    // Rebuild options, preserving selection if still valid
+    sel.innerHTML = '<option value="">— choose an event —</option>';
+    list.forEach(ev => {
+      const opt = document.createElement('option');
+      opt.value = ev.id ?? ev._id ?? '';
+      opt.textContent = (ev.name ?? ev.title ?? 'Unnamed') + (ev.date ? ' — ' + fmtDate(ev.date) : '');
+      if (opt.value === current) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    if (current && sel.value === current) {
+      loadRsvps(current);
+    }
+  } catch (err) {
+    // silently fail — event selector will just stay empty
+  }
+}
+
+document.getElementById('event-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const ok = document.getElementById('event-flash-success');
+  const er = document.getElementById('event-flash-error');
+
+  const name = document.getElementById('e-name').value.trim();
+  const date = document.getElementById('e-date').value;
+  if (!name || !date) {
+    showFlash(er, 'Event Name and Date are required.', 'error');
+    return;
+  }
+
+  const payload = {
+    name,
+    type: document.getElementById('e-type').value,
+    date,
+    time: document.getElementById('e-time').value || null,
+    location: document.getElementById('e-location').value.trim() || null,
+    virtualLink: document.getElementById('e-link').value.trim() || null,
+    description: document.getElementById('e-description').value.trim(),
+  };
+
+  try {
+    const res = await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => 'Unknown error');
+      throw new Error(msg || 'HTTP ' + res.status);
+    }
+    showFlash(ok, 'Event created successfully!', 'success');
+    this.reset();
+    loadEvents();
+  } catch (err) {
+    showFlash(er, 'Error: ' + err.message, 'error');
+  }
+});
+
+/* ─── RSVPs ─────────────────────────────────────────────────────────────── */
+async function loadRsvps(eventId) {
+  const panel = document.getElementById('rsvp-panel');
+  if (!eventId) {
+    panel.innerHTML = '<div class="empty-state">Select an event to view RSVPs</div>';
+    return;
+  }
+  panel.innerHTML = '<div class="empty-state">Loading RSVPs…</div>';
+  try {
+    const res = await fetch('/api/events/' + encodeURIComponent(eventId) + '/rsvps');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.rsvps ?? []);
+    const count = data.count ?? list.length;
+
+    if (!list.length) {
+      panel.innerHTML = '<div class="empty-state">No RSVPs for this event yet</div>';
+      return;
+    }
+
+    panel.innerHTML = `
+      <div class="rsvp-header">
+        <span class="rsvp-count"><strong>${esc(count)}</strong> RSVP${count === 1 ? '' : 's'}</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(r => `
+              <tr>
+                <td>${esc(r.name ?? r.displayName ?? '—')}</td>
+                <td>${esc(r.email ?? '—')}</td>
+                <td>${fmtDate(r.createdAt ?? r.created_at ?? r.date)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    panel.innerHTML = '<div class="empty-state">Could not load RSVPs</div>';
+  }
+}
+
+document.getElementById('rsvp-event-select').addEventListener('change', function() {
+  loadRsvps(this.value);
+});
+
+/* ─── Init ──────────────────────────────────────────────────────────────── */
+loadBounties();
+loadEvents();
+</script>
+</body>
+</html>

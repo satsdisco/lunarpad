@@ -46,6 +46,64 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS bounties (
+    id          TEXT PRIMARY KEY,
+    title       TEXT NOT NULL,
+    description TEXT,
+    sats_amount INTEGER DEFAULT 0,
+    deadline    TEXT,
+    status      TEXT DEFAULT 'open',
+    tags        TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS events (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    description  TEXT,
+    event_type   TEXT DEFAULT 'demo-day',
+    date         TEXT NOT NULL,
+    time         TEXT,
+    location     TEXT,
+    virtual_link TEXT,
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS speakers (
+    id            TEXT PRIMARY KEY,
+    event_id      TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    project_title TEXT NOT NULL,
+    description   TEXT,
+    duration      INTEGER DEFAULT 10,
+    votes         INTEGER DEFAULT 0,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS rsvps (
+    id         TEXT PRIMARY KEY,
+    event_id   TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    email      TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    builder     TEXT NOT NULL,
+    description TEXT,
+    status      TEXT DEFAULT 'building',
+    tags        TEXT,
+    repo_url    TEXT,
+    demo_url    TEXT,
+    votes       INTEGER DEFAULT 0,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 const stmts = {
   insert: db.prepare(`
     INSERT INTO decks (id, title, author, description, tags, filename, entry_point)
@@ -110,6 +168,9 @@ app.use('/presentations/:id', (req, res, next) => {
 app.get('/',         (_, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
 app.get('/upload',   (_, res) => res.sendFile(path.join(ROOT, 'public', 'upload.html')));
 app.get('/deck/:id', (_, res) => res.sendFile(path.join(ROOT, 'public', 'deck.html')));
+app.get('/build',    (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));
+app.get('/vote',     (_, res) => res.sendFile(path.join(ROOT, 'public', 'vote.html')));
+app.get('/admin',    (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
 
 // ─── Upload ──────────────────────────────────────────────────────────────────
 
@@ -304,6 +365,136 @@ app.get('/api/decks/:id/download', (req, res) => {
   } else {
     res.status(404).json({ error: 'File not found on disk' });
   }
+});
+
+// ─── Bounties API ────────────────────────────────────────────────────────────
+
+app.get('/api/bounties', (req, res) => {
+  const rows = db.prepare('SELECT * FROM bounties ORDER BY created_at DESC').all();
+  res.json(rows);
+});
+
+app.post('/api/bounties', (req, res) => {
+  const { title, description, sats_amount, deadline, status, tags } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ error: 'title required' });
+  const id = crypto.randomUUID();
+  db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, deadline, status, tags)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    id, title.trim(), description || null,
+    parseInt(sats_amount) || 0, deadline || null,
+    status || 'open', tags || null
+  );
+  res.json({ id });
+});
+
+app.get('/api/bounties/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM bounties WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
+});
+
+// ─── Events API ───────────────────────────────────────────────────────────────
+
+app.get('/api/events', (req, res) => {
+  const rows = db.prepare("SELECT * FROM events ORDER BY date ASC, time ASC").all();
+  res.json(rows);
+});
+
+app.post('/api/events', (req, res) => {
+  const { name, description, event_type, date, time, location, virtual_link } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  if (!date) return res.status(400).json({ error: 'date required' });
+  const id = crypto.randomUUID();
+  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location, virtual_link)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    id, name.trim(), description || null,
+    event_type || 'demo-day', date, time || null,
+    location || null, virtual_link || null
+  );
+  res.json({ id });
+});
+
+app.get('/api/events/:id', (req, res) => {
+  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Not found' });
+  const speakers = db.prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY votes DESC, created_at ASC').all(req.params.id);
+  res.json({ ...event, speakers });
+});
+
+// ─── Speakers API ─────────────────────────────────────────────────────────────
+
+app.post('/api/speakers', (req, res) => {
+  const { event_id, name, project_title, description, duration } = req.body;
+  if (!event_id || !name || !project_title) return res.status(400).json({ error: 'event_id, name, project_title required' });
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(event_id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  const id = crypto.randomUUID();
+  db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration)
+    VALUES (?, ?, ?, ?, ?, ?)`).run(
+    id, event_id, name.trim(), project_title.trim(),
+    description || null, parseInt(duration) || 10
+  );
+  res.json({ id });
+});
+
+app.get('/api/events/:id/speakers', (req, res) => {
+  const rows = db.prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY votes DESC, created_at ASC').all(req.params.id);
+  res.json(rows);
+});
+
+app.post('/api/speakers/:id/vote', (req, res) => {
+  const speaker = db.prepare('SELECT * FROM speakers WHERE id = ?').get(req.params.id);
+  if (!speaker) return res.status(404).json({ error: 'Not found' });
+  db.prepare('UPDATE speakers SET votes = votes + 1 WHERE id = ?').run(req.params.id);
+  const updated = db.prepare('SELECT votes FROM speakers WHERE id = ?').get(req.params.id);
+  res.json({ votes: updated.votes });
+});
+
+// ─── RSVPs API ────────────────────────────────────────────────────────────────
+
+app.post('/api/events/:id/rsvp', (req, res) => {
+  const { name, email } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  const id = crypto.randomUUID();
+  db.prepare('INSERT INTO rsvps (id, event_id, name, email) VALUES (?, ?, ?, ?)').run(
+    id, req.params.id, name.trim(), email || null
+  );
+  res.json({ id });
+});
+
+app.get('/api/events/:id/rsvps', (req, res) => {
+  const rows = db.prepare('SELECT * FROM rsvps WHERE event_id = ? ORDER BY created_at ASC').all(req.params.id);
+  res.json(rows);
+});
+
+// ─── Projects API ─────────────────────────────────────────────────────────────
+
+app.get('/api/projects', (req, res) => {
+  const rows = db.prepare('SELECT * FROM projects ORDER BY votes DESC, created_at DESC').all();
+  res.json(rows);
+});
+
+app.post('/api/projects', (req, res) => {
+  const { name, builder, description, status, tags, repo_url, demo_url } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  if (!builder || !builder.trim()) return res.status(400).json({ error: 'builder required' });
+  const id = crypto.randomUUID();
+  db.prepare(`INSERT INTO projects (id, name, builder, description, status, tags, repo_url, demo_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    id, name.trim(), builder.trim(), description || null,
+    status || 'building', tags || null, repo_url || null, demo_url || null
+  );
+  res.json({ id });
+});
+
+app.post('/api/projects/:id/vote', (req, res) => {
+  const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Not found' });
+  db.prepare('UPDATE projects SET votes = votes + 1 WHERE id = ?').run(req.params.id);
+  const updated = db.prepare('SELECT votes FROM projects WHERE id = ?').get(req.params.id);
+  res.json({ votes: updated.votes });
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -797,11 +988,63 @@ async function seedDemoDecks() {
   console.log('[seed] Done.');
 }
 
+function seedPlatformData() {
+  const bountyCount = db.prepare('SELECT COUNT(*) as c FROM bounties').get().c;
+  if (bountyCount > 0) return;
+
+  console.log('[seed] Inserting platform data...');
+
+  // Bounties
+  const bounties = [
+    { title: 'Build a Voting System for Presentations', description: 'Add upvote/downvote capabilities to the DeckPad presentation gallery so the community can surface the best content.', sats_amount: 10000, status: 'completed', tags: 'deckpad,voting,frontend' },
+    { title: 'HTML Presentation Hosting Platform', description: 'Build a platform that lets anyone upload an HTML presentation (or zip), host it, and share it with a link. Auto-generate thumbnails using Puppeteer.', sats_amount: 50000, status: 'open', tags: 'deckpad,platform,fullstack' },
+    { title: 'LNURL-Auth Integration', description: 'Integrate LNURL-Auth so builders can log in with their Lightning wallet — no email, no password, just a QR code scan.', sats_amount: 25000, status: 'open', tags: 'lightning,auth,bitcoin' },
+  ];
+  for (const b of bounties) {
+    db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, status, tags) VALUES (?, ?, ?, ?, ?, ?)`).run(
+      crypto.randomUUID(), b.title, b.description, b.sats_amount, b.status, b.tags
+    );
+  }
+
+  // Events
+  const eventId = crypto.randomUUID();
+  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    eventId, 'LR Demo Day #1',
+    'Our first community demo day! Show us what you\'ve been building. 5-minute demos, lightning pitches, and good vibes.',
+    'demo-day', '2026-04-10', '18:00', 'Virtual — Link TBA'
+  );
+
+  // Speakers
+  const speakers = [
+    { name: 'satsdisco', project_title: 'DeckPad', description: 'HTML presentation hosting platform with auto-thumbnails, voting, and a community gallery.', duration: 10 },
+    { name: 'noderunner', project_title: 'LNConnect', description: 'A simple dashboard for monitoring your Lightning node channels, capacity, and routing fees in real-time.', duration: 5 },
+  ];
+  for (const s of speakers) {
+    db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration) VALUES (?, ?, ?, ?, ?, ?)`).run(
+      crypto.randomUUID(), eventId, s.name, s.project_title, s.description, s.duration
+    );
+  }
+
+  // Projects
+  const projects = [
+    { name: 'DeckPad', builder: 'satsdisco', description: 'Your stage for HTML presentations. Upload any HTML deck and share it with the world. Built with Express, SQLite, and Puppeteer.', status: 'building', tags: 'web,presentations,hosting,deckpad', repo_url: 'https://github.com/satsdisco/deckpad', demo_url: '' },
+    { name: 'LNConnect', builder: 'noderunner', description: 'Real-time Lightning node monitoring dashboard. Track channels, capacity, routing fees, and peer health from one place.', status: 'building', tags: 'lightning,bitcoin,dashboard,nodes', repo_url: '', demo_url: '' },
+  ];
+  for (const p of projects) {
+    db.prepare(`INSERT INTO projects (id, name, builder, description, status, tags, repo_url, demo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      crypto.randomUUID(), p.name, p.builder, p.description, p.status, p.tags, p.repo_url, p.demo_url
+    );
+  }
+
+  console.log('[seed] Platform data done.');
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const server = app.listen(PORT, () => {
   console.log(`\n🎭 DeckPad running at http://localhost:${PORT}\n`);
   seedDemoDecks().catch(console.error);
+  seedPlatformData();
 });
 
 // Handle multer errors

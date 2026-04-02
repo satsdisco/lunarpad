@@ -298,10 +298,28 @@ a:hover { color: var(--gold2); }
   color: var(--muted2); border-top: 1px solid var(--border);
 }
 
+/* ─── Nav Tabs ────────────────────────────────────────────────────────────── */
+.nav-tabs { display: flex; align-items: center; gap: 2px; }
+.nav-tab {
+  padding: 8px 14px; font-size: 13px; font-weight: 500;
+  color: var(--muted); text-decoration: none; position: relative;
+  transition: color .15s;
+}
+.nav-tab::after {
+  content: ''; position: absolute; bottom: -21px; left: 14px; right: 14px;
+  height: 2px; background: var(--gold); border-radius: 2px;
+  opacity: 0; transition: opacity .15s;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--gold); }
+.nav-tab.active::after { opacity: 1; }
+
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .header { padding: 16px 20px; }
+  .header { padding: 16px 20px; gap: 12px; flex-wrap: wrap; }
   .logo { font-size: 1.2em; }
+  .nav-tabs { gap: 0; order: 3; width: 100%; border-top: 1px solid var(--border); padding-top: 8px; }
+  .nav-tab::after { bottom: -9px; }
   .gallery { grid-template-columns: 1fr; }
   .toolbar { flex-direction: column; }
   .upload-page h1 { font-size: 24px; }
@@ -314,6 +332,11 @@ a:hover { color: var(--gold2); }
 
 <header class="header">
   <a href="/" class="logo"><span>🎭</span> DeckPad</a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab active">Decks</a>
+    <a href="/build" class="nav-tab">Build in Public</a>
+    <a href="/vote" class="nav-tab">Vote</a>
+  </nav>
   <div class="header-actions">
     <a href="/upload" class="btn btn-primary">⬆ Upload Deck</a>
   </div>

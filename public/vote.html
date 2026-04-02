@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vote — DeckPad</title>
+<style>
+/* ─── DeckPad Global Styles ──────────────────────────────────────────────── */
+:root {
+  --bg: #050505; --surface: #0e0e0e; --surface2: #161616;
+  --border: #1e1e1e; --border2: #2a2a2a;
+  --gold: #f5c518; --gold2: #c89f15; --gold-glow: rgba(245,197,24,.12);
+  --text: #eee; --muted: #777; --muted2: #555;
+  --radius: 12px; --radius-lg: 16px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+a { color: var(--gold); text-decoration: none; }
+a:hover { color: var(--gold2); }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; background: rgba(5,5,5,.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.logo { font-size: 1.4em; font-weight: 800; color: var(--gold); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+.logo span { font-size: 1.3em; }
+.header-actions { display: flex; gap: 12px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all .15s ease; }
+.btn-primary { background: var(--gold); color: #000; }
+.btn-primary:hover { background: var(--gold2); transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+.btn-ghost:hover { border-color: var(--gold2); color: var(--text); }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; transition: transform .2s ease, border-color .2s, box-shadow .2s; }
+.card:hover { transform: translateY(-3px); border-color: var(--border2); box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.card-body { padding: 20px; }
+.card-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; line-height: 1.3; }
+.card-meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.card-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; }
+.card-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; background: rgba(245,197,24,.06); color: var(--gold2); border: 1px solid rgba(245,197,24,.12); }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 11px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 14px; outline: none; font-family: inherit; transition: border-color .2s; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--gold2); }
+.form-group textarea { resize: vertical; min-height: 80px; }
+.form-group select option { background: var(--surface); }
+.footer { text-align: center; padding: 32px; font-size: 13px; color: var(--muted2); border-top: 1px solid var(--border); }
+.nav-tabs { display: flex; align-items: center; gap: 2px; }
+.nav-tab { padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; position: relative; transition: color .15s; }
+.nav-tab::after { content: ''; position: absolute; bottom: -21px; left: 14px; right: 14px; height: 2px; background: var(--gold); border-radius: 2px; opacity: 0; transition: opacity .15s; }
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--gold); }
+.nav-tab.active::after { opacity: 1; }
+@media (max-width: 640px) {
+  .header { padding: 16px 20px; gap: 12px; flex-wrap: wrap; }
+  .logo { font-size: 1.2em; }
+  .nav-tabs { gap: 0; order: 3; width: 100%; border-top: 1px solid var(--border); padding-top: 8px; }
+  .nav-tab::after { bottom: -9px; }
+}
+
+/* ─── Page-specific styles ───────────────────────────────────────────────── */
+.vote-page { max-width: 800px; margin: 0 auto; padding: 0 24px 80px; }
+
+/* ─── Hero ────────────────────────────────────────────────────────────────── */
+.hero {
+  padding: 56px 0 40px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 48px;
+}
+.hero h1 {
+  font-size: 40px; font-weight: 900; letter-spacing: -1px;
+  margin-bottom: 10px; line-height: 1.15;
+}
+.hero p {
+  font-size: 16px; color: var(--muted); max-width: 420px; margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ─── Event Section ──────────────────────────────────────────────────────── */
+.event-section { margin-bottom: 52px; }
+.event-section-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+.event-section-heading { font-size: 20px; font-weight: 800; color: var(--text); }
+.event-section-date { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.event-countdown {
+  display: flex; gap: 8px; align-items: center;
+}
+.countdown-chip {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; text-align: center; min-width: 48px;
+}
+.countdown-chip-val { font-size: 16px; font-weight: 800; color: var(--gold); line-height: 1; }
+.countdown-chip-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-top: 2px; }
+
+/* ─── Speaker Rows ───────────────────────────────────────────────────────── */
+.speaker-rows { display: flex; flex-direction: column; gap: 10px; }
+
+.speaker-row {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  transition: border-color .2s, box-shadow .2s, transform .15s;
+  position: relative; overflow: hidden;
+}
+.speaker-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.45);
+}
+
+/* medal accents */
+.speaker-row.rank-1 { border-left: 3px solid var(--gold); }
+.speaker-row.rank-2 { border-left: 3px solid #aaa; }
+.speaker-row.rank-3 { border-left: 3px solid #cd7f32; }
+
+.rank-badge {
+  font-size: 20px; font-weight: 900;
+  min-width: 36px; text-align: center;
+  flex-shrink: 0;
+}
+.rank-badge.rank-1 { color: var(--gold); }
+.rank-badge.rank-2 { color: #aaa; }
+.rank-badge.rank-3 { color: #cd7f32; }
+.rank-badge.rank-other { color: var(--muted2); font-size: 15px; }
+
+.speaker-info { flex: 1; min-width: 0; }
+.speaker-name {
+  font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 2px;
+}
+.speaker-project {
+  font-size: 13px; font-weight: 600; color: var(--gold2);
+}
+.speaker-desc {
+  font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.duration-badge {
+  font-size: 11px; font-weight: 600; color: var(--muted2);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 9px; flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.vote-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 10px 14px;
+  cursor: pointer; transition: all .15s; flex-shrink: 0; min-width: 56px;
+}
+.vote-btn:hover {
+  border-color: var(--gold2); background: var(--gold-glow);
+}
+.vote-btn.voted {
+  border-color: var(--gold); background: var(--gold-glow);
+}
+.vote-btn .vote-arrow {
+  font-size: 16px; line-height: 1;
+  transition: transform .15s;
+}
+.vote-btn:hover .vote-arrow { transform: translateY(-2px); }
+.vote-btn.voted .vote-arrow { color: var(--gold); }
+.vote-btn .vote-count {
+  font-size: 15px; font-weight: 800; color: var(--text); line-height: 1;
+}
+.vote-btn.voted .vote-count { color: var(--gold); }
+
+/* ─── Medal Legend ───────────────────────────────────────────────────────── */
+.medal-row {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 20px; padding: 12px 16px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.medal-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted);
+}
+.medal-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.medal-dot.gold { background: var(--gold); }
+.medal-dot.silver { background: #aaa; }
+.medal-dot.bronze { background: #cd7f32; }
+
+/* ─── Empty State ────────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center; padding: 80px 20px;
+}
+.empty-icon { font-size: 64px; margin-bottom: 18px; }
+.empty-state h2 { font-size: 24px; font-weight: 800; margin-bottom: 10px; }
+.empty-state p { font-size: 15px; color: var(--muted); max-width: 380px; margin: 0 auto; line-height: 1.6; }
+
+/* ─── Footer Note ────────────────────────────────────────────────────────── */
+.vote-note {
+  text-align: center; padding: 20px 0 0;
+  font-size: 13px; color: var(--muted2); line-height: 1.6;
+  border-top: 1px solid var(--border); margin-top: 48px;
+}
+.vote-note strong { color: var(--muted); }
+
+@media (max-width: 640px) {
+  .hero h1 { font-size: 28px; }
+  .speaker-row { flex-wrap: wrap; gap: 12px; }
+  .event-countdown { gap: 5px; }
+  .countdown-chip { min-width: 40px; padding: 5px 7px; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="logo"><span>🎭</span> DeckPad</a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab">Decks</a>
+    <a href="/build" class="nav-tab">Build in Public</a>
+    <a href="/vote" class="nav-tab active">Vote</a>
+  </nav>
+  <div class="header-actions">
+    <a href="/upload" class="btn btn-primary">⬆ Upload Deck</a>
+  </div>
+</header>
+
+<div class="vote-page">
+  <div class="hero">
+    <h1>🗳 Vote for Speakers</h1>
+    <p>Help decide who presents at the next demo day</p>
+  </div>
+
+  <div id="voteContent">
+    <!-- Loaded dynamically -->
+  </div>
+</div>
+
+<footer class="footer">DeckPad — Your stage for HTML presentations</footer>
+
+<script>
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+let allEvents = [];
+
+// ─── Countdown helpers ────────────────────────────────────────────────────
+function getCountdownParts(targetDate) {
+  const diff = new Date(targetDate).getTime() - Date.now();
+  if (diff <= 0) return { days: 0, hrs: 0, mins: 0, secs: 0, expired: true };
+  return {
+    days: Math.floor(diff / 86400000),
+    hrs:  Math.floor((diff % 86400000) / 3600000),
+    mins: Math.floor((diff % 3600000) / 60000),
+    secs: Math.floor((diff % 60000) / 1000),
+    expired: false
+  };
+}
+
+function updateAllCountdowns() {
+  allEvents.forEach(ev => {
+    if (!ev.date) return;
+    const p = getCountdownParts(ev.date);
+    const set = (u, v) => {
+      const el = document.getElementById('vcd-' + u + '-' + ev.id);
+      if (el) el.textContent = p.expired ? '0' : String(v).padStart(2, '0');
+    };
+    set('d', p.days); set('h', p.hrs); set('m', p.mins); set('s', p.secs);
+  });
+}
+
+// ─── Load and render ──────────────────────────────────────────────────────
+async function loadVotePage() {
+  const content = document.getElementById('voteContent');
+  try {
+    const res = await fetch('/api/events');
+    allEvents = await res.json();
+
+    // Filter to demo-day events with speakers
+    const now = new Date();
+    const demoDays = allEvents.filter(ev => {
+      const type = (ev.type || '').toLowerCase();
+      return type.includes('demo') && Array.isArray(ev.speakers) && ev.speakers.length > 0;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (!demoDays.length) {
+      content.innerHTML = renderEmptyState();
+      return;
+    }
+
+    content.innerHTML = `
+      <div class="medal-row">
+        <span class="medal-item"><span class="medal-dot gold"></span> 1st place presenter</span>
+        <span class="medal-item"><span class="medal-dot silver"></span> 2nd place</span>
+        <span class="medal-item"><span class="medal-dot bronze"></span> 3rd place</span>
+      </div>
+      ${demoDays.map(ev => renderEventSection(ev)).join('')}
+      <div class="vote-note">
+        <strong>How voting works:</strong> Votes help organizers plan the lineup. Top voted speakers present first.
+        You can vote once per speaker. Voting resets each cycle.
+      </div>`;
+
+    setInterval(updateAllCountdowns, 1000);
+    updateAllCountdowns();
+
+  } catch (e) {
+    content.innerHTML = renderEmptyState();
+  }
+}
+
+function renderEventSection(ev) {
+  const dateStr = ev.date
+    ? new Date(ev.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' })
+    : 'Date TBD';
+
+  const speakers = [...(ev.speakers || [])].sort((a, b) => (b.votes || 0) - (a.votes || 0));
+
+  return `
+    <div class="event-section">
+      <div class="event-section-header">
+        <div>
+          <div class="event-section-heading">${esc(ev.name)}</div>
+          <div class="event-section-date">🗓 ${dateStr}${ev.location ? ' · 📍 ' + esc(ev.location) : ''}</div>
+        </div>
+        <div class="event-countdown" id="vcountdown-${esc(ev.id)}">
+          <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-d-${esc(ev.id)}">--</div><div class="countdown-chip-label">Days</div></div>
+          <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-h-${esc(ev.id)}">--</div><div class="countdown-chip-label">Hrs</div></div>
+          <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-m-${esc(ev.id)}">--</div><div class="countdown-chip-label">Min</div></div>
+          <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-s-${esc(ev.id)}">--</div><div class="countdown-chip-label">Sec</div></div>
+        </div>
+      </div>
+      <div class="speaker-rows" id="speakers-${esc(ev.id)}">
+        ${speakers.map((sp, idx) => renderSpeakerRow(sp, idx + 1)).join('')}
+      </div>
+    </div>`;
+}
+
+function renderSpeakerRow(sp, rank) {
+  const rankClass = rank <= 3 ? 'rank-' + rank : 'rank-other';
+  const rankLabel = rank <= 3
+    ? ['🥇', '🥈', '🥉'][rank - 1]
+    : '#' + rank;
+  const desc = sp.description
+    ? `<div class="speaker-desc">${esc(sp.description)}</div>`
+    : '';
+  return `
+    <div class="speaker-row ${rank <= 3 ? 'rank-' + rank : ''}" id="sprow-${esc(sp.id)}">
+      <div class="rank-badge ${rankClass}">${rankLabel}</div>
+      <div class="speaker-info">
+        <div class="speaker-name">${esc(sp.name)}</div>
+        <div class="speaker-project">${esc(sp.project)}</div>
+        ${desc}
+      </div>
+      <div class="duration-badge">${esc(sp.duration)} min</div>
+      <button class="vote-btn" id="vbtn-${esc(sp.id)}" onclick="voteSpeaker('${esc(sp.id)}')">
+        <span class="vote-arrow">▲</span>
+        <span class="vote-count" id="vcount-${esc(sp.id)}">${sp.votes || 0}</span>
+      </button>
+    </div>`;
+}
+
+function renderEmptyState() {
+  return `
+    <div class="empty-state">
+      <div class="empty-icon">🗓</div>
+      <h2>No active voting</h2>
+      <p>Check back during the next demo day when the speaker lineup is announced and voting opens.</p>
+    </div>`;
+}
+
+// ─── Voting ───────────────────────────────────────────────────────────────
+async function voteSpeaker(id) {
+  const btn = document.getElementById('vbtn-' + id);
+  if (!btn || btn.classList.contains('voted')) return;
+
+  // Optimistic update first
+  const countEl = document.getElementById('vcount-' + id);
+  const prev = parseInt(countEl?.textContent || '0', 10);
+  if (countEl) countEl.textContent = prev + 1;
+  btn.classList.add('voted');
+
+  try {
+    const res = await fetch('/api/speakers/' + id + '/vote', { method: 'POST' });
+    const data = await res.json();
+    if (countEl && data.votes != null) countEl.textContent = data.votes;
+
+    // Re-sort the parent speaker list
+    resortSpeakers(btn);
+  } catch {
+    // keep optimistic state
+  }
+}
+
+function resortSpeakers(btn) {
+  // Find containing event section and re-sort rows by vote count
+  const row = btn.closest('.speaker-row');
+  if (!row) return;
+  const container = row.closest('.speaker-rows');
+  if (!container) return;
+
+  const rows = [...container.querySelectorAll('.speaker-row')];
+  rows.sort((a, b) => {
+    const aV = parseInt(a.querySelector('.vote-count')?.textContent || '0', 10);
+    const bV = parseInt(b.querySelector('.vote-count')?.textContent || '0', 10);
+    return bV - aV;
+  });
+
+  // Re-attach in sorted order and update rank badges
+  rows.forEach((r, idx) => {
+    container.appendChild(r);
+    const rank = idx + 1;
+    const rankEl = r.querySelector('.rank-badge');
+    if (rankEl) {
+      rankEl.textContent = rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : '#' + rank;
+      rankEl.className = 'rank-badge ' + (rank <= 3 ? 'rank-' + rank : 'rank-other');
+    }
+    r.className = 'speaker-row' + (rank <= 3 ? ' rank-' + rank : '');
+  });
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', loadVotePage);
+</script>
+</body>
+</html>
