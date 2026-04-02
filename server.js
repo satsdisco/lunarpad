@@ -1400,12 +1400,32 @@ function seedPlatformData() {
 
   console.log('[seed] Inserting platform data...');
 
-  // Events
+  // Events — always the second Friday of every month
   const eventId = crypto.randomUUID();
   db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
     eventId, 'LR Demo Day #1',
     'Our first community demo day! Show us what you\'ve been building. 5-minute demos, lightning pitches, and good vibes.',
     'demo-day', '2026-04-10', '18:00', 'Virtual — Link TBA'
+  );
+  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    crypto.randomUUID(), 'LR Demo Day #2',
+    'Monthly demo day. Show what you shipped, what you learned, and compete for sats.',
+    'demo-day', '2026-05-08', '18:00', 'Virtual — Link TBA'
+  );
+  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    crypto.randomUUID(), 'LR Demo Day #3',
+    'Monthly demo day. Show what you shipped, what you learned, and compete for sats.',
+    'demo-day', '2026-06-12', '18:00', 'Virtual — Link TBA'
+  );
+  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    crypto.randomUUID(), 'LR Demo Day #4',
+    'Monthly demo day. Show what you shipped, what you learned, and compete for sats.',
+    'demo-day', '2026-07-10', '18:00', 'Virtual — Link TBA'
+  );
+  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    crypto.randomUUID(), 'Bounty Hunt #1',
+    'Our first bounty hunt. Pick a bounty, ship it, earn sats. Solo or team. 48 hours to deliver.',
+    'bounty', '2026-04-22', '10:00', 'Async — Work at your own pace'
   );
 
   // Bounties — the 50k bounty is linked to the demo day event
