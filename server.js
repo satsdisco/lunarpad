@@ -322,6 +322,7 @@ app.get('/',         requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'publ
 app.get('/upload',   requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'upload.html')));
 app.get('/deck/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'deck.html')));
 app.get('/build',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));
+app.get('/event/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'event.html')));
 app.get('/project/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'project.html')));
 app.get('/vote',     requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'vote.html')));
 app.get('/admin',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));

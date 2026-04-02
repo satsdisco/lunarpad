@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event — DeckPad</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.event-hero {
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 32px;
+  margin-bottom: 32px; backdrop-filter: blur(8px);
+  position: relative; overflow: hidden;
+}
+.event-hero::before {
+  content: ''; position: absolute; top: -50%; right: -20%;
+  width: 300px; height: 300px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(57,217,138,.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+.event-hero-type {
+  font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--accent);
+  margin-bottom: 12px;
+}
+.event-hero-name { font-size: 1.6rem; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+.event-hero-meta { font-size: 0.88rem; color: var(--muted); margin-bottom: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+.event-hero-row { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 20px; }
+.event-hero-actions { display: flex; gap: 8px; }
+.event-hero-countdown { display: flex; gap: 8px; }
+.event-hero-countdown .cd-unit {
+  text-align: center; min-width: 52px;
+  background: rgba(0,0,0,.3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 8px;
+}
+.cd-val { font-family: var(--font-mono); font-size: 1.4rem; font-weight: 800; color: var(--accent); line-height: 1; }
+.cd-label { font-family: var(--font-mono); font-size: 0.55rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+
+.event-prize {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700;
+  color: var(--btc-gold); padding: 6px 14px;
+  background: rgba(242,177,52,.06); border: 1px solid rgba(242,177,52,.15);
+  border-radius: 100px; margin-bottom: 16px;
+}
+
+.event-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.event-tab {
+  padding: 10px 20px; font-size: 0.82rem; font-weight: 500;
+  color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all .15s; background: none; border-top: none; border-left: none; border-right: none;
+  font-family: var(--font);
+}
+.event-tab:hover { color: var(--text); }
+.event-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.event-tab-view { display: none; }
+.event-tab-view.active { display: block; }
+
+.lineup-empty { font-size: 0.85rem; color: var(--muted2); padding: 24px; text-align: center; background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); }
+
+.rsvp-card {
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px; max-width: 400px;
+}
+.rsvp-card h3 { font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 16px; }
+.rsvp-success { font-size: 0.85rem; color: var(--accent); padding: 12px; display: none; }
+
+@media (max-width: 768px) {
+  .event-hero { padding: 20px; }
+  .event-hero-name { font-size: 1.2rem; }
+  .event-hero-row { flex-direction: column; align-items: flex-start; }
+  .event-tabs { overflow-x: auto; }
+  .event-tab { white-space: nowrap; padding: 10px 14px; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="logo"><span class="mark">◆</span> DeckPad</a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab">Decks</a>
+    <a href="/build" class="nav-tab active">Build in Public</a>
+    <a href="/vote" class="nav-tab">Vote</a>
+  </nav>
+  <div class="header-actions" id="authArea">
+    <a href="/upload" class="btn btn-primary">⬆ Upload Deck</a>
+    <div id="userArea"></div>
+  </div>
+</header>
+
+<div class="container" style="padding-top:24px;padding-bottom:64px;">
+  <a href="/build" class="viewer-back">Back to events</a>
+  <div id="eventContent"><div class="empty-state"><p>Loading...</p></div></div>
+</div>
+
+<footer class="footer">DeckPad — Your stage for HTML presentations</footer>
+
+<script>
+const eventId = window.location.pathname.split('/').pop();
+let eventData = null;
+
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+function timeAgo(ds) { const m = Math.floor((Date.now()-new Date(ds).getTime())/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; const h=Math.floor(m/60); if(h<24)return h+'h ago'; return Math.floor(h/24)+'d ago'; }
+
+async function loadEvent() {
+  try {
+    const [evRes, bRes] = await Promise.all([
+      fetch('/api/events/' + eventId).then(r => r.json()),
+      fetch('/api/events/' + eventId + '/bounties').then(r => r.json()).catch(() => [])
+    ]);
+    eventData = evRes;
+    const ev = eventData;
+    const bounties = bRes;
+    const prizePool = bounties.reduce((s, b) => s + (b.sats_amount || 0), 0);
+
+    document.title = ev.name + ' — DeckPad';
+
+    const dateStr = ev.date ? new Date(ev.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' }) : 'TBD';
+    const speakers = (ev.speakers || []).sort((a,b) => (b.votes||0) - (a.votes||0));
+
+    document.getElementById('eventContent').innerHTML = `
+      <div class="event-hero">
+        <div class="event-hero-type">${esc(ev.event_type || ev.type || 'Event')}</div>
+        <div class="event-hero-name">${esc(ev.name)}</div>
+        <div class="event-hero-meta">
+          <span>📅 ${dateStr}${ev.time ? ' · ' + esc(ev.time) : ''}</span>
+          ${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}
+        </div>
+        ${prizePool ? `<div class="event-prize">⚡ ${prizePool.toLocaleString()} sats prize pool</div>` : ''}
+        <div class="event-hero-row">
+          <div class="event-hero-actions">
+            <button class="btn" onclick="document.getElementById('rsvpSection').style.display=document.getElementById('rsvpSection').style.display==='none'?'block':'none'">RSVP</button>
+            <button class="btn btn-primary" onclick="document.getElementById('signupSection').style.display=document.getElementById('signupSection').style.display==='none'?'block':'none'">Present at this Event</button>
+          </div>
+          <div class="event-hero-countdown">
+            <div class="cd-unit"><div class="cd-val" id="cd-d">--</div><div class="cd-label">Days</div></div>
+            <div class="cd-unit"><div class="cd-val" id="cd-h">--</div><div class="cd-label">Hrs</div></div>
+            <div class="cd-unit"><div class="cd-val" id="cd-m">--</div><div class="cd-label">Min</div></div>
+            <div class="cd-unit"><div class="cd-val" id="cd-s">--</div><div class="cd-label">Sec</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RSVP (hidden by default) -->
+      <div id="rsvpSection" style="display:none;margin-bottom:24px">
+        <div class="rsvp-card">
+          <h3>RSVP for ${esc(ev.name)}</h3>
+          <div class="form-group"><label>Name</label><input type="text" id="rsvpName" placeholder="Your name"></div>
+          <div class="form-group"><label>Email</label><input type="email" id="rsvpEmail" placeholder="you@example.com"></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-primary btn-sm" onclick="submitRsvp()">Confirm RSVP</button>
+            <button class="btn btn-sm" onclick="document.getElementById('rsvpSection').style.display='none'">Cancel</button>
+          </div>
+          <div class="rsvp-success" id="rsvpSuccess">✓ You're RSVP'd!</div>
+        </div>
+      </div>
+
+      <!-- Speaker Signup (hidden by default) -->
+      <div id="signupSection" style="display:none;margin-bottom:24px">
+        <div class="rsvp-card" style="max-width:520px">
+          <h3>Sign Up to Present</h3>
+          <div class="form-row"><div class="form-group"><label>Name</label><input type="text" id="spkName" placeholder="Your name"></div><div class="form-group"><label>Project</label><input type="text" id="spkProject" placeholder="Project title"></div></div>
+          <div class="form-group"><label>Description</label><textarea id="spkDesc" placeholder="What will you demo?"></textarea></div>
+          <div class="form-row"><div class="form-group"><label>GitHub (optional)</label><input type="url" id="spkGithub" placeholder="https://github.com/..."></div><div class="form-group"><label>Demo (optional)</label><input type="url" id="spkDemo" placeholder="https://..."></div></div>
+          <div class="form-row"><div class="form-group"><label>Duration</label><select id="spkDuration"><option value="5">5 min</option><option value="10" selected>10 min</option><option value="15">15 min</option></select></div><div class="form-group"><label>Attach Deck</label><select id="spkDeck"><option value="">None</option></select></div></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-primary btn-sm" onclick="submitSpeaker()">Submit</button>
+            <button class="btn btn-sm" onclick="document.getElementById('signupSection').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="event-tabs">
+        <button class="event-tab active" onclick="switchTab('lineup')">Lineup (${speakers.length})</button>
+        <button class="event-tab" onclick="switchTab('bounties')">Bounties (${bounties.length})</button>
+      </div>
+
+      <div class="event-tab-view active" id="tab-lineup">
+        <div class="speaker-rows" id="speakerRows">
+          ${speakers.length ? speakers.map((sp, i) => renderSpeaker(sp, i+1)).join('') : '<div class="lineup-empty">No speakers signed up yet — be the first!</div>'}
+        </div>
+      </div>
+
+      <div class="event-tab-view" id="tab-bounties">
+        ${bounties.length ? '<div class="bounty-grid">' + bounties.map(b => renderBounty(b)).join('') + '</div>' : '<div class="lineup-empty">No bounties for this event yet.</div>'}
+      </div>
+    `;
+
+    startCountdown();
+    loadDecksDropdown();
+  } catch(e) {
+    document.getElementById('eventContent').innerHTML = '<div class="empty-state"><h3>Event not found</h3></div>';
+  }
+}
+
+function renderSpeaker(sp, rank) {
+  const medals = ['🥇','🥈','🥉'];
+  const rankLabel = rank <= 3 ? medals[rank-1] : '#'+rank;
+  return `
+    <div class="speaker-row ${rank<=3?'rank-'+rank:''}" ${sp.deck_id ? `onclick="window.location='/deck/${sp.deck_id}'" style="cursor:pointer"` : ''}>
+      <div class="rank-badge rank-${Math.min(rank,4)}">${rankLabel}</div>
+      <div class="speaker-info">
+        <div class="speaker-name">${esc(sp.name)}</div>
+        <div class="speaker-project">${sp.deck_id ? `<a href="/deck/${esc(sp.deck_id)}" class="project-link" onclick="event.stopPropagation()">${esc(sp.project||sp.project_title)} →</a>` : esc(sp.project||sp.project_title)}</div>
+        ${sp.description ? `<div class="speaker-desc">${esc(sp.description)}</div>` : ''}
+        <div class="spk-links">
+          ${sp.github_url ? `<a href="${esc(sp.github_url)}" target="_blank" class="spk-link" onclick="event.stopPropagation()">⌥ GitHub</a>` : ''}
+          ${sp.demo_url ? `<a href="${esc(sp.demo_url)}" target="_blank" class="spk-link" onclick="event.stopPropagation()">↗ Demo</a>` : ''}
+          ${sp.deck_id ? `<a href="/deck/${esc(sp.deck_id)}" class="spk-link" onclick="event.stopPropagation()">📽 Deck</a>` : ''}
+        </div>
+      </div>
+      <div class="duration-badge">${sp.duration} min</div>
+      <button class="vote-btn" onclick="event.stopPropagation();voteSpeaker('${esc(sp.id)}',this)">
+        <span class="arrow">▲</span><span class="vc">${sp.votes||0}</span>
+      </button>
+    </div>`;
+}
+
+function renderBounty(b) {
+  const sc = {open:'open',claimed:'claimed',completed:'completed'}[b.status]||'open';
+  return `
+    <div class="bounty-card">
+      <div class="bounty-header">
+        <div class="bounty-title">${esc(b.title)}</div>
+        <span class="bounty-status ${sc}">${b.status}</span>
+      </div>
+      <div class="bounty-sats">⚡ ${(b.sats_amount||0).toLocaleString()} sats</div>
+      <div class="bounty-desc">${esc(b.description)}</div>
+    </div>`;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.event-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.event-tab-view').forEach(v => v.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// Countdown
+function startCountdown() {
+  if (!eventData?.date) return;
+  function tick() {
+    const diff = new Date(eventData.date).getTime() - Date.now();
+    if (diff <= 0) { ['d','h','m','s'].forEach(u => { const e=document.getElementById('cd-'+u); if(e)e.textContent='0'; }); return; }
+    const d=Math.floor(diff/864e5), h=Math.floor(diff%864e5/36e5), m=Math.floor(diff%36e5/6e4), s=Math.floor(diff%6e4/1e3);
+    const el=(id,v)=>{ const e=document.getElementById('cd-'+id); if(e)e.textContent=String(v).padStart(2,'0'); };
+    el('d',d);el('h',h);el('m',m);el('s',s);
+  }
+  tick(); setInterval(tick, 1000);
+}
+
+// RSVP
+async function submitRsvp() {
+  const name = document.getElementById('rsvpName').value.trim();
+  const email = document.getElementById('rsvpEmail').value.trim();
+  if (!name||!email) return alert('Fill in name and email');
+  await fetch('/api/events/'+eventId+'/rsvp', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email})});
+  document.getElementById('rsvpSuccess').style.display = 'block';
+  setTimeout(()=>document.getElementById('rsvpSection').style.display='none', 1500);
+}
+
+// Speaker signup
+async function submitSpeaker() {
+  const name=document.getElementById('spkName').value.trim(), proj=document.getElementById('spkProject').value.trim();
+  if(!name||!proj) return alert('Name and project required');
+  const r = await fetch('/api/speakers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    name, project_title:proj, description:document.getElementById('spkDesc').value.trim(),
+    duration:+document.getElementById('spkDuration').value, event_id:eventId,
+    github_url:document.getElementById('spkGithub').value.trim()||null,
+    demo_url:document.getElementById('spkDemo').value.trim()||null,
+    deck_id:document.getElementById('spkDeck').value||null
+  })});
+  if(r.ok){ document.getElementById('signupSection').style.display='none'; loadEvent(); }
+  else { const e=await r.json().catch(()=>({})); alert(e.error||'Failed'); }
+}
+
+// Vote
+async function voteSpeaker(id, btn) {
+  const r = await fetch('/api/vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'speaker',id})});
+  const d = await r.json();
+  btn.querySelector('.vc').textContent = d.votes;
+  btn.classList.toggle('voted', d.voted);
+}
+
+// Load decks for dropdown
+async function loadDecksDropdown() {
+  try {
+    const r = await fetch('/api/decks?limit=48');
+    const data = await r.json();
+    const sel = document.getElementById('spkDeck');
+    (data.decks||[]).forEach(d => { const o=document.createElement('option'); o.value=d.id; o.textContent=d.title; sel.appendChild(o); });
+  } catch {}
+}
+
+loadEvent();
+</script>
+<script>
+async function initAuth() {
+  try {
+    const res = await fetch('/api/me'); const data = await res.json();
+    const area = document.getElementById('userArea'); if (!area) return;
+    if (data.user) {
+      area.innerHTML = `<div class="user-menu"><div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')"><img src="${data.user.avatar||''}" alt="" onerror="this.style.display='none'"><span>${data.user.name||data.user.email}</span></div><div class="user-dropdown"><a href="/">My Profile</a><a href="/auth/logout">Sign out</a></div></div>`;
+      document.addEventListener('click',e=>{if(!e.target.closest('.user-menu'))document.querySelectorAll('.user-dropdown').forEach(d=>d.classList.remove('open'));});
+    } else { area.innerHTML = '<a href="/auth/google" class="sign-in-btn">Sign in</a>'; }
+  } catch {}
+}
+initAuth();
+</script>
+</body>
+</html>
