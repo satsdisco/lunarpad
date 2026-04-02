@@ -141,6 +141,7 @@ db.exec(`
     tags        TEXT,
     category    TEXT,
     bounty_id   TEXT,
+    user_id     TEXT,
     repo_url    TEXT,
     demo_url    TEXT,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -692,12 +693,12 @@ app.post('/api/projects', requireAuth, (req, res) => {
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   if (!builder || !builder.trim()) return res.status(400).json({ error: 'builder required' });
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO projects (id, name, builder, description, status, tags, category, bounty_id, repo_url, demo_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  db.prepare(`INSERT INTO projects (id, name, builder, description, status, tags, category, bounty_id, user_id, repo_url, demo_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, name.trim(), builder.trim(), description || null,
     status || 'building',
     Array.isArray(tags) ? tags.join(',') : (tags || null),
-    category || null, bounty_id || null,
+    category || null, bounty_id || null, req.user?.id || null,
     repo_url || repo || null, demo_url || demo || null
   );
   res.json({ id });
@@ -750,7 +751,7 @@ app.get('/api/users/:id', (req, res) => {
   const user = db.prepare('SELECT id, name, email, avatar, is_admin, created_at FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const deckCount = db.prepare('SELECT COUNT(*) as c FROM decks WHERE uploaded_by = ?').get(req.params.id).c;
-  const projectCount = db.prepare("SELECT COUNT(*) as c FROM projects WHERE builder = ?").get(user.name).c;
+  const projectCount = db.prepare("SELECT COUNT(*) as c FROM projects WHERE user_id = ? OR builder = ?").get(req.params.id, user.name).c;
   res.json({ ...user, deck_count: deckCount, project_count: projectCount });
 });
 
@@ -767,9 +768,9 @@ app.get('/api/users/:id/projects', (req, res) => {
     FROM projects p
     LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'project' GROUP BY target_id) v ON p.id = v.target_id
     LEFT JOIN bounties b ON p.bounty_id = b.id
-    WHERE p.builder = ?
+    WHERE p.user_id = ? OR p.builder = ?
     ORDER BY p.created_at DESC
-  `).all(user.name);
+  `).all(req.params.id, user.name);
   res.json(rows);
 });
 
