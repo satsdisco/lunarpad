@@ -602,6 +602,27 @@ h1, h2, h3, h4 {
   .container { padding: 0 16px; }
   .speaker-grid { grid-template-columns: 1fr; }
 }
+
+/* ─── Speaker link pills ─────────────────────────────────────────────────── */
+.spk-links { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.spk-link {
+  font-size: 11px; color: var(--muted); padding: 2px 8px;
+  border: 1px solid var(--border); border-radius: 5px;
+  transition: all .15s;
+}
+.spk-link:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ─── Event bounty list ──────────────────────────────────────────────────── */
+.event-bounties { margin: 10px 0 6px; }
+.event-prize-pool {
+  font-size: 12px; color: var(--btc-gold); font-weight: 600; margin-bottom: 6px;
+}
+.event-bounty-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.event-bounty-pill {
+  font-size: 11px; padding: 3px 10px; border-radius: 6px;
+  background: var(--btc-gold-dim); color: var(--btc-gold);
+  border: 1px solid rgba(242,177,52,.2);
+}
 </style>
 </head>
 <body>
@@ -684,13 +705,31 @@ h1, h2, h3, h4 {
         <label>Short Description</label>
         <textarea id="spkDesc" placeholder="What will you be presenting?"></textarea>
       </div>
-      <div class="form-group">
-        <label>Duration</label>
-        <select id="spkDuration">
-          <option value="5">5 minutes</option>
-          <option value="10" selected>10 minutes</option>
-          <option value="15">15 minutes</option>
-        </select>
+      <div class="form-row">
+        <div class="form-group">
+          <label>GitHub URL <span style="font-weight:400;color:var(--muted2)">(optional)</span></label>
+          <input type="url" id="spkGithub" placeholder="https://github.com/you/project">
+        </div>
+        <div class="form-group">
+          <label>Live Demo URL <span style="font-weight:400;color:var(--muted2)">(optional)</span></label>
+          <input type="url" id="spkDemo" placeholder="https://yourproject.app">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Duration</label>
+          <select id="spkDuration">
+            <option value="5">5 minutes</option>
+            <option value="10" selected>10 minutes</option>
+            <option value="15">15 minutes</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Attach Presentation <span style="font-weight:400;color:var(--muted2)">(optional)</span></label>
+          <select id="spkDeckId">
+            <option value="">— None —</option>
+          </select>
+        </div>
       </div>
       <div class="form-submit-row">
         <button class="btn btn-primary" onclick="submitSpeaker()">🎤 Join the Lineup</button>
@@ -829,16 +868,18 @@ async function loadEvents() {
     }
     grid.innerHTML = eventsData.map(ev => renderEventCard(ev)).join('');
     startCountdowns();
+    eventsData.forEach(ev => loadEventBounties(ev.id));
 
     // Find next demo-day for speaker section
     const now = new Date();
     const demoDays = eventsData.filter(ev =>
-      (ev.type || '').toLowerCase().includes('demo') &&
+      (ev.event_type || ev.type || '').toLowerCase().includes('demo') &&
       new Date(ev.date) > now
     ).sort((a, b) => new Date(a.date) - new Date(b.date));
     if (demoDays.length) {
       nextDemoDay = demoDays[0];
       loadSpeakers();
+      loadDecksForDropdown();
     }
   } catch {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📅</div><h3>Could not load events</h3><p>API unavailable</p></div>`;
@@ -849,10 +890,11 @@ function renderEventCard(ev) {
   const dateStr = ev.date
     ? new Date(ev.date).toLocaleDateString('en', { weekday:'short', month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })
     : 'TBD';
+  const evType = ev.event_type || ev.type || 'Event';
   return `
     <div class="event-card" id="event-${esc(ev.id)}">
       <div class="event-card-body">
-        <div class="event-type-badge">${esc(ev.type || 'Event')}</div>
+        <div class="event-type-badge">${esc(evType)}</div>
         <div class="event-name">${esc(ev.name)}</div>
         <div class="event-details">
           <span>🗓 ${dateStr}</span>
@@ -864,6 +906,7 @@ function renderEventCard(ev) {
           <div class="countdown-unit"><div class="countdown-val" id="cd-m-${esc(ev.id)}">--</div><div class="countdown-label">Min</div></div>
           <div class="countdown-unit"><div class="countdown-val" id="cd-s-${esc(ev.id)}">--</div><div class="countdown-label">Sec</div></div>
         </div>
+        <div class="event-bounties" id="evbounties-${esc(ev.id)}"></div>
         <button class="btn btn-ghost btn-sm" onclick="toggleRsvp('${esc(ev.id)}')">✉️ RSVP</button>
       </div>
       <div class="rsvp-form-wrap" id="rsvp-${esc(ev.id)}">
@@ -965,17 +1008,25 @@ function renderSpeakerList() {
     list.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No speakers yet — be the first to sign up!</p>';
     return;
   }
-  list.innerHTML = speakersData.map(sp => `
+  list.innerHTML = speakersData.map(sp => {
+    const links = [
+      sp.github_url ? `<a href="${esc(sp.github_url)}" target="_blank" rel="noopener" class="spk-link">⌥ GitHub</a>` : '',
+      sp.demo_url   ? `<a href="${esc(sp.demo_url)}"   target="_blank" rel="noopener" class="spk-link">↗ Demo</a>` : '',
+      sp.deck_id    ? `<a href="/deck/${esc(sp.deck_id)}" target="_blank" rel="noopener" class="spk-link">📽 View Deck</a>` : '',
+    ].filter(Boolean).join('');
+    return `
     <div class="speaker-row" id="spk-${esc(sp.id)}">
       <div class="speaker-info">
         <div class="speaker-name">${esc(sp.name)}</div>
-        <div class="speaker-project">${esc(sp.project)}</div>
+        <div class="speaker-project">${esc(sp.project || sp.project_title)}</div>
+        ${links ? `<div class="spk-links">${links}</div>` : ''}
       </div>
       <span class="speaker-duration">${esc(sp.duration)} min</span>
-      <button class="speaker-upvote" id="spk-vote-${esc(sp.id)}" onclick="voteSpeaker('${esc(sp.id)}')">
-        🔺 <span id="spk-count-${esc(sp.id)}">${sp.votes || 0}</span>
+      <button class="vote-btn" id="spk-vote-${esc(sp.id)}" onclick="voteSpeaker('${esc(sp.id)}')">
+        <span class="arrow">▲</span><span id="spk-count-${esc(sp.id)}">${sp.votes || 0}</span>
       </button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function submitSpeaker() {
@@ -983,16 +1034,18 @@ async function submitSpeaker() {
   const project = document.getElementById('spkProject').value.trim();
   const desc = document.getElementById('spkDesc').value.trim();
   const duration = document.getElementById('spkDuration').value;
+  const github_url = document.getElementById('spkGithub').value.trim();
+  const demo_url = document.getElementById('spkDemo').value.trim();
+  const deck_id = document.getElementById('spkDeckId').value || null;
   if (!name || !project) return alert('Please enter your name and project title.');
   try {
     await fetch('/api/speakers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, project, description: desc, duration: Number(duration), eventId: nextDemoDay?.id })
+      body: JSON.stringify({ name, project_title: project, description: desc, duration: Number(duration), event_id: nextDemoDay?.id, github_url: github_url || null, demo_url: demo_url || null, deck_id })
     });
-    document.getElementById('spkName').value = '';
-    document.getElementById('spkProject').value = '';
-    document.getElementById('spkDesc').value = '';
+    ['spkName','spkProject','spkDesc','spkGithub','spkDemo'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('spkDeckId').value = '';
     const res = await fetch('/api/speakers' + (nextDemoDay ? '?event=' + encodeURIComponent(nextDemoDay.id) : ''));
     speakersData = await res.json();
     renderSpeakerList();
@@ -1002,20 +1055,60 @@ async function submitSpeaker() {
 }
 
 async function voteSpeaker(id) {
-  const btn = document.getElementById('spk-vote-' + id);
-  if (btn?.classList.contains('voted')) return;
+  toggleVote('speaker', id, document.getElementById('spk-vote-' + id), 'spk-count-' + id);
+}
+
+async function toggleVote(type, id, btn, countElId) {
+  if (!btn) return;
   try {
-    const res = await fetch('/api/speakers/' + id + '/vote', { method: 'POST' });
+    const res = await fetch('/api/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, id }),
+    });
     const data = await res.json();
-    const countEl = document.getElementById('spk-count-' + id);
-    if (countEl) countEl.textContent = data.votes ?? (parseInt(countEl.textContent) + 1);
-    btn?.classList.add('voted');
+    const countEl = document.getElementById(countElId);
+    if (countEl) countEl.textContent = data.votes;
+    btn.classList.toggle('voted', data.voted);
   } catch {
-    // optimistic update
-    const countEl = document.getElementById('spk-count-' + id);
-    if (countEl) countEl.textContent = parseInt(countEl.textContent) + 1;
-    btn?.classList.add('voted');
+    const countEl = document.getElementById(countElId);
+    if (countEl) countEl.textContent = parseInt(countEl.textContent || '0') + 1;
+    btn.classList.add('voted');
   }
+}
+
+// ─── Event Bounties ───────────────────────────────────────────────────────
+async function loadEventBounties(eventId) {
+  const el = document.getElementById('evbounties-' + eventId);
+  if (!el) return;
+  try {
+    const res = await fetch('/api/events/' + encodeURIComponent(eventId) + '/bounties');
+    const bounties = await res.json();
+    if (!bounties.length) return;
+    const total = bounties.reduce((s, b) => s + (b.sats_amount || 0), 0);
+    el.innerHTML = `
+      <div class="event-prize-pool">⚡ Prize Pool: <strong>${total.toLocaleString()} sats</strong></div>
+      <div class="event-bounty-list">
+        ${bounties.map(b => `<span class="event-bounty-pill">⚡ ${(b.sats_amount||0).toLocaleString()} · ${esc(b.title)}</span>`).join('')}
+      </div>`;
+  } catch { /* ignore */ }
+}
+
+// ─── Decks dropdown for speaker form ─────────────────────────────────────
+async function loadDecksForDropdown() {
+  const sel = document.getElementById('spkDeckId');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/decks?limit=48');
+    const data = await res.json();
+    const decks = data.decks || [];
+    decks.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = d.title + (d.author ? ' — ' + d.author : '');
+      sel.appendChild(opt);
+    });
+  } catch { /* ignore */ }
 }
 
 // ─── Projects ─────────────────────────────────────────────────────────────
@@ -1096,19 +1189,7 @@ async function submitProject() {
 }
 
 async function voteProject(id) {
-  const btn = document.getElementById('proj-vote-' + id);
-  if (btn?.classList.contains('voted')) return;
-  try {
-    const res = await fetch('/api/projects/' + id + '/vote', { method: 'POST' });
-    const data = await res.json();
-    const countEl = document.getElementById('proj-count-' + id);
-    if (countEl) countEl.textContent = data.votes ?? (parseInt(countEl.textContent) + 1);
-    btn?.classList.add('voted');
-  } catch {
-    const countEl = document.getElementById('proj-count-' + id);
-    if (countEl) countEl.textContent = parseInt(countEl.textContent) + 1;
-    btn?.classList.add('voted');
-  }
+  toggleVote('project', id, document.getElementById('proj-vote-' + id), 'proj-count-' + id);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────

@@ -633,8 +633,10 @@ h1, h2, h3, h4 {
     <div class="viewer-tags" id="deckTags"></div>
 
     <div class="viewer-actions">
-      <button class="btn btn-ghost" id="voteBtn" style="font-size:15px;">🔺 Upvote <span id="voteCount">0</span></button>
+      <button class="vote-btn" id="voteBtn"><span class="arrow">▲</span><span id="voteCount">0</span></button>
       <button class="btn btn-ghost" id="downloadBtn">⬇ Download</button>
+      <a class="btn btn-ghost" id="githubBtn" href="#" target="_blank" rel="noopener" style="display:none">⌥ GitHub</a>
+      <a class="btn btn-ghost" id="demoBtn" href="#" target="_blank" rel="noopener" style="display:none">↗ Live Demo</a>
       <button class="btn btn-ghost" id="embedBtn">⟨/⟩ Embed Code</button>
       <button class="btn btn-ghost" id="linkBtn">🔗 Copy Link</button>
       <button class="btn btn-ghost" id="deleteBtn" style="color:#c04040;border-color:#4a2020;">🗑 Delete</button>
@@ -675,6 +677,18 @@ h1, h2, h3, h4 {
         .map(t => `<span class="viewer-tag">${esc(t)}</span>`).join('');
     }
 
+    // GitHub / Demo links
+    if (deck.github_url) {
+      const gb = document.getElementById('githubBtn');
+      gb.href = deck.github_url;
+      gb.style.display = '';
+    }
+    if (deck.demo_url) {
+      const db2 = document.getElementById('demoBtn');
+      db2.href = deck.demo_url;
+      db2.style.display = '';
+    }
+
     // Embed code
     const embedUrl = `${location.origin}/presentations/${deck.id}/${deck.entry_point}`;
     document.getElementById('embedCode').textContent =
@@ -701,31 +715,23 @@ h1, h2, h3, h4 {
   }
 
   async function loadVotes(id) {
-    const res = await fetch(`/api/decks/${id}/votes`);
+    const res = await fetch(`/api/vote/count?type=deck&id=${id}`);
     const data = await res.json();
     document.getElementById('voteCount').textContent = data.votes;
     const btn = document.getElementById('voteBtn');
-    if (data.voted) {
-      btn.style.background = 'rgba(245,197,24,.12)';
-      btn.style.borderColor = 'var(--gold2)';
-      btn.style.color = 'var(--gold)';
-    }
+    if (data.voted) btn.classList.add('voted');
   }
 
   document.getElementById('voteBtn').addEventListener('click', async () => {
-    const res = await fetch(`/api/decks/${deckId}/vote`, { method: 'POST' });
+    const btn = document.getElementById('voteBtn');
+    const res = await fetch('/api/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'deck', id: deckId }),
+    });
     const data = await res.json();
     document.getElementById('voteCount').textContent = data.votes;
-    const btn = document.getElementById('voteBtn');
-    if (data.voted) {
-      btn.style.background = 'rgba(245,197,24,.12)';
-      btn.style.borderColor = 'var(--gold2)';
-      btn.style.color = 'var(--gold)';
-    } else {
-      btn.style.background = '';
-      btn.style.borderColor = '';
-      btn.style.color = '';
-    }
+    btn.classList.toggle('voted', data.voted);
   });
 
   // Fullscreen

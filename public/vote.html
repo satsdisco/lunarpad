@@ -602,6 +602,135 @@ h1, h2, h3, h4 {
   .container { padding: 0 16px; }
   .speaker-grid { grid-template-columns: 1fr; }
 }
+
+/* ─── Vote Page v2 ───────────────────────────────────────────────────────── */
+.vote-page { padding: 32px 0 80px; }
+
+.event-section {
+  margin-bottom: 48px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.event-section-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 20px; flex-wrap: wrap;
+  padding: 24px 28px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.event-section-meta { flex: 1; min-width: 0; }
+
+.event-section-type {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--accent);
+  background: var(--cyan-dim); border: 1px solid rgba(60,203,218,.15);
+  padding: 2px 8px; border-radius: 4px;
+  display: inline-block; margin-bottom: 8px;
+}
+
+.event-section-heading {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 800; margin-bottom: 4px;
+}
+
+.event-section-date {
+  font-size: 13px; color: var(--muted); margin-bottom: 12px;
+}
+
+.event-prize-pool {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 8px;
+}
+.prize-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--muted);
+}
+.prize-amount {
+  font-size: 18px; font-weight: 800; color: var(--btc-gold);
+  font-family: var(--font-display);
+}
+
+.event-bounty-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.bounty-pill {
+  font-size: 11px; padding: 3px 10px; border-radius: 6px;
+  background: var(--btc-gold-dim); color: var(--btc-gold);
+  border: 1px solid rgba(242,177,52,.2); font-weight: 500;
+}
+
+.event-countdown { display: flex; gap: 6px; flex-shrink: 0; }
+.countdown-chip {
+  display: flex; flex-direction: column; align-items: center;
+  background: var(--void); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; min-width: 44px;
+}
+.countdown-chip-val {
+  font-family: var(--font-display); font-size: 18px; font-weight: 800;
+  color: var(--accent); line-height: 1;
+}
+.countdown-chip-label {
+  font-size: 9px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--muted2); margin-top: 3px;
+}
+
+/* Speaker rows */
+.speaker-rows { padding: 8px 0; }
+
+.speaker-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--border);
+  transition: background .12s;
+}
+.speaker-row:last-child { border-bottom: none; }
+.speaker-row:hover { background: rgba(255,255,255,.02); }
+
+.speaker-row.rank-1 { border-left: 3px solid var(--btc-gold); }
+.speaker-row.rank-2 { border-left: 3px solid var(--silver); }
+.speaker-row.rank-3 { border-left: 3px solid #CD7F32; }
+
+.rank-badge {
+  font-size: 20px; flex-shrink: 0; width: 32px; text-align: center;
+}
+.rank-other {
+  font-family: var(--font-display); font-size: 15px; font-weight: 800;
+  color: var(--muted2); line-height: 1;
+}
+
+.speaker-info { flex: 1; min-width: 0; }
+.speaker-name { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.speaker-project { font-size: 13px; color: var(--accent); font-weight: 500; margin-bottom: 4px; }
+.speaker-desc { font-size: 12px; color: var(--muted); line-height: 1.4; margin-bottom: 6px; }
+
+.spk-links { display: flex; gap: 6px; flex-wrap: wrap; }
+.spk-link {
+  font-size: 11px; color: var(--muted); padding: 2px 8px;
+  border: 1px solid var(--border); border-radius: 5px; transition: all .15s;
+}
+.spk-link:hover { border-color: var(--accent); color: var(--accent); }
+
+.duration-badge {
+  font-size: 11px; color: var(--muted2); white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.no-speakers {
+  padding: 20px 28px; font-size: 13px; color: var(--muted);
+}
+
+.vote-note {
+  margin-top: 8px; padding: 14px 20px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: 13px; color: var(--muted);
+}
+
+@media (max-width: 600px) {
+  .event-section-header { flex-direction: column; }
+  .event-countdown { flex-wrap: wrap; }
+  .speaker-row { padding: 12px 16px; }
+}
 </style>
 </head>
 <body>
@@ -618,12 +747,7 @@ h1, h2, h3, h4 {
   </div>
 </header>
 
-<div class="vote-page">
-  <div class="hero">
-    <h1>🗳 Vote for Speakers</h1>
-    <p>Help decide who presents at the next demo day</p>
-  </div>
-
+<div class="vote-page container">
   <div id="voteContent">
     <!-- Loaded dynamically -->
   </div>
@@ -669,14 +793,16 @@ function updateAllCountdowns() {
 async function loadVotePage() {
   const content = document.getElementById('voteContent');
   try {
-    const res = await fetch('/api/events');
-    allEvents = await res.json();
+    const [evRes, allBounties] = await Promise.all([
+      fetch('/api/events').then(r => r.json()),
+      fetch('/api/bounties').then(r => r.json()).catch(() => []),
+    ]);
+    allEvents = evRes;
 
-    // Filter to demo-day events with speakers
-    const now = new Date();
+    // Filter to demo-day type events (upcoming or current)
     const demoDays = allEvents.filter(ev => {
-      const type = (ev.type || '').toLowerCase();
-      return type.includes('demo') && Array.isArray(ev.speakers) && ev.speakers.length > 0;
+      const type = (ev.event_type || ev.type || '').toLowerCase();
+      return type.includes('demo');
     }).sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (!demoDays.length) {
@@ -684,16 +810,19 @@ async function loadVotePage() {
       return;
     }
 
-    content.innerHTML = `
-      <div class="medal-row">
-        <span class="medal-item"><span class="medal-dot gold"></span> 1st place presenter</span>
-        <span class="medal-item"><span class="medal-dot silver"></span> 2nd place</span>
-        <span class="medal-item"><span class="medal-dot bronze"></span> 3rd place</span>
-      </div>
-      ${demoDays.map(ev => renderEventSection(ev)).join('')}
-      <div class="vote-note">
+    // Build event_id → bounties map
+    const bountyMap = {};
+    for (const b of allBounties) {
+      if (b.event_id) {
+        if (!bountyMap[b.event_id]) bountyMap[b.event_id] = [];
+        bountyMap[b.event_id].push(b);
+      }
+    }
+
+    content.innerHTML = demoDays.map(ev => renderEventSection(ev, bountyMap[ev.id] || [])).join('') +
+      `<div class="vote-note">
         <strong>How voting works:</strong> Votes help organizers plan the lineup. Top voted speakers present first.
-        You can vote once per speaker. Voting resets each cycle.
+        You can vote once per speaker.
       </div>`;
 
     setInterval(updateAllCountdowns, 1000);
@@ -704,21 +833,38 @@ async function loadVotePage() {
   }
 }
 
-function renderEventSection(ev) {
+function renderEventSection(ev, bounties) {
   const dateStr = ev.date
     ? new Date(ev.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' })
     : 'Date TBD';
 
   const speakers = [...(ev.speakers || [])].sort((a, b) => (b.votes || 0) - (a.votes || 0));
 
+  // Prize pool from linked bounties
+  const prizePool = bounties.reduce((s, b) => s + (b.sats_amount || 0), 0);
+  const prizeHtml = prizePool > 0 ? `
+    <div class="event-prize-pool">
+      <span class="prize-label">Prize Pool</span>
+      <span class="prize-amount">⚡ ${prizePool.toLocaleString()} sats</span>
+    </div>
+    <div class="event-bounty-pills">
+      ${bounties.map(b => `<span class="bounty-pill">⚡ ${(b.sats_amount||0).toLocaleString()} · ${esc(b.title)}</span>`).join('')}
+    </div>` : '';
+
+  const speakersHtml = speakers.length
+    ? speakers.map((sp, idx) => renderSpeakerRow(sp, idx + 1)).join('')
+    : `<div class="no-speakers">No speakers signed up yet — <a href="/build">be the first</a></div>`;
+
   return `
     <div class="event-section">
       <div class="event-section-header">
-        <div>
+        <div class="event-section-meta">
+          <div class="event-section-type">${esc(ev.event_type || ev.type || 'Event')}</div>
           <div class="event-section-heading">${esc(ev.name)}</div>
           <div class="event-section-date">🗓 ${dateStr}${ev.location ? ' · 📍 ' + esc(ev.location) : ''}</div>
+          ${prizeHtml}
         </div>
-        <div class="event-countdown" id="vcountdown-${esc(ev.id)}">
+        <div class="event-countdown">
           <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-d-${esc(ev.id)}">--</div><div class="countdown-chip-label">Days</div></div>
           <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-h-${esc(ev.id)}">--</div><div class="countdown-chip-label">Hrs</div></div>
           <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-m-${esc(ev.id)}">--</div><div class="countdown-chip-label">Min</div></div>
@@ -726,69 +872,73 @@ function renderEventSection(ev) {
         </div>
       </div>
       <div class="speaker-rows" id="speakers-${esc(ev.id)}">
-        ${speakers.map((sp, idx) => renderSpeakerRow(sp, idx + 1)).join('')}
+        ${speakersHtml}
       </div>
     </div>`;
 }
 
 function renderSpeakerRow(sp, rank) {
+  const medals = ['🥇', '🥈', '🥉'];
+  const rankLabel = rank <= 3 ? medals[rank - 1] : '#' + rank;
   const rankClass = rank <= 3 ? 'rank-' + rank : 'rank-other';
-  const rankLabel = rank <= 3
-    ? ['🥇', '🥈', '🥉'][rank - 1]
-    : '#' + rank;
-  const desc = sp.description
-    ? `<div class="speaker-desc">${esc(sp.description)}</div>`
-    : '';
+
+  const desc = sp.description ? `<div class="speaker-desc">${esc(sp.description)}</div>` : '';
+  const links = [
+    sp.github_url ? `<a href="${esc(sp.github_url)}" target="_blank" rel="noopener" class="spk-link">⌥ GitHub</a>` : '',
+    sp.demo_url   ? `<a href="${esc(sp.demo_url)}"   target="_blank" rel="noopener" class="spk-link">↗ Demo</a>` : '',
+    sp.deck_id    ? `<a href="/deck/${esc(sp.deck_id)}" target="_blank" rel="noopener" class="spk-link btn btn-ghost btn-sm">📽 View Presentation</a>` : '',
+  ].filter(Boolean).join('');
+
   return `
     <div class="speaker-row ${rank <= 3 ? 'rank-' + rank : ''}" id="sprow-${esc(sp.id)}">
       <div class="rank-badge ${rankClass}">${rankLabel}</div>
       <div class="speaker-info">
         <div class="speaker-name">${esc(sp.name)}</div>
-        <div class="speaker-project">${esc(sp.project)}</div>
+        <div class="speaker-project">${esc(sp.project || sp.project_title)}</div>
         ${desc}
+        ${links ? `<div class="spk-links">${links}</div>` : ''}
       </div>
       <div class="duration-badge">${esc(sp.duration)} min</div>
-      <button class="vote-btn" id="vbtn-${esc(sp.id)}" onclick="voteSpeaker('${esc(sp.id)}')">
-        <span class="vote-arrow">▲</span>
-        <span class="vote-count" id="vcount-${esc(sp.id)}">${sp.votes || 0}</span>
+      <button class="vote-btn" id="vbtn-${esc(sp.id)}" onclick="toggleVote('speaker', '${esc(sp.id)}', this, 'vcount-${esc(sp.id)}')">
+        <span class="arrow">▲</span>
+        <span id="vcount-${esc(sp.id)}">${sp.votes || 0}</span>
       </button>
     </div>`;
 }
 
 function renderEmptyState() {
   return `
-    <div class="empty-state">
-      <div class="empty-icon">🗓</div>
-      <h2>No active voting</h2>
-      <p>Check back during the next demo day when the speaker lineup is announced and voting opens.</p>
+    <div class="empty-state" style="padding:80px 20px;text-align:center">
+      <div style="font-size:56px;margin-bottom:16px;opacity:.5">🗓</div>
+      <h2 style="font-family:var(--font-display);font-size:22px;margin-bottom:8px">No active demo days</h2>
+      <p style="color:var(--muted);font-size:15px">Check back when the next demo day lineup is announced.</p>
+      <a href="/build" class="btn btn-ghost" style="margin-top:20px">View Events →</a>
     </div>`;
 }
 
-// ─── Voting ───────────────────────────────────────────────────────────────
-async function voteSpeaker(id) {
-  const btn = document.getElementById('vbtn-' + id);
-  if (!btn || btn.classList.contains('voted')) return;
-
-  // Optimistic update first
-  const countEl = document.getElementById('vcount-' + id);
-  const prev = parseInt(countEl?.textContent || '0', 10);
-  if (countEl) countEl.textContent = prev + 1;
-  btn.classList.add('voted');
-
+// ─── Unified voting ───────────────────────────────────────────────────────
+async function toggleVote(type, id, btn, countElId) {
   try {
-    const res = await fetch('/api/speakers/' + id + '/vote', { method: 'POST' });
+    const res = await fetch('/api/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, id }),
+    });
     const data = await res.json();
-    if (countEl && data.votes != null) countEl.textContent = data.votes;
+    const countEl = document.getElementById(countElId);
+    if (countEl) countEl.textContent = data.votes;
+    btn.classList.toggle('voted', data.voted);
 
-    // Re-sort the parent speaker list
-    resortSpeakers(btn);
+    // Re-sort speakers if it's a speaker vote
+    if (type === 'speaker') resortSpeakers(btn);
   } catch {
-    // keep optimistic state
+    const countEl = document.getElementById(countElId);
+    if (countEl) countEl.textContent = parseInt(countEl.textContent || '0') + 1;
+    btn.classList.add('voted');
   }
 }
 
 function resortSpeakers(btn) {
-  // Find containing event section and re-sort rows by vote count
   const row = btn.closest('.speaker-row');
   if (!row) return;
   const container = row.closest('.speaker-rows');
@@ -796,18 +946,18 @@ function resortSpeakers(btn) {
 
   const rows = [...container.querySelectorAll('.speaker-row')];
   rows.sort((a, b) => {
-    const aV = parseInt(a.querySelector('.vote-count')?.textContent || '0', 10);
-    const bV = parseInt(b.querySelector('.vote-count')?.textContent || '0', 10);
-    return bV - aV;
+    const av = parseInt(a.querySelector('[id^="vcount-"]')?.textContent || '0', 10);
+    const bv = parseInt(b.querySelector('[id^="vcount-"]')?.textContent || '0', 10);
+    return bv - av;
   });
 
-  // Re-attach in sorted order and update rank badges
   rows.forEach((r, idx) => {
     container.appendChild(r);
     const rank = idx + 1;
     const rankEl = r.querySelector('.rank-badge');
+    const medals = ['🥇','🥈','🥉'];
     if (rankEl) {
-      rankEl.textContent = rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : '#' + rank;
+      rankEl.textContent = rank <= 3 ? medals[rank - 1] : '#' + rank;
       rankEl.className = 'rank-badge ' + (rank <= 3 ? 'rank-' + rank : 'rank-other');
     }
     r.className = 'speaker-row' + (rank <= 3 ? ' rank-' + rank : '');

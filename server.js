@@ -24,13 +24,17 @@ for (const dir of [UPLOADS_DIR, THUMBNAILS_DIR, TEMP_DIR]) {
 
 // ─── Database ────────────────────────────────────────────────────────────────
 
+// Drop and recreate DB to apply schema changes (dev environment — seed data repopulates)
+if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
+
 const db = new DatabaseSync(DB_PATH);
 db.exec(`
   CREATE TABLE IF NOT EXISTS votes (
-    deck_id TEXT NOT NULL,
-    voter_ip TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (deck_id, voter_ip)
+    target_type TEXT NOT NULL,
+    target_id   TEXT NOT NULL,
+    voter_ip    TEXT NOT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (target_type, target_id, voter_ip)
   );
   CREATE TABLE IF NOT EXISTS decks (
     id          TEXT PRIMARY KEY,
@@ -42,6 +46,8 @@ db.exec(`
     entry_point TEXT,
     views       INTEGER DEFAULT 0,
     thumbnail   TEXT,
+    github_url  TEXT,
+    demo_url    TEXT,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -55,6 +61,7 @@ db.exec(`
     deadline    TEXT,
     status      TEXT DEFAULT 'open',
     tags        TEXT,
+    event_id    TEXT,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -77,7 +84,9 @@ db.exec(`
     project_title TEXT NOT NULL,
     description   TEXT,
     duration      INTEGER DEFAULT 10,
-    votes         INTEGER DEFAULT 0,
+    github_url    TEXT,
+    demo_url      TEXT,
+    deck_id       TEXT,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES events(id)
   );
@@ -99,15 +108,14 @@ db.exec(`
     tags        TEXT,
     repo_url    TEXT,
     demo_url    TEXT,
-    votes       INTEGER DEFAULT 0,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
 const stmts = {
   insert: db.prepare(`
-    INSERT INTO decks (id, title, author, description, tags, filename, entry_point)
-    VALUES (@id, @title, @author, @description, @tags, @filename, @entry_point)
+    INSERT INTO decks (id, title, author, description, tags, filename, entry_point, github_url, demo_url)
+    VALUES (@id, @title, @author, @description, @tags, @filename, @entry_point, @github_url, @demo_url)
   `),
   getById:       db.prepare('SELECT * FROM decks WHERE id = ?'),
   setThumbnail:  db.prepare('UPDATE decks SET thumbnail = ? WHERE id = ?'),
@@ -115,11 +123,11 @@ const stmts = {
   count:         db.prepare('SELECT COUNT(*) as c FROM decks'),
   allTags:       db.prepare("SELECT tags FROM decks WHERE tags IS NOT NULL AND tags != ''"),
   deleteDeck:    db.prepare('DELETE FROM decks WHERE id = ?'),
-  addVote:       db.prepare('INSERT OR IGNORE INTO votes (deck_id, voter_ip) VALUES (?, ?)'),
-  removeVote:    db.prepare('DELETE FROM votes WHERE deck_id = ? AND voter_ip = ?'),
-  getVoteCount:  db.prepare('SELECT COUNT(*) as c FROM votes WHERE deck_id = ?'),
-  hasVoted:      db.prepare('SELECT 1 FROM votes WHERE deck_id = ? AND voter_ip = ?'),
-  deleteVotes:   db.prepare('DELETE FROM votes WHERE deck_id = ?'),
+  addVote:       db.prepare('INSERT OR IGNORE INTO votes (target_type, target_id, voter_ip) VALUES (?, ?, ?)'),
+  removeVote:    db.prepare('DELETE FROM votes WHERE target_type = ? AND target_id = ? AND voter_ip = ?'),
+  getVoteCount:  db.prepare('SELECT COUNT(*) as c FROM votes WHERE target_type = ? AND target_id = ?'),
+  hasVoted:      db.prepare('SELECT 1 FROM votes WHERE target_type = ? AND target_id = ? AND voter_ip = ?'),
+  deleteVotes:   db.prepare('DELETE FROM votes WHERE target_type = ? AND target_id = ?'),
 };
 
 // ─── Express app ─────────────────────────────────────────────────────────────
@@ -187,7 +195,7 @@ const upload = multer({
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  const { title = '', author = 'Anonymous', description = '', tags = '' } = req.body;
+  const { title = '', author = 'Anonymous', description = '', tags = '', github_url = '', demo_url = '' } = req.body;
   if (!title.trim()) {
     fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: 'Title is required' });
@@ -223,6 +231,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       tags: tags.trim(),
       filename: req.file.originalname,
       entry_point: entryPoint,
+      github_url: github_url.trim() || null,
+      demo_url: demo_url.trim() || null,
     });
 
     // Async thumbnail — don't block the response
@@ -277,7 +287,7 @@ app.get('/api/decks', (req, res) => {
   const order = orderMap[sort] || 'created_at DESC';
 
   const total = db.prepare(`SELECT COUNT(*) as c FROM decks ${where}`).get(...params).c;
-  const decks  = db.prepare(`SELECT d.*, COALESCE(v.vote_count, 0) as votes FROM decks d LEFT JOIN (SELECT deck_id, COUNT(*) as vote_count FROM votes GROUP BY deck_id) v ON d.id = v.deck_id ${where ? where.replace(/\btitle\b/g, 'd.title').replace(/\bauthor\b/g, 'd.author').replace(/\bdescription\b/g, 'd.description').replace(/\btags\b/g, 'd.tags') : ''} ORDER BY ${order.replace(/\b(created_at|views)\b/g, 'd.$1')} LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  const decks  = db.prepare(`SELECT d.*, COALESCE(v.vote_count, 0) as votes FROM decks d LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'deck' GROUP BY target_id) v ON d.id = v.target_id ${where ? where.replace(/\btitle\b/g, 'd.title').replace(/\bauthor\b/g, 'd.author').replace(/\bdescription\b/g, 'd.description').replace(/\btags\b/g, 'd.tags') : ''} ORDER BY ${order.replace(/\b(created_at|views)\b/g, 'd.$1')} LIMIT ? OFFSET ?`).all(...params, limit, offset);
 
   res.json({ decks, pagination: { total, page, limit, pages: Math.ceil(total / limit) } });
 });
@@ -321,31 +331,16 @@ app.delete('/api/decks/:id', (req, res) => {
   }
 
   // Remove votes and deck record
-  stmts.deleteVotes.run(deck.id);
+  stmts.deleteVotes.run('deck', deck.id);
   stmts.deleteDeck.run(deck.id);
   res.json({ ok: true });
 });
 
-// POST /api/decks/:id/vote
-app.post('/api/decks/:id/vote', (req, res) => {
-  const deck = stmts.getById.get(req.params.id);
-  if (!deck) return res.status(404).json({ error: 'Not found' });
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-  const existing = stmts.hasVoted.get(req.params.id, ip);
-  if (existing) {
-    stmts.removeVote.run(req.params.id, ip);
-  } else {
-    stmts.addVote.run(req.params.id, ip);
-  }
-  const count = stmts.getVoteCount.get(req.params.id).c;
-  res.json({ votes: count, voted: !existing });
-});
-
-// GET /api/decks/:id/votes
+// GET /api/decks/:id/votes (kept for deck.html compatibility)
 app.get('/api/decks/:id/votes', (req, res) => {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-  const count = stmts.getVoteCount.get(req.params.id).c;
-  const voted = !!stmts.hasVoted.get(req.params.id, ip);
+  const count = stmts.getVoteCount.get('deck', req.params.id).c;
+  const voted = !!stmts.hasVoted.get('deck', req.params.id, ip);
   res.json({ votes: count, voted });
 });
 
@@ -375,14 +370,15 @@ app.get('/api/bounties', (req, res) => {
 });
 
 app.post('/api/bounties', (req, res) => {
-  const { title, description, sats_amount, deadline, status, tags } = req.body;
+  const { title, description, sats_amount, sats, deadline, status, tags, event_id } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: 'title required' });
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, deadline, status, tags)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+  db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, deadline, status, tags, event_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, title.trim(), description || null,
-    parseInt(sats_amount) || 0, deadline || null,
-    status || 'open', tags || null
+    parseInt(sats_amount || sats) || 0, deadline || null,
+    status || 'open', Array.isArray(tags) ? tags.join(',') : (tags || null),
+    event_id || null
   );
   res.json({ id });
 });
@@ -396,7 +392,16 @@ app.get('/api/bounties/:id', (req, res) => {
 // ─── Events API ───────────────────────────────────────────────────────────────
 
 app.get('/api/events', (req, res) => {
-  const rows = db.prepare("SELECT * FROM events ORDER BY date ASC, time ASC").all();
+  const rows = db.prepare("SELECT *, event_type as type FROM events ORDER BY date ASC, time ASC").all();
+  for (const ev of rows) {
+    ev.speakers = db.prepare(`
+      SELECT s.*, s.project_title as project, COALESCE(v.vote_count, 0) as votes
+      FROM speakers s
+      LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
+      WHERE s.event_id = ?
+      ORDER BY votes DESC, s.created_at ASC
+    `).all(ev.id);
+  }
   res.json(rows);
 });
 
@@ -415,39 +420,65 @@ app.post('/api/events', (req, res) => {
 });
 
 app.get('/api/events/:id', (req, res) => {
-  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  const event = db.prepare('SELECT *, event_type as type FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Not found' });
-  const speakers = db.prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY votes DESC, created_at ASC').all(req.params.id);
+  const speakers = db.prepare(`
+    SELECT s.*, s.project_title as project, COALESCE(v.vote_count, 0) as votes
+    FROM speakers s
+    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
+    WHERE s.event_id = ?
+    ORDER BY votes DESC, s.created_at ASC
+  `).all(req.params.id);
   res.json({ ...event, speakers });
 });
 
 // ─── Speakers API ─────────────────────────────────────────────────────────────
 
+app.get('/api/speakers', (req, res) => {
+  const eventId = req.query.event;
+  const rows = eventId
+    ? db.prepare(`
+        SELECT s.*, s.project_title as project, COALESCE(v.vote_count, 0) as votes
+        FROM speakers s
+        LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
+        WHERE s.event_id = ?
+        ORDER BY votes DESC, s.created_at ASC
+      `).all(eventId)
+    : db.prepare(`
+        SELECT s.*, s.project_title as project, COALESCE(v.vote_count, 0) as votes
+        FROM speakers s
+        LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
+        ORDER BY votes DESC, s.created_at ASC
+      `).all();
+  res.json(rows);
+});
+
 app.post('/api/speakers', (req, res) => {
-  const { event_id, name, project_title, description, duration } = req.body;
-  if (!event_id || !name || !project_title) return res.status(400).json({ error: 'event_id, name, project_title required' });
-  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(event_id);
+  const { event_id, eventId, name, project_title, project, description, duration, github_url, demo_url, deck_id } = req.body;
+  const eid = event_id || eventId;
+  const ptitle = project_title || project;
+  if (!eid || !name || !ptitle) return res.status(400).json({ error: 'event_id, name, project_title required' });
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(eid);
   if (!event) return res.status(404).json({ error: 'Event not found' });
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration)
-    VALUES (?, ?, ?, ?, ?, ?)`).run(
-    id, event_id, name.trim(), project_title.trim(),
-    description || null, parseInt(duration) || 10
+  db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url, deck_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    id, eid, name.trim(), ptitle.trim(),
+    description || null, parseInt(duration) || 10,
+    github_url || null, demo_url || null, deck_id || null
   );
   res.json({ id });
 });
 
 app.get('/api/events/:id/speakers', (req, res) => {
-  const rows = db.prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY votes DESC, created_at ASC').all(req.params.id);
+  const rows = db.prepare(`
+    SELECT s.*, s.project_title as project, COALESCE(v.vote_count, 0) as votes
+    FROM speakers s
+    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
+    WHERE s.event_id = ?
+    ORDER BY votes DESC, s.created_at ASC
+  `).all(req.params.id);
   res.json(rows);
-});
-
-app.post('/api/speakers/:id/vote', (req, res) => {
-  const speaker = db.prepare('SELECT * FROM speakers WHERE id = ?').get(req.params.id);
-  if (!speaker) return res.status(404).json({ error: 'Not found' });
-  db.prepare('UPDATE speakers SET votes = votes + 1 WHERE id = ?').run(req.params.id);
-  const updated = db.prepare('SELECT votes FROM speakers WHERE id = ?').get(req.params.id);
-  res.json({ votes: updated.votes });
 });
 
 // ─── RSVPs API ────────────────────────────────────────────────────────────────
@@ -472,29 +503,65 @@ app.get('/api/events/:id/rsvps', (req, res) => {
 // ─── Projects API ─────────────────────────────────────────────────────────────
 
 app.get('/api/projects', (req, res) => {
-  const rows = db.prepare('SELECT * FROM projects ORDER BY votes DESC, created_at DESC').all();
+  const rows = db.prepare(`
+    SELECT p.*, COALESCE(v.vote_count, 0) as votes
+    FROM projects p
+    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'project' GROUP BY target_id) v ON p.id = v.target_id
+    ORDER BY votes DESC, p.created_at DESC
+  `).all();
   res.json(rows);
 });
 
 app.post('/api/projects', (req, res) => {
-  const { name, builder, description, status, tags, repo_url, demo_url } = req.body;
+  const { name, builder, description, status, tags, repo_url, repo, demo_url, demo } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   if (!builder || !builder.trim()) return res.status(400).json({ error: 'builder required' });
   const id = crypto.randomUUID();
   db.prepare(`INSERT INTO projects (id, name, builder, description, status, tags, repo_url, demo_url)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, name.trim(), builder.trim(), description || null,
-    status || 'building', tags || null, repo_url || null, demo_url || null
+    status || 'building',
+    Array.isArray(tags) ? tags.join(',') : (tags || null),
+    repo_url || repo || null, demo_url || demo || null
   );
   res.json({ id });
 });
 
-app.post('/api/projects/:id/vote', (req, res) => {
-  const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(req.params.id);
-  if (!project) return res.status(404).json({ error: 'Not found' });
-  db.prepare('UPDATE projects SET votes = votes + 1 WHERE id = ?').run(req.params.id);
-  const updated = db.prepare('SELECT votes FROM projects WHERE id = ?').get(req.params.id);
-  res.json({ votes: updated.votes });
+// ─── Unified Vote API ─────────────────────────────────────────────────────────
+
+// POST /api/vote — body: { type: 'deck'|'speaker'|'project', id }
+app.post('/api/vote', (req, res) => {
+  const { type, id } = req.body;
+  if (!['deck', 'speaker', 'project'].includes(type) || !id) {
+    return res.status(400).json({ error: 'type (deck|speaker|project) and id required' });
+  }
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const existing = stmts.hasVoted.get(type, id, ip);
+  if (existing) {
+    stmts.removeVote.run(type, id, ip);
+  } else {
+    stmts.addVote.run(type, id, ip);
+  }
+  const count = stmts.getVoteCount.get(type, id).c;
+  res.json({ votes: count, voted: !existing });
+});
+
+// GET /api/vote/count?type=X&id=Y
+app.get('/api/vote/count', (req, res) => {
+  const { type, id } = req.query;
+  if (!['deck', 'speaker', 'project'].includes(type) || !id) {
+    return res.status(400).json({ error: 'type and id required' });
+  }
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const count = stmts.getVoteCount.get(type, id).c;
+  const voted = !!stmts.hasVoted.get(type, id, ip);
+  res.json({ votes: count, voted });
+});
+
+// GET /api/events/:id/bounties
+app.get('/api/events/:id/bounties', (req, res) => {
+  const rows = db.prepare("SELECT * FROM bounties WHERE event_id = ? ORDER BY created_at DESC").all(req.params.id);
+  res.json(rows);
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -994,18 +1061,6 @@ function seedPlatformData() {
 
   console.log('[seed] Inserting platform data...');
 
-  // Bounties
-  const bounties = [
-    { title: 'Build a Voting System for Presentations', description: 'Add upvote/downvote capabilities to the DeckPad presentation gallery so the community can surface the best content.', sats_amount: 10000, status: 'completed', tags: 'deckpad,voting,frontend' },
-    { title: 'HTML Presentation Hosting Platform', description: 'Build a platform that lets anyone upload an HTML presentation (or zip), host it, and share it with a link. Auto-generate thumbnails using Puppeteer.', sats_amount: 50000, status: 'open', tags: 'deckpad,platform,fullstack' },
-    { title: 'LNURL-Auth Integration', description: 'Integrate LNURL-Auth so builders can log in with their Lightning wallet — no email, no password, just a QR code scan.', sats_amount: 25000, status: 'open', tags: 'lightning,auth,bitcoin' },
-  ];
-  for (const b of bounties) {
-    db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, status, tags) VALUES (?, ?, ?, ?, ?, ?)`).run(
-      crypto.randomUUID(), b.title, b.description, b.sats_amount, b.status, b.tags
-    );
-  }
-
   // Events
   const eventId = crypto.randomUUID();
   db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
@@ -1014,25 +1069,37 @@ function seedPlatformData() {
     'demo-day', '2026-04-10', '18:00', 'Virtual — Link TBA'
   );
 
+  // Bounties — the 50k bounty is linked to the demo day event
+  const bounties = [
+    { title: 'Build a Voting System for Presentations', description: 'Add upvote/downvote capabilities to the DeckPad presentation gallery so the community can surface the best content.', sats_amount: 10000, status: 'completed', tags: 'deckpad,voting,frontend', event_id: null },
+    { title: 'Best Demo at LR Demo Day #1', description: 'Best overall demo at the first LR Demo Day. Judged by audience vote. Ship something real.', sats_amount: 50000, status: 'open', tags: 'deckpad,platform,fullstack', event_id: eventId },
+    { title: 'LNURL-Auth Integration', description: 'Integrate LNURL-Auth so builders can log in with their Lightning wallet — no email, no password, just a QR code scan.', sats_amount: 25000, status: 'open', tags: 'lightning,auth,bitcoin', event_id: null },
+  ];
+  for (const b of bounties) {
+    db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, status, tags, event_id) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+      crypto.randomUUID(), b.title, b.description, b.sats_amount, b.status, b.tags, b.event_id
+    );
+  }
+
   // Speakers
   const speakers = [
-    { name: 'satsdisco', project_title: 'DeckPad', description: 'HTML presentation hosting platform with auto-thumbnails, voting, and a community gallery.', duration: 10 },
-    { name: 'noderunner', project_title: 'LNConnect', description: 'A simple dashboard for monitoring your Lightning node channels, capacity, and routing fees in real-time.', duration: 5 },
+    { name: 'satsdisco', project_title: 'DeckPad', description: 'HTML presentation hosting platform with auto-thumbnails, voting, and a community gallery.', duration: 10, github_url: 'https://github.com/satsdisco/deckpad', demo_url: 'https://deckpad.app' },
+    { name: 'noderunner', project_title: 'LNConnect', description: 'A simple dashboard for monitoring your Lightning node channels, capacity, and routing fees in real-time.', duration: 5, github_url: 'https://github.com/noderunner/lnconnect', demo_url: '' },
   ];
   for (const s of speakers) {
-    db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration) VALUES (?, ?, ?, ?, ?, ?)`).run(
-      crypto.randomUUID(), eventId, s.name, s.project_title, s.description, s.duration
+    db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      crypto.randomUUID(), eventId, s.name, s.project_title, s.description, s.duration, s.github_url || null, s.demo_url || null
     );
   }
 
   // Projects
   const projects = [
-    { name: 'DeckPad', builder: 'satsdisco', description: 'Your stage for HTML presentations. Upload any HTML deck and share it with the world. Built with Express, SQLite, and Puppeteer.', status: 'building', tags: 'web,presentations,hosting,deckpad', repo_url: 'https://github.com/satsdisco/deckpad', demo_url: '' },
-    { name: 'LNConnect', builder: 'noderunner', description: 'Real-time Lightning node monitoring dashboard. Track channels, capacity, routing fees, and peer health from one place.', status: 'building', tags: 'lightning,bitcoin,dashboard,nodes', repo_url: '', demo_url: '' },
+    { name: 'DeckPad', builder: 'satsdisco', description: 'Your stage for HTML presentations. Upload any HTML deck and share it with the world. Built with Express, SQLite, and Puppeteer.', status: 'building', tags: 'web,presentations,hosting,deckpad', repo_url: 'https://github.com/satsdisco/deckpad', demo_url: 'https://deckpad.app' },
+    { name: 'LNConnect', builder: 'noderunner', description: 'Real-time Lightning node monitoring dashboard. Track channels, capacity, routing fees, and peer health from one place.', status: 'building', tags: 'lightning,bitcoin,dashboard,nodes', repo_url: 'https://github.com/noderunner/lnconnect', demo_url: '' },
   ];
   for (const p of projects) {
     db.prepare(`INSERT INTO projects (id, name, builder, description, status, tags, repo_url, demo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      crypto.randomUUID(), p.name, p.builder, p.description, p.status, p.tags, p.repo_url, p.demo_url
+      crypto.randomUUID(), p.name, p.builder, p.description, p.status, p.tags, p.repo_url || null, p.demo_url || null
     );
   }
 

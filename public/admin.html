@@ -674,6 +674,12 @@ h1, h2, h3, h4 {
                 <input id="b-tags" type="text" placeholder="ui, lightning, bug (comma-separated)">
               </div>
             </div>
+            <div class="form-group">
+              <label for="b-event">Link to Event <span style="font-weight:400;color:var(--muted2)">(optional)</span></label>
+              <select id="b-event">
+                <option value="">— No event —</option>
+              </select>
+            </div>
             <button type="submit" class="btn btn-primary" style="width:100%">Post Bounty</button>
           </form>
         </div>
@@ -690,11 +696,12 @@ h1, h2, h3, h4 {
                   <th>Title</th>
                   <th>Sats</th>
                   <th>Status</th>
+                  <th>Event</th>
                   <th>Created</th>
                 </tr>
               </thead>
               <tbody id="bounties-tbody">
-                <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+                <tr><td colspan="5" class="empty-state">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -816,6 +823,8 @@ function statusBadge(s) {
 }
 
 /* ─── Bounties ──────────────────────────────────────────────────────────── */
+let eventsCache = [];
+
 async function loadBounties() {
   const tbody = document.getElementById('bounties-tbody');
   try {
@@ -824,19 +833,22 @@ async function loadBounties() {
     const data = await res.json();
     const list = Array.isArray(data) ? data : (data.bounties ?? []);
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No bounties yet</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No bounties yet</td></tr>';
       return;
     }
-    tbody.innerHTML = list.map(b => `
+    tbody.innerHTML = list.map(b => {
+      const ev = eventsCache.find(e => e.id === b.event_id);
+      return `
       <tr>
         <td>${esc(b.title)}</td>
-        <td>⚡ ${esc(b.sats ?? b.amount ?? 0)}</td>
+        <td>⚡ ${esc(b.sats_amount ?? b.sats ?? b.amount ?? 0)}</td>
         <td>${statusBadge(b.status)}</td>
+        <td>${ev ? esc(ev.name) : '—'}</td>
         <td>${fmtDate(b.createdAt ?? b.created_at)}</td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Could not load bounties</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Could not load bounties</td></tr>';
   }
 }
 
@@ -855,10 +867,11 @@ document.getElementById('bounty-form').addEventListener('submit', async function
   const payload = {
     title,
     description: document.getElementById('b-description').value.trim(),
-    sats: Number(sats),
+    sats_amount: Number(sats),
     deadline: document.getElementById('b-deadline').value || null,
     status: document.getElementById('b-status').value,
     tags: document.getElementById('b-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+    event_id: document.getElementById('b-event').value || null,
   };
 
   try {
@@ -882,26 +895,42 @@ document.getElementById('bounty-form').addEventListener('submit', async function
 /* ─── Events ────────────────────────────────────────────────────────────── */
 async function loadEvents() {
   const sel = document.getElementById('rsvp-event-select');
+  const bountySel = document.getElementById('b-event');
   const current = sel.value;
   try {
     const res = await fetch('/api/events');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     const list = Array.isArray(data) ? data : (data.events ?? []);
+    eventsCache = list;
 
-    // Rebuild options, preserving selection if still valid
+    // Rebuild RSVP options
     sel.innerHTML = '<option value="">— choose an event —</option>';
+    // Rebuild bounty event options
+    bountySel.innerHTML = '<option value="">— No event —</option>';
+
     list.forEach(ev => {
-      const opt = document.createElement('option');
-      opt.value = ev.id ?? ev._id ?? '';
-      opt.textContent = (ev.name ?? ev.title ?? 'Unnamed') + (ev.date ? ' — ' + fmtDate(ev.date) : '');
-      if (opt.value === current) opt.selected = true;
-      sel.appendChild(opt);
+      const label = (ev.name ?? ev.title ?? 'Unnamed') + (ev.date ? ' — ' + fmtDate(ev.date) : '');
+      const val = ev.id ?? ev._id ?? '';
+
+      const opt1 = document.createElement('option');
+      opt1.value = val;
+      opt1.textContent = label;
+      if (opt1.value === current) opt1.selected = true;
+      sel.appendChild(opt1);
+
+      const opt2 = document.createElement('option');
+      opt2.value = val;
+      opt2.textContent = label;
+      bountySel.appendChild(opt2);
     });
 
     if (current && sel.value === current) {
       loadRsvps(current);
     }
+
+    // Refresh bounties to show event names
+    loadBounties();
   } catch (err) {
     // silently fail — event selector will just stay empty
   }
