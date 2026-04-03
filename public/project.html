@@ -195,7 +195,6 @@ async function loadProject() {
     const statsBar = `
       <div class="project-stats-bar">
         <span id="statsZaps">⚡ — sats</span>
-        <span>▲ <span id="projVoteCount">${p.votes || 0}</span> votes</span>
         <span id="statsComments">💬 — comments</span>
         <span>🕐 Created ${daysAgo(p.created_at)}</span>
         ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" style="text-decoration:none"><span style="color:var(--btc-bright);border:1px solid rgba(242,177,52,.25);border-radius:100px;padding:2px 8px;background:rgba(242,177,52,.06)">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
