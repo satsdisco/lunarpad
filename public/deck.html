@@ -74,7 +74,7 @@
 
     const date = new Date(deck.created_at).toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
     document.getElementById('deckMeta').innerHTML =
-      `<span>👤 ${esc(deck.author)}</span><span>📅 ${date}</span><span>👁 ${deck.views} view${deck.views !== 1 ? 's' : ''}</span>
+      `<span>👤 ${deck.uploaded_by ? `<a href="/profile/${esc(deck.uploaded_by)}" class="profile-link" onclick="event.stopPropagation()">${esc(deck.author)}</a>` : esc(deck.author)}</span><span>📅 ${date}</span><span>👁 ${deck.views} view${deck.views !== 1 ? 's' : ''}</span>
       ${deck.project_id ? `<a href="/project/${esc(deck.project_id)}" style="color:var(--accent);font-weight:600">📦 ${esc(deck.project_name)}</a>` : ''}`;
 
     if (deck.description) {

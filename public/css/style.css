@@ -2549,34 +2549,12 @@ body::after {
 .profile-stat-item:nth-child(3) { border-top: 2px solid var(--accent); }
 .profile-stat-item:nth-child(4) { border-top: 2px solid rgba(124,92,252,0.40); }
 
-/* ─── Badge cards: shimmer for earned, darker locked ────────────────────── */
+/* ─── Badge cards: glow for earned, darker locked ────────────────────────── */
 
 .badge-earned {
   background: var(--glass2);
-  border-color: var(--border2);
-  position: relative;
-  overflow: hidden;
-}
-
-.badge-earned::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(110deg,
-    transparent 20%,
-    rgba(255,255,255,0.05) 40%,
-    rgba(255,255,255,0.10) 50%,
-    rgba(255,255,255,0.05) 60%,
-    transparent 80%
-  );
-  background-size: 200% 100%;
-  animation: badge-shimmer 3.5s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes badge-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  border-color: rgba(124,92,252,0.30);
+  box-shadow: 0 0 8px rgba(124,92,252,0.12), inset 0 0 12px rgba(124,92,252,0.04);
 }
 
 .badge-locked {
