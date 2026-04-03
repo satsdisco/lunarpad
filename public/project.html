@@ -447,6 +447,92 @@ async function saveProject() {
   else { const e = await r.json().catch(()=>({})); alert(e.error || 'Save failed'); }
 }
 
+// ─── Deck Versions ──────────────────────────────────────────────────────
+
+async function loadDeckVersions(project) {
+  const section = document.getElementById('deckVersionsSection');
+  if (!section) return;
+  try {
+    const res = await fetch('/api/projects/' + project.id + '/decks');
+    if (!res.ok) { section.innerHTML = ''; return; }
+    const versions = await res.json();
+    if (!versions.length && !project.deck_id) { section.innerHTML = ''; return; }
+
+    // Check ownership for upload button
+    const meRes = await fetch('/api/me');
+    const me = await meRes.json();
+    const canManage = me.user && (me.user.id === project.user_id || me.user.is_admin);
+
+    let items = '';
+    if (versions.length) {
+      items = versions.map(v => {
+        const thumb = v.thumbnail ? `<img src="/thumbnails/${esc(v.thumbnail)}" style="width:60px;height:34px;border-radius:4px;object-fit:cover">` : `<div style="width:60px;height:34px;border-radius:4px;background:var(--glass);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted2)">🎭</div>`;
+        const current = v.is_current ? '<span style="font-size:0.6rem;padding:2px 6px;background:rgba(124,92,252,0.15);border:1px solid rgba(124,92,252,0.3);border-radius:100px;color:var(--accent);font-weight:600">Current</span>' : (canManage ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:2px 6px" onclick="event.stopPropagation();setCurrentVersion('${esc(project.id)}','${esc(v.id)}')">Set Current</button>` : '');
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color .15s" onclick="window.open('/deck/${esc(v.deck_id)}','_blank')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+          ${thumb}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:0.8rem;font-weight:600;color:var(--text)">${esc(v.label || 'v' + v.version)}</div>
+            <div style="font-size:0.7rem;color:var(--muted2)">${new Date(v.created_at).toLocaleDateString('en',{month:'short',day:'numeric'})}</div>
+          </div>
+          ${current}
+        </div>`;
+      }).join('');
+    } else if (project.deck_id) {
+      items = `<div style="font-size:0.78rem;color:var(--muted2);padding:8px"><a href="/deck/${esc(project.deck_id)}" target="_blank" style="color:var(--accent)">View attached presentation →</a> (legacy)</div>`;
+    }
+
+    const uploadBtn = canManage ? `<button class="btn btn-sm" style="font-size:0.7rem" onclick="document.getElementById('uploadVersionModal').classList.add('open')">+ New Version</button>` : '';
+
+    section.innerHTML = `
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-family:var(--font-mono);font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent)">Presentations (${versions.length || (project.deck_id ? 1 : 0)})</span>
+          ${uploadBtn}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">${items}</div>
+      </div>`;
+  } catch(e) {
+    console.warn('Failed to load deck versions:', e);
+    section.innerHTML = '';
+  }
+}
+
+function handleVersionFileSelect(input) {
+  if (input.files[0]) {
+    document.getElementById('versionFileName').textContent = input.files[0].name;
+  }
+}
+
+async function submitVersionUpload() {
+  const fileInput = document.getElementById('versionFileInput');
+  const label = document.getElementById('versionLabel').value.trim();
+  if (!fileInput.files[0]) return alert('Please select a file');
+  const btn = document.getElementById('uploadVersionBtn');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  document.getElementById('versionUploadProgress').style.display = '';
+  try {
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('title', label || fileInput.files[0].name);
+    if (label) fd.append('label', label);
+    const r = await fetch('/api/projects/' + projectId + '/decks/upload', { method: 'POST', body: fd });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); alert(e.error || 'Upload failed'); return; }
+    document.getElementById('uploadVersionModal').classList.remove('open');
+    fileInput.value = ''; document.getElementById('versionLabel').value = '';
+    document.getElementById('versionFileName').textContent = 'Drop file or click to browse';
+    loadDeckVersions(currentProject);
+  } catch(e) { alert('Upload failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Upload'; document.getElementById('versionUploadProgress').style.display = 'none'; }
+}
+
+async function setCurrentVersion(projectId, versionId) {
+  try {
+    const r = await fetch('/api/projects/' + projectId + '/decks/' + versionId + '/set-current', { method: 'PATCH' });
+    if (r.ok) loadDeckVersions(currentProject);
+    else { const e = await r.json().catch(()=>({})); alert(e.error || 'Failed'); }
+  } catch { alert('Failed to set version'); }
+}
+
 loadProject();
 </script>
 <script>
