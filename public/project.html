@@ -229,9 +229,12 @@ async function checkOwnership() {
   try {
     const r = await fetch('/api/me');
     const me = await r.json();
-    if (me.user && currentProject && (currentProject.user_id === me.user.id || !currentProject.user_id)) {
-      document.getElementById('editProjectBtn').style.display = '';
-      if (me.user.is_admin) document.getElementById('deleteProjectBtn').style.display = '';
+    if (me.user && currentProject) {
+      const isOwner = currentProject.user_id === me.user.id || !currentProject.user_id;
+      if (isOwner || me.user.is_admin) {
+        document.getElementById('editProjectBtn').style.display = '';
+        document.getElementById('deleteProjectBtn').style.display = '';
+      }
     }
   } catch {}
 }
