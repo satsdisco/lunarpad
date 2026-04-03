@@ -214,13 +214,12 @@ async function loadProject() {
         </div>
       </div>
 
-      ${statsBar}
-
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-        <button class="btn btn-zap" id="zapProjectBtn" onclick="openZapModal()">⚡ Zap</button>
         ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="btn" style="border-radius:20px">⌥ Repo</a>` : ''}
         ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="btn" style="border-radius:20px">↗ Demo</a>` : ''}
+        ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" style="text-decoration:none"><span style="color:var(--btc-bright);border:1px solid rgba(242,177,52,.25);border-radius:100px;padding:2px 8px;font-size:0.75rem;background:rgba(242,177,52,.06)">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
         <div style="flex:1"></div>
+        <span style="font-size:0.75rem;color:var(--muted2)">🕰 Created ${daysAgo(p.created_at)}</span>
         <button class="btn btn-ghost btn-sm" id="editProjectBtn" style="display:none;font-size:0.7rem;color:var(--muted)" onclick="openEditProject()">✏️ Edit</button>
         <button class="btn btn-sm" id="deleteProjectBtn" style="display:none;font-size:0.7rem;color:#a04040;border-color:transparent" onclick="deleteProject()">🗑</button>
       </div>
@@ -241,10 +240,17 @@ async function loadProject() {
 
 
 
-        <div style="display:flex;align-items:center;gap:12px;padding:20px 0;margin-top:16px;border-top:1px solid var(--border)">
-          <span style="font-size:0.85rem;color:var(--muted)">Did you like this project?</span>
-          <button class="vote-btn vote-pill" id="projVoteBtn" onclick="voteProject()" style="font-size:0.85rem;padding:8px 18px"><span class="arrow">▲</span> <span id="projVoteCountBtn">${p.votes || 0}</span></button>
-          <button class="btn btn-zap" onclick="openZapModal()" style="font-size:0.82rem;padding:7px 16px">⚡ Zap this project</button>
+        <div style="padding:20px;margin-top:20px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--glass)">
+          <div class="project-stats-bar" style="margin-bottom:12px;padding:0">
+            <span id="statsZaps">⚡ — sats</span>
+            <span id="statsComments">💬 — comments</span>
+            <span>▲ <span id="projVoteCountBtn">${p.votes || 0}</span> votes</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span style="font-size:0.85rem;color:var(--muted)">Support this project</span>
+            <button class="vote-btn vote-pill" id="projVoteBtn" onclick="voteProject()" style="font-size:0.85rem;padding:8px 18px">▲ Upvote</button>
+            <button class="btn btn-zap" id="zapProjectBtn" onclick="openZapModal()" style="font-size:0.82rem;padding:7px 16px">⚡ Zap sats</button>
+          </div>
         </div>
 
         <div class="comments-section" style="border:none;padding:0;margin-top:16px">
