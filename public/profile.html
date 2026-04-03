@@ -57,6 +57,38 @@ function showAchievementToast(badge) {
   }, 5000);
 }
 
+function triggerAvatarUpload() {
+  document.getElementById('avatarFileInput').click();
+}
+
+async function handleAvatarUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('avatar', file);
+  try {
+    const r = await fetch('/api/profile/avatar', { method: 'POST', body: fd });
+    if (!r.ok) { alert('Upload failed'); return; }
+    const data = await r.json();
+    const ts = '?t=' + Date.now();
+    const img = document.getElementById('profileAvatarImg');
+    const placeholder = document.getElementById('profileAvatarPlaceholder');
+    if (img) {
+      img.src = data.avatar + ts;
+    } else if (placeholder) {
+      const newImg = document.createElement('img');
+      newImg.id = 'profileAvatarImg';
+      newImg.className = placeholder.className.replace('profile-avatar-placeholder', 'profile-avatar');
+      newImg.src = data.avatar + ts;
+      newImg.alt = '';
+      newImg.style.cssText = 'width:80px;height:80px;border-radius:50%;object-fit:cover;';
+      newImg.onerror = function() { this.style.display='none'; placeholder.style.display='flex'; };
+      placeholder.parentNode.insertBefore(newImg, placeholder);
+      placeholder.style.display = 'none';
+    }
+  } catch(e) { alert('Upload failed'); }
+}
+
 function enterLnEditMode() {
   const display = document.getElementById('lnDisplay');
   const edit = document.getElementById('lnEdit');
@@ -97,6 +129,91 @@ async function saveLightningAddress() {
   } catch { alert('Failed to save Lightning address'); }
 }
 
+function enterBioEditMode() {
+  const display = document.getElementById('bioDisplay');
+  const edit = document.getElementById('bioEdit');
+  if (display) display.style.display = 'none';
+  if (edit) edit.style.display = '';
+  const input = document.getElementById('bioInput');
+  if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+}
+
+function cancelBioEdit() {
+  const display = document.getElementById('bioDisplay');
+  const edit = document.getElementById('bioEdit');
+  if (display) display.style.display = '';
+  if (edit) edit.style.display = 'none';
+  const input = document.getElementById('bioInput');
+  if (input) input.value = (window.__profileData && window.__profileData.bio) || '';
+}
+
+async function saveBio() {
+  const val = document.getElementById('bioInput')?.value.trim() ?? '';
+  try {
+    const d = window.__profileData || {};
+    const r = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bio: val || null, website_url: d.website_url || null, github_url: d.github_url || null }),
+    });
+    if (r.ok) {
+      if (window.__profileData) window.__profileData.bio = val || null;
+      const bioText = document.getElementById('bioText');
+      if (bioText) {
+        bioText.textContent = val || 'Add a bio...';
+        bioText.className = val ? 'bio-display-value' : 'bio-display-empty';
+      }
+      cancelBioEdit();
+    }
+  } catch { alert('Failed to save bio'); }
+}
+
+function enterLinksEditMode() {
+  const display = document.getElementById('linksDisplay');
+  const edit = document.getElementById('linksEdit');
+  if (display) display.style.display = 'none';
+  if (edit) edit.style.display = '';
+  const input = document.getElementById('websiteInput');
+  if (input) input.focus();
+}
+
+function cancelLinksEdit() {
+  const display = document.getElementById('linksDisplay');
+  const edit = document.getElementById('linksEdit');
+  if (display) display.style.display = '';
+  if (edit) edit.style.display = 'none';
+  const d = window.__profileData || {};
+  const wi = document.getElementById('websiteInput');
+  const gi = document.getElementById('githubInput');
+  if (wi) wi.value = d.website_url || '';
+  if (gi) gi.value = d.github_url || '';
+}
+
+async function saveLinks() {
+  const w = document.getElementById('websiteInput')?.value.trim() ?? '';
+  const g = document.getElementById('githubInput')?.value.trim() ?? '';
+  try {
+    const d = window.__profileData || {};
+    const r = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bio: d.bio || null, website_url: w || null, github_url: g || null }),
+    });
+    if (r.ok) {
+      if (window.__profileData) { window.__profileData.website_url = w || null; window.__profileData.github_url = g || null; }
+      const linksDisplayEl = document.getElementById('linksDisplay');
+      if (linksDisplayEl) {
+        const btn = linksDisplayEl.querySelector('.ln-edit-btn');
+        linksDisplayEl.innerHTML = '';
+        if (w) linksDisplayEl.insertAdjacentHTML('beforeend', `<a href="${esc(w)}" target="_blank" rel="noopener noreferrer" class="profile-link-chip">🌐 Website</a>`);
+        if (g) linksDisplayEl.insertAdjacentHTML('beforeend', `<a href="${esc(g)}" target="_blank" rel="noopener noreferrer" class="profile-link-chip github-chip">GH GitHub</a>`);
+        if (btn) linksDisplayEl.appendChild(btn);
+      }
+      cancelLinksEdit();
+    }
+  } catch { alert('Failed to save links'); }
+}
+
 async function loadProfile() {
   const content = document.getElementById('profileContent');
 
@@ -124,6 +241,7 @@ async function loadProfile() {
     const memberSince = new Date(user.created_at).toLocaleDateString('en', {month:'long', year:'numeric'});
     const earnedBadges = Array.isArray(user.badges) ? user.badges : [];
     window.__profileEarnedBadges = earnedBadges;
+    window.__profileData = { bio: user.bio || null, website_url: user.website_url || null, github_url: user.github_url || null };
 
     // ── Stats bar ──
     const statsBar = `
@@ -277,19 +395,85 @@ async function loadProfile() {
 
     const avatarRingClass = (user.bounties_won > 0) ? 'ring-gold' : (user.project_count > 0) ? 'ring-accent' : '';
 
-    content.innerHTML = `
-      <div class="profile-header">
-        <div class="profile-avatar-wrap">
-          <img class="profile-avatar ${avatarRingClass}" src="${esc(user.avatar || '')}" alt="" onerror="this.style.display='none'">
-        </div>
-        <div class="profile-info">
-          <div class="profile-name">
-            ${esc(user.name)}
-            ${user.is_admin ? '<span class="profile-badge">Admin</span>' : ''}
+    // ── Badge pills (earned only, shown in header for all) ──
+    const earnedBadgeObjects = ALL_BADGES.filter(b => earnedBadges.includes(b.id));
+    const badgePillsHtml = earnedBadgeObjects.length
+      ? `<div class="profile-badges-pills">${earnedBadgeObjects.map(b =>
+          `<span class="profile-badge-pill earned" title="${esc(b.desc)}">${b.emoji} ${esc(b.name)}</span>`
+        ).join('')}</div>`
+      : '';
+
+    // ── Avatar with initials fallback ──
+    const avatarInitials = (user.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const uploadableAttr = isOwn ? ' avatar-uploadable" onclick="triggerAvatarUpload()' : '';
+    const avatarHtml = `<div class="profile-avatar-wrap${uploadableAttr}">
+      ${user.avatar
+        ? `<img id="profileAvatarImg" class="profile-avatar ${avatarRingClass}" src="${esc(user.avatar)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div id="profileAvatarPlaceholder" class="profile-avatar-placeholder ${avatarRingClass}" style="display:none">${esc(avatarInitials)}</div>`
+        : `<div id="profileAvatarPlaceholder" class="profile-avatar-placeholder ${avatarRingClass}">${esc(avatarInitials)}</div>`}
+      ${isOwn ? `<div class="avatar-upload-overlay"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div><input id="avatarFileInput" type="file" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" onchange="handleAvatarUpload(this)">` : ''}
+    </div>`;
+
+    // ── Bio field ──
+    const PENCIL_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+    const bioHtml = isOwn
+      ? `<div class="profile-bio-field">
+          <div id="bioDisplay" class="bio-display-row">
+            <span id="bioText" class="${user.bio ? 'bio-display-value' : 'bio-display-empty'}">${user.bio ? esc(user.bio) : 'Add a bio...'}</span>
+            <button class="ln-edit-btn" onclick="enterBioEditMode()" title="Edit bio">${PENCIL_SVG}</button>
           </div>
-          <div class="profile-email">${esc(user.email)}</div>
-          <div class="profile-meta">Member since ${memberSince}</div>
-          ${lightningHtml}
+          <div id="bioEdit" style="display:none" class="bio-edit-row">
+            <textarea id="bioInput" maxlength="160" placeholder="Tell the world what you're building..." class="bio-input">${esc(user.bio || '')}</textarea>
+            <div class="bio-edit-actions"><button onclick="saveBio()" class="ln-save-btn">Save</button><button onclick="cancelBioEdit()" class="ln-cancel-btn">Cancel</button></div>
+          </div>
+        </div>`
+      : (user.bio ? `<div class="profile-bio-readonly">${esc(user.bio)}</div>` : '');
+
+    // ── Links field ──
+    const linkChip = (href, label, extra) => `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="profile-link-chip${extra ? ' ' + extra : ''}">${label}</a>`;
+    const currentLinkChips = (w, g) => `${w ? linkChip(w, '🌐 Website', '') : ''}${g ? linkChip(g, 'GH GitHub', 'github-chip') : ''}`;
+    const linksHtml = isOwn
+      ? `<div class="profile-links-field">
+          <div id="linksDisplay" class="links-display-row">
+            ${currentLinkChips(user.website_url, user.github_url)}
+            <button class="ln-edit-btn" onclick="enterLinksEditMode()" title="Edit links">${PENCIL_SVG}</button>
+          </div>
+          <div id="linksEdit" style="display:none" class="links-edit-row">
+            <input id="websiteInput" type="text" value="${esc(user.website_url || '')}" placeholder="https://yoursite.com" class="ln-input" style="width:170px">
+            <input id="githubInput" type="text" value="${esc(user.github_url || '')}" placeholder="https://github.com/you" class="ln-input" style="width:170px">
+            <button onclick="saveLinks()" class="ln-save-btn">Save</button>
+            <button onclick="cancelLinksEdit()" class="ln-cancel-btn">Cancel</button>
+          </div>
+        </div>`
+      : ((user.website_url || user.github_url)
+          ? `<div class="profile-links-readonly">${currentLinkChips(user.website_url, user.github_url)}</div>`
+          : '');
+
+    // ── Badge section: own profile only ──
+    const badgesSectionHtml = isOwn
+      ? `<div class="profile-section">
+          <div class="profile-section-title">BADGES <span class="section-title-count">${earnedCount} / ${ALL_BADGES.length} earned</span></div>
+          <div class="badges-grid">${badgesHtml}</div>
+        </div>`
+      : '';
+
+    content.innerHTML = `
+      <div class="profile-banner-wrap">
+        <div class="profile-banner"></div>
+        <div class="profile-header">
+          <div class="profile-header-top">
+            ${avatarHtml}
+            <div class="profile-info">
+              <div class="profile-name">
+                ${esc(user.name)}
+                ${user.is_admin ? '<span class="profile-badge">Admin</span>' : ''}
+              </div>
+              ${bioHtml}
+              ${linksHtml}
+              ${lightningHtml}
+            </div>
+          </div>
+          ${badgePillsHtml}
+          <div class="profile-member-since">Member since ${memberSince}</div>
         </div>
       </div>
 
@@ -297,10 +481,7 @@ async function loadProfile() {
 
       ${activityChart}
 
-      <div class="profile-section">
-        <div class="profile-section-title">BADGES <span class="section-title-count">${earnedCount} / ${ALL_BADGES.length} earned</span></div>
-        <div class="badges-grid">${badgesHtml}</div>
-      </div>
+      ${badgesSectionHtml}
 
       <div class="profile-section">
         <div class="profile-section-title">Activity</div>

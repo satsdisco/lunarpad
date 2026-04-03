@@ -20,12 +20,13 @@ const ROOT = __dirname;
 const UPLOADS_DIR = path.join(ROOT, 'uploads');
 const THUMBNAILS_DIR = path.join(ROOT, 'thumbnails');
 const TEMP_DIR = path.join(ROOT, 'temp');
+const AVATARS_DIR = path.join(ROOT, 'avatars');
 const DB_PATH = path.join(ROOT, 'deckpad.db');
 const ADMIN_LN_ADDRESS = 'lunarpad@21m.lol';
 const LNBITS_URL = process.env.LNBITS_URL || 'https://21m.lol';
 const LNBITS_INVOICE_KEY = process.env.LNBITS_INVOICE_KEY || '';
 
-for (const dir of [UPLOADS_DIR, THUMBNAILS_DIR, TEMP_DIR]) {
+for (const dir of [UPLOADS_DIR, THUMBNAILS_DIR, TEMP_DIR, AVATARS_DIR]) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -193,6 +194,9 @@ for (const sql of [
   'ALTER TABLE users ADD COLUMN lightning_address TEXT',
   'ALTER TABLE users ADD COLUMN badges TEXT',
   'ALTER TABLE users ADD COLUMN total_sats_received INTEGER DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN bio TEXT',
+  'ALTER TABLE users ADD COLUMN website_url TEXT',
+  'ALTER TABLE users ADD COLUMN github_url TEXT',
   'ALTER TABLE bounties ADD COLUMN winner_id TEXT',
   'ALTER TABLE bounties ADD COLUMN winner_name TEXT',
   'ALTER TABLE bounties ADD COLUMN paid_out INTEGER DEFAULT 0',
@@ -355,6 +359,7 @@ app.use((req, res, next) => {
 // Static files (index: false so auth wall handles /)
 app.use(express.static(path.join(ROOT, 'public'), { index: false }));
 app.use('/thumbnails', express.static(THUMBNAILS_DIR));
+app.use('/avatars', express.static(AVATARS_DIR));
 
 // ─── Presentation file serving (sandboxed) ───────────────────────────────────
 
@@ -478,7 +483,7 @@ app.get('/auth/logout', (req, res) => {
 
 app.get('/api/me', (req, res) => {
   if (req.user) {
-    res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name, avatar: req.user.avatar, is_admin: !!req.user.is_admin, lightning_address: req.user.lightning_address || null } });
+    res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name, avatar: req.user.avatar, is_admin: !!req.user.is_admin, lightning_address: req.user.lightning_address || null, bio: req.user.bio || null, website_url: req.user.website_url || null, github_url: req.user.github_url || null } });
   } else {
     res.json({ user: null });
   }
@@ -534,6 +539,16 @@ const upload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
     if (['.html', '.htm', '.zip'].includes(ext)) cb(null, true);
     else cb(new Error('Only .html, .htm, or .zip files are accepted'));
+  },
+});
+
+const avatarUpload = multer({
+  dest: TEMP_DIR,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter(req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) cb(null, true);
+    else cb(new Error('Only jpg, png, gif, or webp images are accepted'));
   },
 });
 
@@ -1069,6 +1084,34 @@ app.put('/api/profile/lightning', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// PUT /api/profile — update bio, website_url, github_url
+app.put('/api/profile', requireAuth, (req, res) => {
+  const { bio, website_url, github_url } = req.body;
+  const b = typeof bio === 'string' ? bio.slice(0, 160).trim() : null;
+  const w = typeof website_url === 'string' ? website_url.slice(0, 512).trim() : null;
+  const g = typeof github_url === 'string' ? github_url.slice(0, 512).trim() : null;
+  db.prepare('UPDATE users SET bio = ?, website_url = ?, github_url = ? WHERE id = ?').run(b || null, w || null, g || null, req.user.id);
+  res.json({ ok: true });
+});
+
+// POST /api/profile/avatar — upload profile photo
+app.post('/api/profile/avatar', requireAuth, avatarUpload.single('avatar'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const filename = req.user.id + ext;
+  const destPath = path.join(AVATARS_DIR, filename);
+  try {
+    fs.renameSync(req.file.path, destPath);
+  } catch (_) {
+    try { fs.copyFileSync(req.file.path, destPath); fs.unlinkSync(req.file.path); } catch (e) {
+      return res.status(500).json({ error: 'Failed to save avatar' });
+    }
+  }
+  const avatarUrl = '/avatars/' + filename;
+  db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatarUrl, req.user.id);
+  res.json({ ok: true, avatar: avatarUrl });
+});
+
 // POST /api/projects/:id/zap — generate invoice to zap this project's builder
 app.post('/api/projects/:id/zap', requireAuth, async (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
@@ -1448,7 +1491,7 @@ app.get('/api/leaderboard', (req, res) => {
 
 app.get('/api/users/:id', (req, res) => {
   cachedBadgeCheck(req.params.id);
-  const user = db.prepare('SELECT id, name, email, avatar, is_admin, created_at, lightning_address, badges FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, name, email, avatar, is_admin, created_at, lightning_address, badges, bio, website_url, github_url FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const deckCount = db.prepare('SELECT COUNT(*) as c FROM decks WHERE uploaded_by = ?').get(req.params.id).c;
   const projectCount = db.prepare("SELECT COUNT(*) as c FROM projects WHERE user_id = ? OR builder = ?").get(req.params.id, user.name).c;
