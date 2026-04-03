@@ -207,14 +207,20 @@ for (const sql of [
 // ─── Badge definitions ────────────────────────────────────────────────────────
 
 const BADGES = {
-  first_build: { id: 'first_build', emoji: '🔨', name: 'First Build',       desc: 'Submitted your first project' },
-  first_sats:  { id: 'first_sats',  emoji: '⚡', name: 'First Sats',        desc: 'Won your first bounty' },
-  demo_champ:  { id: 'demo_champ',  emoji: '🏆', name: 'Demo Day Champion', desc: 'Won a demo day bounty' },
-  streak:      { id: 'streak',      emoji: '🔥', name: 'On a Streak',       desc: 'Submitted projects in 2+ events' },
+  first_build:    { id: 'first_build',    emoji: '🔨', name: 'First Build',        desc: 'Submitted your first project' },
+  first_sats:     { id: 'first_sats',     emoji: '⚡', name: 'First Sats',         desc: 'Won your first bounty' },
+  demo_champ:     { id: 'demo_champ',     emoji: '🏆', name: 'Demo Day Champion',  desc: 'Won a demo day bounty' },
+  streak:         { id: 'streak',         emoji: '🔥', name: 'On a Streak',        desc: 'Submitted projects in 2+ events' },
+  zap_master:     { id: 'zap_master',     emoji: '⚡', name: 'Zap Master',         desc: 'Zapped 5+ projects' },
+  generous:       { id: 'generous',       emoji: '💰', name: 'Generous Funder',    desc: 'Funded 3+ bounties' },
+  popular:        { id: 'popular',        emoji: '🌟', name: 'Popular Project',    desc: 'Received 10+ votes on a project' },
+  early_adopter:  { id: 'early_adopter',  emoji: '🚀', name: 'Early Adopter',      desc: 'Joined in the first month' },
+  presenter:      { id: 'presenter',      emoji: '🎤', name: 'Presenter',          desc: 'Presented at a demo day' },
+  bounty_hunter:  { id: 'bounty_hunter',  emoji: '🎯', name: 'Bounty Hunter',      desc: 'Completed 3+ bounties' },
 };
 
 function checkAndAwardBadges(userId) {
-  const user = db.prepare('SELECT badges FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT badges, name, created_at FROM users WHERE id = ?').get(userId);
   if (!user) return;
   let badges = [];
   try { badges = JSON.parse(user.badges || '[]'); } catch { badges = []; }
@@ -244,8 +250,50 @@ function checkAndAwardBadges(userId) {
     `).get(userId);
     if (ev && ev.cnt >= 2) badges.push('streak');
   }
+  if (!has('zap_master')) {
+    const z = db.prepare(`SELECT COUNT(*) as c FROM zaps WHERE user_id = ? AND status = 'confirmed'`).get(userId)?.c || 0;
+    if (z >= 5) badges.push('zap_master');
+  }
+  if (!has('generous')) {
+    const g = db.prepare(`SELECT COUNT(*) as c FROM bounty_payments WHERE user_id = ? AND payment_type = 'fund' AND status = 'confirmed'`).get(userId)?.c || 0;
+    if (g >= 3) badges.push('generous');
+  }
+  if (!has('popular')) {
+    const pop = db.prepare(`
+      SELECT COUNT(*) as c FROM votes v
+      JOIN projects p ON v.target_id = p.id
+      WHERE v.target_type = 'project' AND p.user_id = ?
+      GROUP BY v.target_id
+      HAVING c >= 10
+    `).get(userId);
+    if (pop) badges.push('popular');
+  }
+  if (!has('early_adopter')) {
+    const earliest = db.prepare('SELECT MIN(created_at) as first FROM users').get()?.first;
+    if (earliest) {
+      const diff = new Date(user.created_at) - new Date(earliest);
+      if (diff <= 30 * 24 * 60 * 60 * 1000) badges.push('early_adopter');
+    }
+  }
+  if (!has('presenter')) {
+    const pres = db.prepare('SELECT id FROM speakers WHERE name = ?').get(user.name);
+    if (pres) badges.push('presenter');
+  }
+  if (!has('bounty_hunter')) {
+    const bh = db.prepare(`SELECT COUNT(*) as c FROM bounties WHERE winner_id = ? AND status = 'completed'`).get(userId)?.c || 0;
+    if (bh >= 3) badges.push('bounty_hunter');
+  }
 
   db.prepare('UPDATE users SET badges = ? WHERE id = ?').run(JSON.stringify(badges), userId);
+}
+
+const badgeCheckCache = new Map(); // userId -> last check timestamp (ms)
+function cachedBadgeCheck(userId) {
+  const now = Date.now();
+  const last = badgeCheckCache.get(userId) || 0;
+  if (now - last < 60000) return;
+  badgeCheckCache.set(userId, now);
+  checkAndAwardBadges(userId);
 }
 
 const stmts = {
@@ -936,7 +984,7 @@ app.post('/api/bounties/:id/fund', requireAuth, async (req, res) => {
 // GET /api/bounties/:id/payments — all payments for this bounty
 app.get('/api/bounties/:id/payments', (req, res) => {
   const payments = db.prepare(
-    `SELECT id, user_name, amount_sats, payment_type, status, created_at, confirmed_at
+    `SELECT id, user_id, user_name, amount_sats, payment_type, status, created_at, confirmed_at
      FROM bounty_payments WHERE bounty_id = ? ORDER BY created_at DESC`
   ).all(req.params.id);
   res.json(payments);
@@ -964,6 +1012,7 @@ app.get('/api/lightning/verify/:payment_id', async (req, res) => {
       db.prepare(`UPDATE bounty_payments SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(payment.id);
       if (payment.payment_type === 'fund') {
         db.prepare(`UPDATE bounties SET funded_amount = funded_amount + ? WHERE id = ?`).run(payment.amount_sats, payment.bounty_id);
+        if (payment.user_id) cachedBadgeCheck(payment.user_id);
       } else if (payment.payment_type === 'payout') {
         db.prepare(`UPDATE bounties SET paid_out = 1, status = 'completed' WHERE id = ?`).run(payment.bounty_id);
         const b = db.prepare('SELECT winner_id FROM bounties WHERE id = ?').get(payment.bounty_id);
@@ -1079,7 +1128,7 @@ app.post('/api/projects/:id/zap', requireAuth, async (req, res) => {
 // GET /api/projects/:id/zaps — confirmed zaps for this project
 app.get('/api/projects/:id/zaps', (req, res) => {
   const zaps = db.prepare(
-    `SELECT id, user_name, amount_sats, created_at
+    `SELECT id, user_id, user_name, amount_sats, created_at
      FROM zaps WHERE target_type = 'project' AND target_id = ? AND status = 'confirmed'
      ORDER BY created_at DESC LIMIT 20`
   ).all(req.params.id);
@@ -1112,6 +1161,7 @@ app.get('/api/zaps/verify/:zap_id', async (req, res) => {
       if (project?.user_id) {
         db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
       }
+      if (zap.user_id) cachedBadgeCheck(zap.user_id);
       return res.json({ settled: true, amount_sats: zap.amount_sats });
     }
     res.json({ settled: false, amount_sats: zap.amount_sats });
@@ -1130,6 +1180,7 @@ app.post('/api/lightning/confirm/:payment_id', requireAuth, (req, res) => {
   db.prepare(`UPDATE bounty_payments SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(payment.id);
   if (payment.payment_type === 'fund') {
     db.prepare(`UPDATE bounties SET funded_amount = funded_amount + ? WHERE id = ?`).run(payment.amount_sats, payment.bounty_id);
+    if (payment.user_id) cachedBadgeCheck(payment.user_id);
   } else if (payment.payment_type === 'payout') {
     db.prepare(`UPDATE bounties SET paid_out = 1, status = 'completed' WHERE id = ?`).run(payment.bounty_id);
     const b = db.prepare('SELECT winner_id FROM bounties WHERE id = ?').get(payment.bounty_id);
@@ -1150,6 +1201,7 @@ app.post('/api/zaps/confirm/:zap_id', requireAuth, (req, res) => {
   if (project?.user_id) {
     db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
   }
+  if (zap.user_id) cachedBadgeCheck(zap.user_id);
   res.json({ settled: true, amount_sats: zap.amount_sats });
 });
 
@@ -1218,6 +1270,7 @@ app.post('/api/speakers', requireAuth, (req, res) => {
     description || null, parseInt(duration) || 10,
     github_url || null, demo_url || null, deck_id || null
   );
+  if (req.user?.id) cachedBadgeCheck(req.user.id);
   res.json({ id });
 });
 
@@ -1394,6 +1447,7 @@ app.get('/api/leaderboard', (req, res) => {
 });
 
 app.get('/api/users/:id', (req, res) => {
+  cachedBadgeCheck(req.params.id);
   const user = db.prepare('SELECT id, name, email, avatar, is_admin, created_at, lightning_address, badges FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const deckCount = db.prepare('SELECT COUNT(*) as c FROM decks WHERE uploaded_by = ?').get(req.params.id).c;
@@ -1485,6 +1539,8 @@ app.get('/api/users/:id/activity-chart', (req, res) => {
       SELECT created_at FROM decks WHERE uploaded_by = ?1
       UNION ALL
       SELECT created_at FROM votes WHERE voter_ip = ?1
+      UNION ALL
+      SELECT created_at FROM comments WHERE user_id = ?1
     )
     WHERE DATE(created_at) >= ?2 AND DATE(created_at) <= ?3
     GROUP BY day
@@ -1520,6 +1576,10 @@ app.post('/api/vote', requireAuth, (req, res) => {
     stmts.addVote.run(type, id, voter);
   }
   const count = stmts.getVoteCount.get(type, id).c;
+  if (type === 'project' && !existing) {
+    const proj = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(id);
+    if (proj?.user_id) cachedBadgeCheck(proj.user_id);
+  }
   res.json({ votes: count, voted: !existing });
 });
 
@@ -1639,7 +1699,6 @@ async function generateThumbnail(deckId, entryPoint) {
     const out = path.join(THUMBNAILS_DIR, `${deckId}.webp`);
     await page.screenshot({ path: out, type: 'webp', quality: 85 });
     stmts.setThumbnail.run(`${deckId}.webp`, deckId);
-    console.log(`[thumb] generated for ${deckId}`);
   } finally {
     await browser.close();
   }

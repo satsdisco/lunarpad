@@ -30,14 +30,48 @@
 function esc(s) { const d=document.createElement('div'); d.textContent=String(s??''); return d.innerHTML; }
 
 const ALL_BADGES = [
-  { id: 'first_build', emoji: '🔨', name: 'First Build',       desc: 'Submitted your first project' },
-  { id: 'first_sats',  emoji: '⚡', name: 'First Sats',        desc: 'Won your first bounty' },
-  { id: 'demo_champ',  emoji: '🏆', name: 'Demo Day Champion', desc: 'Won a demo day bounty' },
-  { id: 'streak',      emoji: '🔥', name: 'On a Streak',       desc: 'Submitted projects in 2+ events' },
+  { id: 'first_build',   emoji: '🔨', name: 'First Build',        desc: 'Submitted your first project' },
+  { id: 'first_sats',    emoji: '⚡', name: 'First Sats',         desc: 'Won your first bounty' },
+  { id: 'demo_champ',    emoji: '🏆', name: 'Demo Day Champion',  desc: 'Won a demo day bounty' },
+  { id: 'streak',        emoji: '🔥', name: 'On a Streak',        desc: 'Submitted projects in 2+ events' },
+  { id: 'zap_master',    emoji: '⚡', name: 'Zap Master',         desc: 'Zapped 5+ projects' },
+  { id: 'generous',      emoji: '💰', name: 'Generous Funder',    desc: 'Funded 3+ bounties' },
+  { id: 'popular',       emoji: '🌟', name: 'Popular Project',    desc: 'Received 10+ votes on a project' },
+  { id: 'early_adopter', emoji: '🚀', name: 'Early Adopter',      desc: 'Joined in the first month' },
+  { id: 'presenter',     emoji: '🎤', name: 'Presenter',          desc: 'Presented at a demo day' },
+  { id: 'bounty_hunter', emoji: '🎯', name: 'Bounty Hunter',      desc: 'Completed 3+ bounties' },
 ];
 
 const pathParts = window.location.pathname.split('/').filter(Boolean);
 let profileId = pathParts.length > 1 ? pathParts[1] : null;
+
+function showAchievementToast(badge) {
+  const toast = document.createElement('div');
+  toast.className = 'achievement-toast';
+  toast.innerHTML = `<span class="achievement-toast-emoji">${badge.emoji}</span><div><div class="achievement-toast-title">Achievement Unlocked!</div><div class="achievement-toast-name">${esc(badge.name)}</div></div>`;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('achievement-toast-visible'));
+  setTimeout(() => {
+    toast.classList.remove('achievement-toast-visible');
+    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+  }, 5000);
+}
+
+function enterLnEditMode() {
+  const display = document.getElementById('lnDisplay');
+  const edit = document.getElementById('lnEdit');
+  if (display) display.style.display = 'none';
+  if (edit) { edit.style.display = ''; }
+  const input = document.getElementById('lnInput');
+  if (input) { input.focus(); input.select(); }
+}
+
+function cancelLnEdit() {
+  const display = document.getElementById('lnDisplay');
+  const edit = document.getElementById('lnEdit');
+  if (display) display.style.display = '';
+  if (edit) edit.style.display = 'none';
+}
 
 async function saveLightningAddress() {
   const val = document.getElementById('lnInput')?.value.trim() ?? '';
@@ -48,8 +82,17 @@ async function saveLightningAddress() {
       body: JSON.stringify({ lightning_address: val || null }),
     });
     if (r.ok) {
-      const msg = document.getElementById('lnSaveMsg');
-      if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 2000); }
+      const addressText = document.getElementById('lnAddressText');
+      if (addressText) {
+        addressText.textContent = val ? '⚡ ' + val : '⚡ No Lightning address set';
+        addressText.className = val ? 'ln-display-value' : 'ln-display-empty';
+      }
+      cancelLnEdit();
+      const check = document.getElementById('lnCheckmark');
+      if (check) {
+        check.style.display = '';
+        setTimeout(() => { check.style.display = 'none'; }, 2000);
+      }
     }
   } catch { alert('Failed to save Lightning address'); }
 }
@@ -80,35 +123,35 @@ async function loadProfile() {
     document.title = user.name + ' — LunarPad';
     const memberSince = new Date(user.created_at).toLocaleDateString('en', {month:'long', year:'numeric'});
     const earnedBadges = Array.isArray(user.badges) ? user.badges : [];
+    window.__profileEarnedBadges = earnedBadges;
 
     // ── Stats bar ──
     const statsBar = `
       <div class="profile-stats-bar">
-        <div class="profile-stat-item">
+        <div class="profile-stat-item stat-sats">
           <div class="profile-stat-value gold stat-countup" data-target="${Number(user.total_sats_earned || 0)}">⚡ 0</div>
-          <div class="profile-stat-label">sats earned</div>
+          <div class="profile-stat-label">Sats Earned</div>
         </div>
-        <div class="profile-stat-item">
+        <div class="profile-stat-item stat-bounties">
           <div class="profile-stat-value stat-countup" data-target="${user.bounties_won || 0}" data-prefix="🏆 ">🏆 0</div>
-          <div class="profile-stat-label">bounties won</div>
+          <div class="profile-stat-label">Bounties Won</div>
         </div>
-        <div class="profile-stat-item">
+        <div class="profile-stat-item stat-projects">
           <div class="profile-stat-value stat-countup" data-target="${user.project_count || 0}" data-prefix="📦 ">📦 0</div>
-          <div class="profile-stat-label">projects</div>
+          <div class="profile-stat-label">Projects</div>
         </div>
-        <div class="profile-stat-item">
+        <div class="profile-stat-item stat-decks">
           <div class="profile-stat-value stat-countup" data-target="${user.deck_count || 0}" data-prefix="🎭 ">🎭 0</div>
-          <div class="profile-stat-label">decks</div>
+          <div class="profile-stat-label">Decks</div>
         </div>
       </div>`;
 
     // ── Activity chart ──
     const chartDays = (chartRes.days && chartRes.days.length) ? chartRes.days : [];
     const totalActivity = chartDays.reduce((s, d) => s + d.count, 0);
-    const maxCount = Math.max(1, ...chartDays.map(d => d.count));
-    const CELL = 11, GAP = 2, STEP = CELL + GAP;
-    const svgW = 52 * STEP + 28;
-    const svgH = 7 * STEP + 24;
+    const CELL = 13, GAP = 3, STEP = CELL + GAP;  // 16px step — premium cells
+    const LEFT = 36, TOP = 20;                      // space for day/month labels
+    const svgH = 7 * STEP + TOP + 4;
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const DAYS   = ['','Mon','','Wed','','Fri',''];
 
@@ -117,6 +160,7 @@ async function loadProfile() {
     const startDow  = firstDate.getUTCDay(); // 0=Sun
     const totalCells = startDow + chartDays.length;
     const numCols = Math.ceil(totalCells / 7);
+    const svgW = numCols * STEP + LEFT;
 
     let cells = '';
     let monthLabels = '';
@@ -124,19 +168,18 @@ async function loadProfile() {
     for (let col = 0; col < numCols; col++) {
       for (let row = 0; row < 7; row++) {
         const idx = col * 7 + row - startDow;
-        const x = col * STEP + 28;
-        const y = row * STEP + 18;
+        const x = col * STEP + LEFT;
+        const y = row * STEP + TOP;
         if (idx < 0 || idx >= chartDays.length) {
           cells += `<rect class="ac-cell ac-cell-0" x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2"/>`;
         } else {
           const d = chartDays[idx];
           const c = d.count === 0 ? 0 : d.count === 1 ? 1 : d.count <= 3 ? 2 : d.count <= 6 ? 3 : 4;
           cells += `<rect class="ac-cell ac-cell-${c}" x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2" data-date="${d.date}" data-count="${d.count}"/>`;
-          // Month label on first of month, row 0
           if (row === 0 && idx >= 0) {
             const month = new Date(d.date + 'T12:00:00Z').getUTCMonth();
             if (month !== lastMonth) {
-              monthLabels += `<text class="ac-month-label" x="${x}" y="12">${MONTHS[month]}</text>`;
+              monthLabels += `<text class="ac-month-label" x="${x}" y="${TOP - 6}">${MONTHS[month]}</text>`;
               lastMonth = month;
             }
           }
@@ -146,17 +189,26 @@ async function loadProfile() {
 
     let dayLabels = '';
     DAYS.forEach((label, i) => {
-      if (label) dayLabels += `<text class="ac-day-label" x="2" y="${i * STEP + 18 + CELL}">${label}</text>`;
+      if (label) dayLabels += `<text class="ac-day-label" x="2" y="${i * STEP + TOP + CELL - 1}">${label}</text>`;
     });
 
     const activityChart = `
       <div class="activity-chart-section">
         <div class="activity-chart-header">
-          <span class="activity-chart-title">Activity</span>
+          <span class="activity-chart-title">ACTIVITY</span>
           <span class="activity-chart-count">${totalActivity} contributions this year</span>
+          <div class="ac-legend">
+            <span class="ac-legend-label">Less</span>
+            <span class="ac-legend-cell ac-legend-0"></span>
+            <span class="ac-legend-cell ac-legend-1"></span>
+            <span class="ac-legend-cell ac-legend-2"></span>
+            <span class="ac-legend-cell ac-legend-3"></span>
+            <span class="ac-legend-cell ac-legend-4"></span>
+            <span class="ac-legend-label">More</span>
+          </div>
         </div>
         <div class="activity-chart-wrap">
-          <svg class="activity-chart-svg" width="${numCols * STEP + 28}" height="${svgH}" viewBox="0 0 ${numCols * STEP + 28} ${svgH}">
+          <svg class="activity-chart-svg" width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
             ${monthLabels}
             ${dayLabels}
             ${cells}
@@ -165,14 +217,29 @@ async function loadProfile() {
       </div>`;
 
     // ── Badges ──
+    const earnedCount = ALL_BADGES.filter(b => earnedBadges.includes(b.id)).length;
     const badgesHtml = ALL_BADGES.map(b => {
       const earned = earnedBadges.includes(b.id);
-      return `
-        <div class="badge-card ${earned ? 'badge-earned' : 'badge-locked'}" title="${esc(b.desc)}">
-          <div class="badge-emoji">${earned ? b.emoji : '🔒'}</div>
-          <div class="badge-name">${esc(b.name)}</div>
-          <div class="badge-desc">${esc(b.desc)}</div>
-        </div>`;
+      if (earned) {
+        return `
+          <div class="badge-card badge-earned" title="${esc(b.desc)}">
+            <div class="badge-emoji-wrap">
+              <div class="badge-emoji">${b.emoji}</div>
+              <div class="badge-earned-check">✓</div>
+            </div>
+            <div class="badge-name">${esc(b.name)}</div>
+            <div class="badge-desc">${esc(b.desc)}</div>
+          </div>`;
+      } else {
+        return `
+          <div class="badge-card badge-locked" title="Unlock: ${esc(b.desc)}">
+            <div class="badge-emoji-wrap">
+              <div class="badge-emoji">${b.emoji}</div>
+            </div>
+            <div class="badge-name">${esc(b.name)}</div>
+            <div class="badge-desc">${esc(b.desc)}</div>
+          </div>`;
+      }
     }).join('');
 
     // ── Activity feed ──
@@ -187,12 +254,16 @@ async function loadProfile() {
 
     // ── Lightning field ──
     const lightningHtml = isOwn
-      ? `<div class="profile-lightning">
-          <span class="profile-lightning-label">⚡ Lightning address</span>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ? `<div class="profile-ln-field">
+          <div id="lnDisplay" class="ln-display-row">
+            <span id="lnAddressText" class="${user.lightning_address ? 'ln-display-value' : 'ln-display-empty'}">${user.lightning_address ? '⚡ ' + esc(user.lightning_address) : '⚡ No Lightning address set'}</span>
+            <button class="ln-edit-btn" onclick="enterLnEditMode()" title="Edit Lightning address"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <span id="lnCheckmark" class="ln-saved-check" style="display:none">✓ Saved</span>
+          </div>
+          <div id="lnEdit" style="display:none" class="ln-edit-row">
             <input id="lnInput" type="text" value="${esc(user.lightning_address || '')}" placeholder="you@getalby.com" class="ln-input">
             <button onclick="saveLightningAddress()" class="ln-save-btn">Save</button>
-            <span id="lnSaveMsg" style="font-size:0.75rem;color:var(--accent);display:none">Saved ✓</span>
+            <button onclick="cancelLnEdit()" class="ln-cancel-btn">Cancel</button>
           </div>
         </div>`
       : (user.lightning_address
@@ -227,8 +298,8 @@ async function loadProfile() {
       ${activityChart}
 
       <div class="profile-section">
-        <div class="profile-section-title">Badges</div>
-        <div class="badges-row">${badgesHtml}</div>
+        <div class="profile-section-title">BADGES <span class="section-title-count">${earnedCount} / ${ALL_BADGES.length} earned</span></div>
+        <div class="badges-grid">${badgesHtml}</div>
       </div>
 
       <div class="profile-section">
@@ -335,21 +406,43 @@ loadProfile().then(() => {
   document.body.appendChild(tooltip);
 
   document.querySelectorAll('.ac-cell[data-date]').forEach(cell => {
-    cell.addEventListener('mouseenter', (e) => {
+    cell.addEventListener('mouseenter', () => {
       const count = parseInt(cell.dataset.count, 10);
       const date = new Date(cell.dataset.date + 'T12:00:00Z');
       const label = date.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
-      tooltip.textContent = `${count} contribution${count !== 1 ? 's' : ''} — ${label}`;
+      tooltip.textContent = count === 0
+        ? `No contributions on ${label}`
+        : `${count} contribution${count !== 1 ? 's' : ''} on ${label}`;
       tooltip.classList.add('visible');
     });
     cell.addEventListener('mousemove', (e) => {
-      tooltip.style.left = (e.clientX + 12) + 'px';
-      tooltip.style.top  = (e.clientY - 28) + 'px';
+      const rect = cell.getBoundingClientRect();
+      tooltip.style.left = e.clientX + 'px';
+      tooltip.style.top  = (rect.top - 38) + 'px';
     });
     cell.addEventListener('mouseleave', () => {
       tooltip.classList.remove('visible');
     });
   });
+
+  // ── Achievement toasts ──
+  const seenKey = 'lunarpad_seen_badges';
+  const seenRaw = localStorage.getItem(seenKey);
+  const seen = seenRaw ? JSON.parse(seenRaw) : [];
+  const allEarned = document.querySelectorAll('.badge-earned');
+  // Collect earned badge IDs from DOM data on ALL_BADGES
+  const earnedIds = ALL_BADGES.filter(b => document.querySelector(`.badge-earned [data-badge-id="${b.id}"]`)).map(b => b.id);
+  // Simpler: re-check earnedBadges from closure (already have it)
+  const newBadges = (window.__profileEarnedBadges || []).filter(id => !seen.includes(id));
+  if (newBadges.length) {
+    const updated = [...seen, ...newBadges];
+    localStorage.setItem(seenKey, JSON.stringify(updated));
+    newBadges.forEach((id, i) => {
+      const badge = ALL_BADGES.find(b => b.id === id);
+      if (!badge) return;
+      setTimeout(() => showAchievementToast(badge), i * 1200);
+    });
+  }
 });
 </script>
 <script>

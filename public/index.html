@@ -113,7 +113,7 @@
           <div class="card-body">
             <div class="card-title">${esc(d.title)}</div>
             <div class="card-meta">
-              <span>${esc(d.author)}</span>
+              <span>${d.uploaded_by ? `<a href="/profile/${esc(d.uploaded_by)}" class="profile-link" onclick="event.stopPropagation()">${esc(d.author)}</a>` : esc(d.author)}</span>
               <span>${date}</span>
               <span>${d.views} view${d.views !== 1 ? 's' : ''}</span>
               <span>🔺 ${votes}</span>

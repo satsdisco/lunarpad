@@ -241,7 +241,8 @@ async function loadBounty() {
     const participantsHtml = participants.length
       ? participants.map(p => {
           const isWinnerChip = b.winner_id && p.user_id === b.winner_id;
-          return `<span class="participant-chip ${isWinnerChip ? 'winner-chip' : ''}">${isWinnerChip ? '🏆 ' : ''}${esc(p.user_name)}</span>`;
+          const pName = p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link" onclick="event.stopPropagation()">${esc(p.user_name)}</a>` : esc(p.user_name);
+          return `<span class="participant-chip ${isWinnerChip ? 'winner-chip' : ''}">${isWinnerChip ? '🏆 ' : ''}${pName}</span>`;
         }).join('')
       : `<span style="font-size:0.82rem;color:var(--muted2)">No one in the hunt yet — be first!</span>`;
 
@@ -264,7 +265,7 @@ async function loadBounty() {
         : `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(242,177,52,.08);border:1px solid rgba(242,177,52,.2);border-radius:100px;font-size:0.75rem;font-weight:700;color:var(--btc-bright);margin-left:10px">⏳ Awaiting payment</span>`;
       winnerSection = `
         <div class="winner-card">
-          <div class="winner-card-header">🏆 Winner: ${esc(b.winner_name)} ${paidBadge}</div>
+          <div class="winner-card-header">🏆 Winner: ${b.winner_id ? `<a href="/profile/${esc(b.winner_id)}" class="profile-link">${esc(b.winner_name)}</a>` : esc(b.winner_name)} ${paidBadge}</div>
           ${winnerLn ? `<div style="font-size:0.82rem;color:var(--text2);margin-bottom:8px">Lightning address: <span style="font-family:var(--font-mono);color:var(--btc-bright)">${esc(maskLn(winnerLn))}</span></div>` : ''}
           ${winnerProject ? `<div style="font-size:0.82rem;color:var(--text2)">Winning project: <a href="/project/${esc(winnerProject.id)}" style="color:var(--accent)">${esc(winnerProject.name)}</a></div>` : ''}
         </div>`;
@@ -385,7 +386,7 @@ async function loadBounty() {
           <div class="funders-list">
             ${confirmedPayments.slice(0, 8).map(p => `
               <div class="funder-chip">
-                <span class="funder-name">${esc(p.user_name || 'Anonymous')}</span>
+                <span class="funder-name">${(p.user_id && p.user_name) ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.user_name)}</a>` : esc(p.user_name || 'Anonymous')}</span>
                 <span class="funder-amount">⚡ ${Number(p.amount_sats).toLocaleString()}</span>
               </div>`).join('')}
           </div>
