@@ -25,6 +25,8 @@ const DB_PATH = path.join(ROOT, 'deckpad.db');
 const ADMIN_LN_ADDRESS = 'lunarpad@21m.lol';
 const LNBITS_URL = process.env.LNBITS_URL || 'https://21m.lol';
 const LNBITS_INVOICE_KEY = process.env.LNBITS_INVOICE_KEY || '';
+const LNBITS_ADMIN_KEY = process.env.LNBITS_ADMIN_KEY || '';
+const LNBITS_WEBHOOK_SECRET = process.env.LNBITS_WEBHOOK_SECRET || '';
 
 for (const dir of [UPLOADS_DIR, THUMBNAILS_DIR, TEMP_DIR, AVATARS_DIR]) {
   fs.mkdirSync(dir, { recursive: true });
@@ -204,6 +206,9 @@ for (const sql of [
   'ALTER TABLE projects ADD COLUMN total_sats_received INTEGER DEFAULT 0',
   'ALTER TABLE bounty_payments ADD COLUMN payment_hash TEXT',
   'ALTER TABLE zaps ADD COLUMN payment_hash TEXT',
+  'ALTER TABLE zaps ADD COLUMN recipient_address TEXT',
+  'ALTER TABLE zaps ADD COLUMN forward_status TEXT',
+  'ALTER TABLE zaps ADD COLUMN forward_payment_hash TEXT',
 ]) {
   try { db.exec(sql); } catch (_) { /* column already exists */ }
 }
@@ -862,6 +867,32 @@ app.get('/api/config/lightning', (req, res) => {
   res.json({ admin_ln_address: ADMIN_LN_ADDRESS });
 });
 
+// GET /api/admin/forwards — admin: all zaps with forwarding status
+app.get('/api/admin/forwards', requireAuth, requireAdmin, (req, res) => {
+  const zaps = db.prepare(`
+    SELECT z.id as zap_id, p.name as project_name, z.user_name as builder,
+           z.amount_sats, z.recipient_address, z.forward_status, z.forward_payment_hash, z.created_at
+    FROM zaps z
+    LEFT JOIN projects p ON z.target_id = p.id AND z.target_type = 'project'
+    WHERE z.recipient_address IS NOT NULL
+    ORDER BY z.created_at DESC
+    LIMIT 100
+  `).all();
+  res.json(zaps);
+});
+
+// POST /api/admin/forwards/:zap_id/retry — retry a failed forward
+app.post('/api/admin/forwards/:zap_id/retry', requireAuth, requireAdmin, async (req, res) => {
+  const zap = db.prepare('SELECT * FROM zaps WHERE id = ?').get(req.params.zap_id);
+  if (!zap) return res.status(404).json({ error: 'Zap not found' });
+  if (zap.status !== 'confirmed') return res.status(400).json({ error: 'Zap not confirmed' });
+  if (!zap.recipient_address) return res.status(400).json({ error: 'No recipient address' });
+  db.prepare(`UPDATE zaps SET forward_status = NULL WHERE id = ?`).run(zap.id);
+  const freshZap = db.prepare('SELECT * FROM zaps WHERE id = ?').get(zap.id);
+  autoForwardZap(freshZap).catch(e => console.error('[retry forward]', e.message));
+  res.json({ ok: true, message: 'Forward retry initiated' });
+});
+
 // ─── Lightning / LNURL API ────────────────────────────────────────────────────
 
 // Helper: resolve a Lightning address → LNURL-pay metadata
@@ -904,12 +935,14 @@ async function makeQrDataUrl(data) {
 
 // ─── LNbits Direct API Helpers ────────────────────────────────────────────
 
-async function lnbitsCreateInvoice(amountSats, memo) {
+async function lnbitsCreateInvoice(amountSats, memo, webhookUrl) {
   if (!LNBITS_INVOICE_KEY) throw new Error('LNBITS_INVOICE_KEY not configured');
+  const body = { out: false, amount: amountSats, memo };
+  if (webhookUrl) body.webhook = webhookUrl;
   const res = await fetch(`${LNBITS_URL}/api/v1/payments`, {
     method: 'POST',
     headers: { 'X-Api-Key': LNBITS_INVOICE_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ out: false, amount: amountSats, memo }),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(10000),
   });
   if (!res.ok) throw new Error(`LNbits error: ${res.status}`);
@@ -929,6 +962,39 @@ async function lnbitsCheckPayment(paymentHash) {
   if (!res.ok) return { paid: false };
   const data = await res.json();
   return { paid: !!data.paid, status: data.status };
+}
+
+async function lnbitsPayInvoice(bolt11) {
+  if (!LNBITS_ADMIN_KEY) throw new Error('LNBITS_ADMIN_KEY not configured');
+  const res = await fetch(`${LNBITS_URL}/api/v1/payments`, {
+    method: 'POST',
+    headers: { 'X-Api-Key': LNBITS_ADMIN_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ out: true, bolt11 }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) throw new Error(`LNbits pay error: ${res.status}`);
+  const data = await res.json();
+  return { payment_hash: data.payment_hash || null };
+}
+
+async function autoForwardZap(zap) {
+  if (!LNBITS_ADMIN_KEY || !zap.recipient_address) return;
+  if (zap.recipient_address === ADMIN_LN_ADDRESS) return;
+  if (zap.forward_status === 'completed') return;
+
+  db.prepare(`UPDATE zaps SET forward_status = 'pending' WHERE id = ?`).run(zap.id);
+  try {
+    const lnData = await resolveLnAddress(zap.recipient_address);
+    const msats = zap.amount_sats * 1000;
+    const inv = await fetchLnInvoice(lnData.callback, msats);
+    const result = await lnbitsPayInvoice(inv.payment_request);
+    db.prepare(`UPDATE zaps SET forward_status = 'completed', forward_payment_hash = ? WHERE id = ?`)
+      .run(result.payment_hash, zap.id);
+    console.log(`[autoForward] Zap ${zap.id} forwarded to ${zap.recipient_address}`);
+  } catch (e) {
+    console.error(`[autoForward] Failed zap ${zap.id}: ${e.message}`);
+    db.prepare(`UPDATE zaps SET forward_status = 'failed' WHERE id = ?`).run(zap.id);
+  }
 }
 
 // POST /api/lightning/resolve — server-side LNURL resolution (avoids CORS)
@@ -974,7 +1040,8 @@ app.post('/api/bounties/:id/fund', requireAuth, async (req, res) => {
   if (!amount_sats || amount_sats < 1) return res.status(400).json({ error: 'amount_sats required' });
   try {
     // Use LNbits API directly for reliable invoice creation + verification
-    const inv = await lnbitsCreateInvoice(amount_sats, `Fund bounty: ${bounty.title}`);
+    const webhookUrl = (process.env.BASE_URL || `http://localhost:${PORT}`) + '/api/webhook/lnbits';
+    const inv = await lnbitsCreateInvoice(amount_sats, `Fund bounty: ${bounty.title}`, webhookUrl);
     const paymentId = crypto.randomUUID();
     db.prepare(`INSERT INTO bounty_payments (id, bounty_id, user_id, user_name, amount_sats, payment_type, payment_request, payment_hash, verify_url, status)
       VALUES (?, ?, ?, ?, ?, 'fund', ?, ?, NULL, 'pending')`).run(
@@ -1119,9 +1186,9 @@ app.post('/api/projects/:id/zap', requireAuth, async (req, res) => {
   const amount_sats = parseInt(req.body.amount_sats);
   if (!amount_sats || amount_sats < 1) return res.status(400).json({ error: 'amount_sats required' });
 
-  // Find builder's Lightning address — direct to them if set
-  let recipientAddress = ADMIN_LN_ADDRESS;
-  let recipient = 'LunarPad';
+  // Resolve builder's Lightning address for later auto-forwarding
+  let recipientAddress = null;
+  let recipient = project.builder;
 
   if (project.user_id) {
     const builder = db.prepare('SELECT name, lightning_address FROM users WHERE id = ?').get(project.user_id);
@@ -1131,7 +1198,7 @@ app.post('/api/projects/:id/zap', requireAuth, async (req, res) => {
     }
   }
   // Fallback: match by builder name
-  if (recipientAddress === ADMIN_LN_ADDRESS && project.builder) {
+  if (!recipientAddress && project.builder) {
     const builder = db.prepare("SELECT name, lightning_address FROM users WHERE name = ? AND lightning_address IS NOT NULL LIMIT 1").get(project.builder);
     if (builder?.lightning_address) {
       recipientAddress = builder.lightning_address;
@@ -1140,29 +1207,19 @@ app.post('/api/projects/:id/zap', requireAuth, async (req, res) => {
   }
 
   try {
-    // Use LNbits API for invoices going to admin wallet, LNURL for direct-to-builder
-    let inv;
-    if (recipientAddress === ADMIN_LN_ADDRESS && LNBITS_INVOICE_KEY) {
-      const lnbitsInv = await lnbitsCreateInvoice(amount_sats, `Zap project: ${project.name} by ${project.builder}`);
-      inv = { payment_request: lnbitsInv.payment_request, payment_hash: lnbitsInv.payment_hash, verify_url: null };
-    } else {
-      const lnData = await resolveLnAddress(recipientAddress);
-      const msats = amount_sats * 1000;
-      if (msats < lnData.minSendable) return res.status(400).json({ error: `Amount too small (min ${lnData.minSendable / 1000} sats)` });
-      if (msats > lnData.maxSendable) return res.status(400).json({ error: `Amount too large (max ${lnData.maxSendable / 1000} sats)` });
-      const lnurlInv = await fetchLnInvoice(lnData.callback, msats);
-      inv = { payment_request: lnurlInv.payment_request, payment_hash: null, verify_url: lnurlInv.verify_url };
-    }
+    // ALL zaps route through LNbits for reliable verification, then auto-forward to builder
+    const webhookUrl = (process.env.BASE_URL || `http://localhost:${PORT}`) + '/api/webhook/lnbits';
+    const lnbitsInv = await lnbitsCreateInvoice(amount_sats, `Zap: ${project.name} by ${project.builder}`, webhookUrl);
     const zapId = crypto.randomUUID();
-    db.prepare(`INSERT INTO zaps (id, target_type, target_id, user_id, user_name, amount_sats, payment_request, payment_hash, verify_url, status)
-      VALUES (?, 'project', ?, ?, ?, ?, ?, ?, ?, 'pending')`).run(
+    db.prepare(`INSERT INTO zaps (id, target_type, target_id, user_id, user_name, amount_sats, payment_request, payment_hash, verify_url, status, recipient_address)
+      VALUES (?, 'project', ?, ?, ?, ?, ?, ?, NULL, 'pending', ?)`).run(
       zapId, project.id,
       req.user.id, req.user.name || req.user.email,
-      amount_sats, inv.payment_request, inv.payment_hash, inv.verify_url
+      amount_sats, lnbitsInv.payment_request, lnbitsInv.payment_hash, recipientAddress
     );
-    const qrData = 'lightning:' + inv.payment_request.toUpperCase();
+    const qrData = 'lightning:' + lnbitsInv.payment_request.toUpperCase();
     const qr_data_url = await makeQrDataUrl(qrData);
-    res.json({ zap_id: zapId, payment_request: inv.payment_request, qr_data_url, recipient });
+    res.json({ zap_id: zapId, payment_request: lnbitsInv.payment_request, qr_data_url, recipient });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -1205,6 +1262,7 @@ app.get('/api/zaps/verify/:zap_id', async (req, res) => {
         db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
       }
       if (zap.user_id) cachedBadgeCheck(zap.user_id);
+      autoForwardZap(zap).catch(e => console.error('[verify autoForward]', e.message));
       return res.json({ settled: true, amount_sats: zap.amount_sats });
     }
     res.json({ settled: false, amount_sats: zap.amount_sats });
@@ -1245,7 +1303,54 @@ app.post('/api/zaps/confirm/:zap_id', requireAuth, (req, res) => {
     db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
   }
   if (zap.user_id) cachedBadgeCheck(zap.user_id);
+  autoForwardZap(zap).catch(e => console.error('[confirm autoForward]', e.message));
   res.json({ settled: true, amount_sats: zap.amount_sats });
+});
+
+// POST /api/webhook/lnbits — instant payment confirmation pushed by LNbits
+app.post('/api/webhook/lnbits', async (req, res) => {
+  if (LNBITS_WEBHOOK_SECRET) {
+    const provided = req.headers['x-api-key'] || req.body?.webhook_secret;
+    if (provided !== LNBITS_WEBHOOK_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const payment_hash = req.body?.payment_hash;
+  if (!payment_hash) return res.status(400).json({ error: 'payment_hash required' });
+
+  // Try zaps first
+  const zap = db.prepare('SELECT * FROM zaps WHERE payment_hash = ?').get(payment_hash);
+  if (zap) {
+    if (zap.status !== 'confirmed') {
+      db.prepare(`UPDATE zaps SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(zap.id);
+      db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
+      const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
+      if (project?.user_id) {
+        db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+      }
+      if (zap.user_id) cachedBadgeCheck(zap.user_id);
+      autoForwardZap(zap).catch(e => console.error('[webhook autoForward]', e.message));
+    }
+    return res.json({ ok: true, type: 'zap', zap_id: zap.id });
+  }
+
+  // Try bounty payments
+  const payment = db.prepare('SELECT * FROM bounty_payments WHERE payment_hash = ?').get(payment_hash);
+  if (payment) {
+    if (payment.status !== 'confirmed') {
+      db.prepare(`UPDATE bounty_payments SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(payment.id);
+      if (payment.payment_type === 'fund') {
+        db.prepare(`UPDATE bounties SET funded_amount = funded_amount + ? WHERE id = ?`).run(payment.amount_sats, payment.bounty_id);
+        if (payment.user_id) cachedBadgeCheck(payment.user_id);
+      } else if (payment.payment_type === 'payout') {
+        db.prepare(`UPDATE bounties SET paid_out = 1, status = 'completed' WHERE id = ?`).run(payment.bounty_id);
+        const b = db.prepare('SELECT winner_id FROM bounties WHERE id = ?').get(payment.bounty_id);
+        if (b?.winner_id) checkAndAwardBadges(b.winner_id);
+      }
+    }
+    return res.json({ ok: true, type: 'bounty_payment', payment_id: payment.id });
+  }
+
+  res.json({ ok: true, type: 'no_op' });
 });
 
 // Delete project (owner or admin)
