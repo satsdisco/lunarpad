@@ -3246,10 +3246,48 @@ body::after {
 .project-tab-view { display: none; }
 .project-tab-view.active { display: block; }
 
-.project-desc-full { font-size: 0.9rem; line-height: 1.7; color: var(--text2); margin-bottom: 16px; }
+.project-desc-full {
+  font-size: 0.9rem; line-height: 1.7; color: var(--text2); margin-bottom: 16px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,.03);
+  border-left: 3px solid rgba(242,177,52,.45);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.project-action-row { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.project-actions-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.project-actions-owner { display: flex; align-items: center; gap: 6px; }
+
+.btn-zap {
+  background: rgba(242,177,52,.08);
+  border: 1px solid rgba(242,177,52,.4);
+  color: var(--btc-bright);
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-weight: 600;
+}
+.btn-zap:hover {
+  background: rgba(242,177,52,.15);
+  border-color: rgba(242,177,52,.7);
+  color: var(--btc-bright);
+  box-shadow: 0 0 14px rgba(242,177,52,.2);
+}
+
+.vote-btn.vote-pill {
+  flex-direction: row;
+  border-radius: 20px;
+  padding: 6px 14px;
+  min-width: auto;
+  gap: 5px;
+}
+
+.btn-danger-ghost { color: var(--danger); border-color: transparent; }
+.btn-danger-ghost:hover { border-color: var(--danger); color: var(--danger); }
 
 @media (max-width: 600px) {
   .project-stats-bar { gap: 10px; font-size: 0.75rem; }
   .project-tab { padding: 8px 10px; font-size: 0.75rem; }
   .project-banner, .project-banner-gradient { height: 140px; }
+  .project-action-row { flex-direction: column; align-items: flex-start; }
+  .project-actions-owner { margin-top: 4px; }
 }
