@@ -1,67 +1,176 @@
-# 🎭 DeckPad
+# Lunar\Pad
 
-**Your stage for HTML presentations.**
+**Build. Ship. Earn sats.**
 
-DeckPad is an open platform for uploading, browsing, and presenting HTML presentations. Think SlideShare, but for the modern web — reveal.js, Slidev, Marp, Impress.js, or any custom HTML deck.
+A platform for HTML presentations, project showcases, and demo days. Upload any HTML deck, join bounties, vote on builds, and compete for sats.
 
-## Features
+→ **[lunarpad.dev](https://lunarpad.dev)**
 
-- **Upload** — Drag & drop `.html` or `.zip` files (up to 50MB)
-- **Gallery** — Beautiful dark-themed grid with search, tag filters, and sorting
-- **Viewer** — Sandboxed iframe with fullscreen mode, embed codes, and direct links
-- **Thumbnails** — Auto-generated screenshots of the first slide via Puppeteer
-- **Voting** — Upvote presentations you like
-- **Any framework** — Works with reveal.js, Slidev, Marp, Impress.js, Shower, DZSlides, Bespoke.js, or plain HTML
+---
+
+## What is LunarPad?
+
+LunarPad is a platform built for teams that build in public. It combines:
+
+- **Presentations** — Upload any HTML deck (reveal.js, Slidev, Marp, or raw HTML). Auto-generated thumbnails, fullscreen viewer, embed codes.
+- **Demo Days & Events** — Create hackathons, demo days, and workshops. Speakers sign up, audiences vote, winners take home sats.
+- **Bounties** — Post bounties with sats rewards. Builders join the hunt, submit projects, and compete.
+- **Projects** — Showcase what you're building. Link your repo, demo, and presentation. Get upvotes and comments.
+- **Profiles** — Track your decks, projects, and contributions.
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/satsdisco/deckpad.git
-cd deckpad
+git clone https://github.com/satsdisco/lunarpad.git
+cd lunarpad
 npm install
+cp .env.example .env  # configure your secrets
 npm start
 ```
 
-Open `http://localhost:3100` — three demo presentations are seeded on first run.
-
-## Tech Stack
-
-- **Node.js** + Express
-- **SQLite** (via Node.js built-in `node:sqlite`)
-- **Puppeteer** for thumbnail generation
-- **Vanilla HTML/CSS/JS** frontend — no framework, no build step
+Open `http://localhost:3100`
 
 ## Requirements
 
-- Node.js 22+ (uses built-in SQLite)
-- Google Chrome or Chromium (for thumbnail generation)
+- **Node.js 22+** (uses built-in SQLite)
+- **Google Chrome** (for thumbnail generation via Puppeteer)
+
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Server | Node.js, Express |
+| Database | SQLite (built-in `node:sqlite`) |
+| Thumbnails | Puppeteer (headless Chrome) |
+| Auth | Username/password (bcrypt), Google OAuth |
+| Frontend | Vanilla HTML/CSS/JS — no framework, no build step |
+| Fonts | Space Grotesk, Inter |
+
+## Configuration
+
+Create a `.env` file:
+
+```env
+SESSION_SECRET=your-random-secret-here
+BASE_URL=https://yourdomain.com
+
+# Optional: Google OAuth
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+## Features
+
+### Presentations
+- Upload `.html` or `.zip` files (up to 50MB)
+- Auto-generated thumbnails via Puppeteer
+- Sandboxed iframe viewer with fullscreen mode
+- Embed codes for external sites
+- Comments with upvoting
+
+### Events
+- Create demo days, hackathons, workshops, meetups
+- Speaker signup with GitHub/demo links
+- Live countdown timers
+- Calendar view with type-colored indicators
+- RSVP system
+- Add to Google Calendar
+
+### Bounties
+- Post bounties with sats rewards
+- Builders join the hunt
+- Track participants
+- Link bounties to events
+- Admin management
+
+### Projects
+- Showcase with repo + demo links
+- Categories and tags
+- Link presentations to projects
+- Upvoting and comments
+- Filter by tag
+
+### Voting
+- Unified voting system across decks, speakers, projects, and comments
+- One vote per user per target
+- Toggle on/off
+
+### Admin
+- Create/delete events, bounties, decks
+- Manage all content
+- Promote users to admin
 
 ## API
 
+<details>
+<summary>View all endpoints</summary>
+
+### Auth
 | Method | Route | Description |
 |--------|-------|-------------|
-| GET | `/` | Gallery page |
-| GET | `/upload` | Upload page |
-| GET | `/deck/:id` | Deck viewer |
-| POST | `/api/upload` | Upload a presentation |
-| GET | `/api/decks` | List decks (search, filter, sort, paginate) |
-| GET | `/api/decks/:id` | Get deck metadata |
-| DELETE | `/api/decks/:id` | Delete a deck |
-| POST | `/api/decks/:id/vote` | Toggle upvote |
-| GET | `/api/decks/:id/votes` | Get vote count |
-| GET | `/api/decks/:id/download` | Download original file |
-| GET | `/api/tags` | List all tags |
-| GET | `/presentations/:id/*` | Serve presentation files (sandboxed) |
+| POST | `/auth/register` | Create account |
+| POST | `/auth/login` | Sign in |
+| GET | `/auth/logout` | Sign out |
+| GET | `/auth/google` | Google OAuth |
+| GET | `/api/me` | Current user |
 
-## Roadmap
+### Decks
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/decks` | List decks |
+| POST | `/api/upload` | Upload deck |
+| GET | `/api/decks/:id` | Get deck |
+| PUT | `/api/decks/:id` | Edit deck |
+| DELETE | `/api/decks/:id` | Delete deck |
 
-- [ ] User accounts (email/username login)
-- [ ] Comments on presentations
-- [ ] Featured/trending section
-- [ ] Zaps (V4V — value for value tipping)
-- [ ] Custom domains
-- [ ] Presentation analytics
+### Events
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/events` | List events |
+| POST | `/api/events` | Create event |
+| GET | `/api/events/:id` | Get event + speakers |
+| DELETE | `/api/events/:id` | Delete event |
+
+### Bounties
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/bounties` | List bounties |
+| POST | `/api/bounties` | Create bounty |
+| POST | `/api/bounties/:id/join` | Join bounty |
+| DELETE | `/api/bounties/:id` | Delete bounty |
+
+### Projects
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/projects` | List projects |
+| POST | `/api/projects` | Create project |
+| GET | `/api/projects/:id` | Get project |
+| PUT | `/api/projects/:id` | Edit project |
+| DELETE | `/api/projects/:id` | Delete project |
+
+### Voting
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/api/vote` | Toggle vote |
+| GET | `/api/vote/count` | Get vote count |
+
+</details>
+
+## Deploying
+
+LunarPad runs anywhere Node.js runs:
+
+| Platform | Effort | Notes |
+|----------|--------|-------|
+| Railway | Easy | `railway up` — auto SSL, restart |
+| Fly.io | Easy | Edge deployment |
+| VPS | Medium | Full control |
+| Mac mini + Cloudflare Tunnel | Free | Current setup |
 
 ## License
 
 MIT
+
+---
+
+Built by [satsdisco](https://satsdisco.com)
