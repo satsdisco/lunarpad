@@ -5,6 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — LunarPad</title>
 <link rel="stylesheet" href="/css/style.css">
+<style>
+/* Payout summary chips */
+.payout-stat-chip {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 16px;
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: var(--radius); min-width: 130px;
+}
+.payout-stat-chip.payout-stat-warn { border-color: rgba(212,168,67,0.3); background: rgba(212,168,67,0.04); }
+.payout-stat-chip.payout-stat-danger { border-color: rgba(220,60,60,0.3); background: rgba(220,60,60,0.04); }
+.ps-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.ps-val { font-size: 1rem; font-weight: 700; color: var(--text); font-family: var(--font-mono); }
+
+/* Forward status badges */
+.fwd-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 100px;
+  font-size: 0.68rem; font-weight: 600; letter-spacing: .03em;
+}
+.fwd-forwarded { background: rgba(0,200,150,0.12); color: #00d4a0; border: 1px solid rgba(0,200,150,0.25); }
+.fwd-pending   { background: rgba(212,168,67,0.12); color: var(--gold); border: 1px solid rgba(212,168,67,0.25); }
+.fwd-failed    { background: rgba(220,60,60,0.12);  color: #e05555; border: 1px solid rgba(220,60,60,0.25); }
+.fwd-none      { background: rgba(100,100,120,0.12); color: var(--muted); border: 1px solid rgba(100,100,120,0.2); }
+</style>
 </head>
 <body>
 
@@ -112,7 +135,8 @@
                 </tr>
               </thead>
               <tbody id="bounties-tbody">
-                <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+                <tr><td colspan="5"><div class="skeleton sk-line sk-w-80" style="height:12px;margin:6px 0"></div></td></tr>
+                <tr><td colspan="5"><div class="skeleton sk-line sk-w-60" style="height:12px;margin:6px 0"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -205,6 +229,43 @@
     </div><!-- /right -->
 
   </div><!-- /admin-grid -->
+
+  <!-- ═══ PAYOUTS & FORWARDS ══════════════════════════════════════════════ -->
+  <div class="card" style="margin-top:32px">
+    <div class="card-body">
+      <div class="section-title" style="margin-bottom:16px">⚡ Payouts &amp; Forwards</div>
+
+      <!-- Summary row -->
+      <div id="payoutSummary" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+        <div class="payout-stat-chip" id="ps-received"><span class="ps-label">Total Received</span><span class="ps-val">—</span></div>
+        <div class="payout-stat-chip" id="ps-forwarded"><span class="ps-label">Forwarded</span><span class="ps-val">—</span></div>
+        <div class="payout-stat-chip" id="ps-pending"><span class="ps-label">Pending</span><span class="ps-val">—</span></div>
+        <div class="payout-stat-chip" id="ps-bounty"><span class="ps-label">Bounty Funded</span><span class="ps-val">—</span></div>
+        <div class="payout-stat-chip payout-stat-warn" id="ps-pend-count"><span class="ps-label">Pending Forwards</span><span class="ps-val">—</span></div>
+        <div class="payout-stat-chip payout-stat-danger" id="ps-failed"><span class="ps-label">Failed</span><span class="ps-val">—</span></div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table" id="forwards-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Project</th>
+              <th>Builder</th>
+              <th>Amount</th>
+              <th>Recipient LN Address</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="forwards-tbody">
+            <tr><td colspan="7" class="empty-state">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /container -->
 
 <footer class="footer">
@@ -469,6 +530,8 @@ document.getElementById('rsvp-event-select').addEventListener('change', function
 loadBounties();
 loadEvents();
 loadAdminDecks();
+loadPayoutSummary();
+loadForwards();
 
 async function loadAdminDecks() {
   const el = document.getElementById('decks-list');
@@ -507,6 +570,85 @@ async function deleteEvent(id) {
   const r = await fetch('/api/events/' + id, { method: 'DELETE' });
   if (r.ok) loadEvents();
   else alert('Failed to delete');
+}
+
+/* ─── Payouts & Forwards ─────────────────────────────────────────────────── */
+async function loadPayoutSummary() {
+  try {
+    const res = await fetch('/api/admin/payments-summary');
+    if (!res.ok) return;
+    const d = await res.json();
+    const fmt = n => (n ?? 0).toLocaleString() + ' sats';
+    document.querySelector('#ps-received .ps-val').textContent  = fmt(d.total_received);
+    document.querySelector('#ps-forwarded .ps-val').textContent = fmt(d.total_forwarded);
+    document.querySelector('#ps-pending .ps-val').textContent   = fmt(d.total_pending);
+    document.querySelector('#ps-bounty .ps-val').textContent    = fmt(d.total_bounty_funded);
+    document.querySelector('#ps-pend-count .ps-val').textContent = d.pending_forwards ?? 0;
+    document.querySelector('#ps-failed .ps-val').textContent    = d.failed_forwards ?? 0;
+  } catch (_) {}
+}
+
+function fwdBadge(status, recipientAddress) {
+  if (!recipientAddress) return '<span class="fwd-badge fwd-none">No Address</span>';
+  if (!status)           return '<span class="fwd-badge fwd-pending">Pending</span>';
+  if (status === 'forwarded') return '<span class="fwd-badge fwd-forwarded">Forwarded</span>';
+  if (status === 'failed')    return '<span class="fwd-badge fwd-failed">Failed</span>';
+  return `<span class="fwd-badge fwd-pending">${esc(status)}</span>`;
+}
+
+async function retryForward(zapId) {
+  const btn = document.querySelector(`[data-retry="${esc(zapId)}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Retrying…'; }
+  try {
+    const res = await fetch('/api/admin/forwards/' + encodeURIComponent(zapId) + '/retry', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      setTimeout(() => { loadForwards(); loadPayoutSummary(); }, 1200);
+    } else {
+      alert('Retry failed: ' + (data.error || 'Unknown error'));
+      if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+    }
+  } catch (e) {
+    alert('Network error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+  }
+}
+
+async function loadForwards() {
+  const tbody = document.getElementById('forwards-tbody');
+  try {
+    const res = await fetch('/api/admin/forwards');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const list = await res.json();
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No confirmed zaps yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(z => {
+      const builderName = esc(z.builder_display_name || z.builder || 'Unknown');
+      const projectName = esc(z.project_name || '—');
+      const lnAddr = z.recipient_address ? esc(z.recipient_address) : '<span style="color:var(--muted);font-style:italic">not set</span>';
+      const badge = fwdBadge(z.forward_status, z.recipient_address);
+      let action = '';
+      if (z.forward_status === 'failed') {
+        action = `<button class="btn btn-sm" data-retry="${esc(z.zap_id)}" onclick="retryForward('${esc(z.zap_id)}')">Retry</button>`;
+      } else if (!z.recipient_address) {
+        action = '<span style="color:var(--muted);font-size:0.72rem">Builder needs to set Lightning address</span>';
+      }
+      return `
+        <tr>
+          <td style="white-space:nowrap;color:var(--muted)">${fmtDate(z.created_at)}</td>
+          <td>${projectName}</td>
+          <td>${builderName}</td>
+          <td style="font-family:var(--font-mono);color:var(--gold)">⚡ ${esc(String(z.amount_sats))}</td>
+          <td style="font-size:0.75rem;font-family:var(--font-mono)">${lnAddr}</td>
+          <td>${badge}</td>
+          <td>${action}</td>
+        </tr>`;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Could not load forwards</td></tr>';
+  }
 }
 </script>
 <script>

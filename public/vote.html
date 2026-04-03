@@ -35,6 +35,7 @@ function esc(s) {
   d.textContent = String(s ?? '');
   return d.innerHTML;
 }
+function safeUrl(u) { try { const p = new URL(u).protocol; return (p==='http:'||p==='https:') ? u : ''; } catch { return ''; } }
 
 let allEvents = [];
 
@@ -158,8 +159,8 @@ function renderSpeakerRow(sp, rank) {
 
   const desc = sp.description ? `<div class="speaker-desc">${esc(sp.description)}</div>` : '';
   const links = [
-    sp.github_url ? `<a href="${esc(sp.github_url)}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">⌥ GitHub</a>` : '',
-    sp.demo_url   ? `<a href="${esc(sp.demo_url)}"   target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">↗ Demo</a>` : '',
+    sp.github_url && safeUrl(sp.github_url) ? `<a href="${esc(safeUrl(sp.github_url))}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">⌥ GitHub</a>` : '',
+    sp.demo_url   && safeUrl(sp.demo_url)   ? `<a href="${esc(safeUrl(sp.demo_url))}"   target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">↗ Demo</a>` : '',
     sp.deck_id    ? `<a href="/deck/${esc(sp.deck_id)}" class="spk-link" onclick="event.stopPropagation()">📽 View Deck</a>` : '',
   ].filter(Boolean).join('');
 

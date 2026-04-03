@@ -3047,3 +3047,125 @@ body::after {
   font-family: var(--font-mono);
   font-weight: 600;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SKELETON / SHIMMER LOADING STATES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--glass) 25%, var(--glass2) 50%, var(--glass) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease infinite;
+  border-radius: var(--radius);
+  color: transparent !important;
+  pointer-events: none;
+  user-select: none;
+}
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Skeleton size helpers */
+.sk-line { height: 14px; border-radius: 7px; margin-bottom: 8px; }
+.sk-line-sm { height: 10px; border-radius: 5px; margin-bottom: 6px; }
+.sk-line-lg { height: 20px; border-radius: 10px; margin-bottom: 12px; }
+.sk-circle { border-radius: 50%; }
+.sk-w-100 { width: 100%; }
+.sk-w-80  { width: 80%; }
+.sk-w-60  { width: 60%; }
+.sk-w-40  { width: 40%; }
+
+/* Skeleton card */
+.skeleton-card {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+/* Skeleton row for leaderboard */
+.skeleton-lb-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 6px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE POLISH: 640px breakpoint
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  /* ── All modals: near full-width, avoid edge cut-off ── */
+  .modal-overlay { padding: 16px 8px; align-items: flex-end; }
+  .modal-content { max-width: 95vw; width: 95vw; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 20px 16px 28px; }
+
+  /* ── Touch targets: min 44px ── */
+  .btn { min-height: 44px; padding: 10px 16px; font-size: 0.82rem; }
+  .btn-sm { min-height: 36px; padding: 7px 12px; }
+  .btn-primary { min-height: 44px; }
+
+  /* ── Bounty page ── */
+  .bounty-hero-sats { font-size: 1.5rem; }
+  .bounty-hero-title { font-size: 1.1rem; }
+  .bounty-timeline {
+    flex-direction: column; align-items: flex-start;
+    gap: 0; padding: 12px 0;
+  }
+  .timeline-step { flex-direction: row; align-items: center; gap: 10px; padding: 6px 0; width: 100%; }
+  .timeline-connector { width: 2px; height: 18px; min-width: 2px; margin: 0 0 0 11px; flex-shrink: 0; align-self: flex-start; }
+  .timeline-label { font-size: 0.72rem; white-space: normal; }
+  .prize-pool-breakdown { flex-direction: column; align-items: flex-start; gap: 4px; }
+  /* QR code in payment modal */
+  .payment-qr, img[alt="QR code"], #paymentModalBody img { max-width: 200px !important; width: 100% !important; }
+
+  /* ── Profile page ── */
+  .profile-header-top { flex-direction: column; align-items: center; text-align: center; }
+  .badges-grid { grid-template-columns: repeat(2, 1fr); }
+  /* Activity heatmap: scrollable */
+  .activity-chart-wrap, .heatmap-wrap, [id*="activityChart"], [id*="heatmap"] {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin; padding-bottom: 8px;
+  }
+  .activity-chart-wrap::after, .heatmap-wrap::after {
+    content: '';
+    display: block; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent-dim), transparent);
+    border-radius: 2px; margin-top: 4px;
+  }
+  .profile-stats-bar { flex-wrap: wrap; }
+  .profile-stat-item { flex: 0 0 50%; }
+
+  /* ── Leaderboard ── */
+  .lb-row { gap: 8px; padding: 10px 10px; flex-wrap: nowrap; }
+  .lb-badges { display: none; }
+  .lb-meta { display: none; }
+  .lb-sats { min-width: 75px; font-size: 0.76rem; }
+  .lb-name { font-size: 0.82rem; }
+  .lb-rank { font-size: 1rem; min-width: 24px; }
+
+  /* ── No horizontal overflow ── */
+  body { overflow-x: hidden; }
+  .container { max-width: 100%; }
+  .data-table { font-size: 0.75rem; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* ── Font size floor ── */
+  small, .small, .hint, .form-hint, .helper-text { font-size: 12px; }
+}
+
+@media (max-width: 380px) {
+  .badges-grid { grid-template-columns: 1fr; }
+  .payout-stat-chip { min-width: 100%; }
+}
+
+/* ─── Admin payout section mobile ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  #payoutSummary { flex-direction: column; }
+  .payout-stat-chip { flex-direction: row; justify-content: space-between; align-items: center; }
+  .ps-val { font-size: 0.9rem; }
+  #forwards-table th:nth-child(5),
+  #forwards-table td:nth-child(5) { display: none; } /* hide LN address on mobile */
+}

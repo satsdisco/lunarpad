@@ -87,16 +87,18 @@
         .map(t => `<span class="viewer-tag">${esc(t)}</span>`).join('');
     }
 
-    // GitHub / Demo links
+    // GitHub / Demo links — validate URLs to prevent javascript: injection
+    function safeUrl(url) {
+      try { const u = new URL(url); return (u.protocol === 'http:' || u.protocol === 'https:') ? url : null; }
+      catch { return null; }
+    }
     if (deck.github_url) {
-      const gb = document.getElementById('githubBtn');
-      gb.href = deck.github_url;
-      gb.style.display = '';
+      const safe = safeUrl(deck.github_url);
+      if (safe) { const gb = document.getElementById('githubBtn'); gb.href = safe; gb.style.display = ''; }
     }
     if (deck.demo_url) {
-      const db2 = document.getElementById('demoBtn');
-      db2.href = deck.demo_url;
-      db2.style.display = '';
+      const safe = safeUrl(deck.demo_url);
+      if (safe) { const db2 = document.getElementById('demoBtn'); db2.href = safe; db2.style.display = ''; }
     }
 
     // Embed code

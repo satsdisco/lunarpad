@@ -867,18 +867,45 @@ app.get('/api/config/lightning', (req, res) => {
   res.json({ admin_ln_address: ADMIN_LN_ADDRESS });
 });
 
-// GET /api/admin/forwards — admin: all zaps with forwarding status
+// GET /api/admin/forwards — admin: all confirmed zaps with forwarding status
 app.get('/api/admin/forwards', requireAuth, requireAdmin, (req, res) => {
   const zaps = db.prepare(`
-    SELECT z.id as zap_id, p.name as project_name, z.user_name as builder,
-           z.amount_sats, z.recipient_address, z.forward_status, z.forward_payment_hash, z.created_at
+    SELECT z.id as zap_id,
+           p.name as project_name,
+           z.user_name as builder,
+           u.name as builder_display_name,
+           u.avatar as builder_avatar,
+           z.amount_sats,
+           z.recipient_address,
+           z.forward_status,
+           z.forward_payment_hash,
+           z.created_at
     FROM zaps z
     LEFT JOIN projects p ON z.target_id = p.id AND z.target_type = 'project'
-    WHERE z.recipient_address IS NOT NULL
+    LEFT JOIN users u ON z.user_id = u.id
+    WHERE z.status = 'confirmed'
     ORDER BY z.created_at DESC
-    LIMIT 100
+    LIMIT 200
   `).all();
   res.json(zaps);
+});
+
+/// GET /api/admin/payments-summary — admin: sats totals
+app.get('/api/admin/payments-summary', requireAuth, requireAdmin, (req, res) => {
+  const r = db.prepare(`SELECT COALESCE(SUM(amount_sats),0) as total FROM zaps WHERE status='confirmed'`).get();
+  const fwd = db.prepare(`SELECT COALESCE(SUM(amount_sats),0) as total FROM zaps WHERE status='confirmed' AND forward_status='forwarded'`).get();
+  const pend = db.prepare(`SELECT COUNT(*) as cnt FROM zaps WHERE status='confirmed' AND (forward_status IS NULL OR forward_status='pending')`).get();
+  const fail = db.prepare(`SELECT COUNT(*) as cnt FROM zaps WHERE status='confirmed' AND forward_status='failed'`).get();
+  const pendSats = db.prepare(`SELECT COALESCE(SUM(amount_sats),0) as total FROM zaps WHERE status='confirmed' AND (forward_status IS NULL OR forward_status='pending')`).get();
+  const bountyFunded = db.prepare(`SELECT COALESCE(SUM(amount_sats),0) as total FROM bounty_payments WHERE status='confirmed' AND payment_type='fund'`).get();
+  res.json({
+    total_received: r.total,
+    total_forwarded: fwd.total,
+    total_pending: pendSats.total,
+    total_bounty_funded: bountyFunded.total,
+    pending_forwards: pend.cnt,
+    failed_forwards: fail.cnt,
+  });
 });
 
 // POST /api/admin/forwards/:zap_id/retry — retry a failed forward
@@ -1038,6 +1065,7 @@ app.post('/api/bounties/:id/fund', requireAuth, async (req, res) => {
   if (!bounty) return res.status(404).json({ error: 'Bounty not found' });
   const amount_sats = parseInt(req.body.amount_sats);
   if (!amount_sats || amount_sats < 1) return res.status(400).json({ error: 'amount_sats required' });
+  if (amount_sats > 10_000_000) return res.status(400).json({ error: 'amount_sats exceeds maximum (10M sats)' });
   try {
     // Use LNbits API directly for reliable invoice creation + verification
     const webhookUrl = (process.env.BASE_URL || `http://localhost:${PORT}`) + '/api/webhook/lnbits';
@@ -1144,19 +1172,37 @@ app.post('/api/bounties/:id/pay-winner', requireAuth, requireAdmin, async (req, 
   }
 });
 
+// TODO: Add rate limiting to profile mutation endpoints (e.g. express-rate-limit)
+
+// Validation helpers
+function isValidUrl(str) {
+  if (!str) return true; // empty is allowed
+  try {
+    const u = new URL(str);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch { return false; }
+}
+
+const LN_ADDRESS_RE = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 // PUT /api/profile/lightning — save own Lightning address
 app.put('/api/profile/lightning', requireAuth, (req, res) => {
-  const { lightning_address } = req.body;
-  db.prepare('UPDATE users SET lightning_address = ? WHERE id = ?').run(lightning_address || null, req.user.id);
+  const raw = typeof req.body.lightning_address === 'string' ? req.body.lightning_address.trim() : '';
+  if (raw && !LN_ADDRESS_RE.test(raw)) {
+    return res.status(400).json({ error: 'Invalid Lightning address format' });
+  }
+  db.prepare('UPDATE users SET lightning_address = ? WHERE id = ?').run(raw || null, req.user.id);
   res.json({ ok: true });
 });
 
 // PUT /api/profile — update bio, website_url, github_url
 app.put('/api/profile', requireAuth, (req, res) => {
   const { bio, website_url, github_url } = req.body;
-  const b = typeof bio === 'string' ? bio.slice(0, 160).trim() : null;
-  const w = typeof website_url === 'string' ? website_url.slice(0, 512).trim() : null;
-  const g = typeof github_url === 'string' ? github_url.slice(0, 512).trim() : null;
+  const b = typeof bio === 'string' ? bio.trim().slice(0, 160) : null;
+  const w = typeof website_url === 'string' ? website_url.trim().slice(0, 512) : null;
+  const g = typeof github_url === 'string' ? github_url.trim().slice(0, 512) : null;
+  if (w && !isValidUrl(w)) return res.status(400).json({ error: 'website_url must be a valid http/https URL' });
+  if (g && !isValidUrl(g)) return res.status(400).json({ error: 'github_url must be a valid http/https URL' });
   db.prepare('UPDATE users SET bio = ?, website_url = ?, github_url = ? WHERE id = ?').run(b || null, w || null, g || null, req.user.id);
   res.json({ ok: true });
 });
@@ -1185,6 +1231,7 @@ app.post('/api/projects/:id/zap', requireAuth, async (req, res) => {
   if (!project) return res.status(404).json({ error: 'Project not found' });
   const amount_sats = parseInt(req.body.amount_sats);
   if (!amount_sats || amount_sats < 1) return res.status(400).json({ error: 'amount_sats required' });
+  if (amount_sats > 10_000_000) return res.status(400).json({ error: 'amount_sats exceeds maximum (10M sats)' });
 
   // Resolve builder's Lightning address for later auto-forwarding
   let recipientAddress = null;

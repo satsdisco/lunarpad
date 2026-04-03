@@ -21,13 +21,41 @@
 
 <div class="container" style="padding:24px 2rem 64px">
   <a href="javascript:history.back()" class="viewer-back">Back</a>
-  <div id="profileContent"><div class="empty-state"><p>Loading...</p></div></div>
+  <div id="profileContent">
+    <div id="profileLoadingSkele">
+      <div class="profile-header skeleton-card" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:16px;padding:8px">
+          <div class="skeleton sk-circle" style="width:72px;height:72px;flex-shrink:0"></div>
+          <div style="flex:1">
+            <div class="skeleton sk-line sk-w-60" style="height:18px;margin-bottom:8px"></div>
+            <div class="skeleton sk-line sk-w-40" style="height:12px;margin-bottom:6px"></div>
+            <div class="skeleton sk-line sk-w-80" style="height:10px"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <div class="skeleton" style="height:56px;flex:1;border-radius:var(--radius)"></div>
+        <div class="skeleton" style="height:56px;flex:1;border-radius:var(--radius)"></div>
+        <div class="skeleton" style="height:56px;flex:1;border-radius:var(--radius)"></div>
+        <div class="skeleton" style="height:56px;flex:1;border-radius:var(--radius)"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton sk-line sk-w-40" style="height:14px;margin-bottom:12px"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <div class="skeleton" style="width:80px;height:28px;border-radius:100px"></div>
+          <div class="skeleton" style="width:100px;height:28px;border-radius:100px"></div>
+          <div class="skeleton" style="width:70px;height:28px;border-radius:100px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <footer class="footer">LunarPad — Build. Ship. Earn sats.</footer>
 
 <script>
 function esc(s) { const d=document.createElement('div'); d.textContent=String(s??''); return d.innerHTML; }
+function safeUrl(u) { try { const p = new URL(u).protocol; return (p==='http:'||p==='https:') ? u : ''; } catch { return ''; } }
 
 const ALL_BADGES = [
   { id: 'first_build',   emoji: '🔨', name: 'First Build',        desc: 'Submitted your first project' },
@@ -429,7 +457,7 @@ async function loadProfile() {
       : (user.bio ? `<div class="profile-bio-readonly">${esc(user.bio)}</div>` : '');
 
     // ── Links field ──
-    const linkChip = (href, label, extra) => `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="profile-link-chip${extra ? ' ' + extra : ''}">${label}</a>`;
+    const linkChip = (href, label, extra) => { const safe = safeUrl(href); return safe ? `<a href="${esc(safe)}" target="_blank" rel="noopener noreferrer" class="profile-link-chip${extra ? ' ' + extra : ''}">${label}</a>` : ''; };
     const currentLinkChips = (w, g) => `${w ? linkChip(w, '🌐 Website', '') : ''}${g ? linkChip(g, 'GH GitHub', 'github-chip') : ''}`;
     const linksHtml = isOwn
       ? `<div class="profile-links-field">
