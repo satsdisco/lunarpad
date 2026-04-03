@@ -334,6 +334,29 @@ function esc(s) {
   d.textContent = String(s ?? '');
   return d.innerHTML;
 }
+
+function projectVisual(name, category, width, height) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  const h = Math.abs(hash);
+  const hue1 = h % 360;
+  const hue2 = (h * 7 + 120) % 360;
+  const catHues = { game: 270, tool: 190, finance: 40, fun: 330, social: 200, privacy: 160, education: 220, infrastructure: 250, other: 280 };
+  const baseHue = catHues[category] || (h % 360);
+  const c1 = `hsla(${baseHue}, 60%, 25%, 1)`;
+  const c2 = `hsla(${(baseHue + 40) % 360}, 50%, 15%, 1)`;
+  const c3 = `hsla(${(baseHue + 80) % 360}, 40%, 8%, 1)`;
+  const shapes = [];
+  for (let i = 0; i < 5; i++) {
+    const x = (h * (i + 3) * 17) % width;
+    const y = (h * (i + 7) * 23) % height;
+    const r = 20 + ((h * (i + 11)) % 60);
+    const opacity = 0.05 + ((h * (i + 5)) % 10) / 100;
+    shapes.push(`<circle cx='${x}' cy='${y}' r='${r}' fill='hsla(${(hue2 + i * 30) % 360}, 50%, 50%, ${opacity})'/>`);
+  }
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='${c1}'/><stop offset='50%' stop-color='${c2}'/><stop offset='100%' stop-color='${c3}'/></linearGradient></defs><rect width='${width}' height='${height}' fill='url(#g)'/>${shapes.join('')}<text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-family='Space Grotesk,system-ui' font-size='${Math.min(width, height) * 0.25}' font-weight='800' fill='rgba(255,255,255,0.08)'>${initials}</text></svg>`)}`;
+}
 function safeUrl(u) { try { const p = new URL(u).protocol; return (p==='http:'||p==='https:') ? u : ''; } catch { return ''; } }
 
 // ─── State ────────────────────────────────────────────────────────────────
@@ -804,24 +827,28 @@ function renderProjectCards(projects) {
     const satsLabel = p.total_sats_received > 0
       ? `<span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--btc-bright);opacity:.85">⚡${Number(p.total_sats_received).toLocaleString()}</span>`
       : '';
+    const visualSrc = p.thumbnail_url || projectVisual(p.name, p.category, 400, 120);
     return `
       <div class="project-card" id="proj-${esc(p.id)}" onclick="if(!event.target.closest('.project-upvote')&&!event.target.closest('.spk-link')&&!event.target.closest('.proj-zap-btn'))window.location='/project/'+this.id.replace('proj-','')" style="cursor:pointer">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
-          <div class="project-name">${esc(p.name)}</div>
-          <span class="card-tag cat-${p.status === 'shipped' ? 'productivity' : 'tool'}" style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">${statusLabel}</span>
-        </div>
-        <div class="project-builder">by ${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link" onclick="event.stopPropagation()">${esc(p.builder)}</a>` : esc(p.builder)}</div>
-        <div class="project-desc">${esc(p.description)}</div>
-        <div class="card-tags" style="margin-bottom:10px">${catTag}${bountyTag}${tags}</div>
-        ${links ? `<div class="spk-links" style="margin-bottom:8px">${links}</div>` : ''}
-        <div class="project-footer">
-          <div style="display:flex;align-items:center;gap:6px">
-            <button class="proj-zap-btn" onclick="event.stopPropagation(); openProjZapModal('${esc(p.id)}')" style="padding:4px 10px;border:1px solid rgba(242,177,52,.3);border-radius:100px;background:transparent;color:var(--btc-bright);font-size:0.72rem;cursor:pointer;opacity:.75;transition:opacity .15s" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=.75">⚡ Zap</button>
-            ${satsLabel}
+        <img class="project-card-visual" src="${visualSrc}" alt="">
+        <div class="project-card-body">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+            <div class="project-name">${esc(p.name)}</div>
+            <span class="card-tag cat-${p.status === 'shipped' ? 'productivity' : 'tool'}" style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">${statusLabel}</span>
           </div>
-          <button class="project-upvote" id="proj-vote-${esc(p.id)}" onclick="event.stopPropagation(); voteProject('${esc(p.id)}')">
-            ▲ <span id="proj-count-${esc(p.id)}">${p.votes || 0}</span>
-          </button>
+          <div class="project-builder">by ${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link" onclick="event.stopPropagation()">${esc(p.builder)}</a>` : esc(p.builder)}</div>
+          <div class="project-desc">${esc(p.description)}</div>
+          <div class="card-tags" style="margin-bottom:10px">${catTag}${bountyTag}${tags}</div>
+          ${links ? `<div class="spk-links" style="margin-bottom:8px">${links}</div>` : ''}
+          <div class="project-footer">
+            <div style="display:flex;align-items:center;gap:6px">
+              <button class="proj-zap-btn" onclick="event.stopPropagation(); openProjZapModal('${esc(p.id)}')" style="padding:4px 10px;border:1px solid rgba(242,177,52,.3);border-radius:100px;background:transparent;color:var(--btc-bright);font-size:0.72rem;cursor:pointer;opacity:.75;transition:opacity .15s" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=.75">⚡ Zap</button>
+              ${satsLabel}
+            </div>
+            <button class="project-upvote" id="proj-vote-${esc(p.id)}" onclick="event.stopPropagation(); voteProject('${esc(p.id)}')">
+              ▲ <span id="proj-count-${esc(p.id)}">${p.votes || 0}</span>
+            </button>
+          </div>
         </div>
       </div>`;
   }).join('');
