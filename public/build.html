@@ -103,8 +103,14 @@
         <div class="section-block" id="section-leaderboard">
           <div class="lb-aurora-header">
             <div class="lb-aurora-title">Top Builders</div>
-            <div class="lb-aurora-sub">Ranked by total sats earned</div>
+            <div class="lb-aurora-sub" id="lbAuroraSub">Ranked by total sats earned</div>
             <div class="lb-total-sats" id="lbTotalSats" style="display:none">⚡ <span id="lbTotalSatsVal">0</span> sats distributed</div>
+          </div>
+          <div class="lb-tabs">
+            <button class="lb-tab active" data-sort="earners">Top Earners</button>
+            <button class="lb-tab" data-sort="zappers">Top Zappers</button>
+            <button class="lb-tab" data-sort="projects">Most Projects</button>
+            <button class="lb-tab" data-sort="active">Most Active</button>
           </div>
           <div id="leaderboardList">
             <div class="skeleton-lb-row"><div class="skeleton sk-circle" style="width:32px;height:32px;flex-shrink:0"></div><div class="skeleton sk-circle" style="width:36px;height:36px;flex-shrink:0"></div><div style="flex:1"><div class="skeleton sk-line sk-w-60" style="height:12px;margin-bottom:5px"></div><div class="skeleton sk-line sk-w-40" style="height:9px"></div></div><div class="skeleton" style="width:80px;height:16px;border-radius:8px"></div></div>
@@ -1192,32 +1198,58 @@ async function checkAdmin() {
 }
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────
-async function loadLeaderboard() {
+let _lbCurrentSort = 'earners';
+let _lbMeId = null;
+
+const LB_SORT_LABELS = {
+  earners:  'Ranked by total sats earned',
+  zappers:  'Ranked by total sats contributed',
+  projects: 'Ranked by project count',
+  active:   'Ranked by total activity',
+};
+
+async function loadLeaderboard(sort) {
+  sort = sort || _lbCurrentSort;
+  _lbCurrentSort = sort;
   const el = document.getElementById('leaderboardList');
+  const subEl = document.getElementById('lbAuroraSub');
+  if (subEl) subEl.textContent = LB_SORT_LABELS[sort] || LB_SORT_LABELS.earners;
+
+  // Update tab active state
+  document.querySelectorAll('.lb-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.sort === sort);
+  });
+
+  el.innerHTML = `<div class="skeleton-lb-row"><div class="skeleton sk-circle" style="width:32px;height:32px;flex-shrink:0"></div><div class="skeleton sk-circle" style="width:36px;height:36px;flex-shrink:0"></div><div style="flex:1"><div class="skeleton sk-line sk-w-60" style="height:12px;margin-bottom:5px"></div><div class="skeleton sk-line sk-w-40" style="height:9px"></div></div><div class="skeleton" style="width:80px;height:16px;border-radius:8px"></div></div>`.repeat(3);
+
   try {
-    const [lbRes, meRes] = await Promise.all([
-      fetch('/api/leaderboard'),
-      fetch('/api/me'),
+    const fetchMe = _lbMeId !== null ? Promise.resolve({ user: { id: _lbMeId } }) : fetch('/api/me').then(r => r.json()).catch(() => ({}));
+    const [data, meData] = await Promise.all([
+      fetch('/api/leaderboard?sort=' + sort).then(r => r.json()),
+      fetchMe,
     ]);
-    const data = await lbRes.json();
-    const meData = await meRes.json().catch(() => ({}));
-    const myId = meData.user?.id || null;
+    if (_lbMeId === null) _lbMeId = meData.user?.id || '';
+    const myId = _lbMeId || null;
 
     if (!data.length) {
       el.innerHTML = `<div class="empty-state"><div class="icon">⚡</div><h3>No builders ranked yet</h3><p>Win a bounty to claim your spot on the leaderboard.</p></div>`;
       return;
     }
 
-    // Total sats distributed
-    const totalSats = data.reduce((s, u) => s + Number(u.total_sats), 0);
+    // Total sats distributed (earners tab only)
     const totalEl = document.getElementById('lbTotalSats');
     const totalValEl = document.getElementById('lbTotalSatsVal');
-    if (totalEl && totalValEl && totalSats > 0) {
-      totalValEl.textContent = totalSats.toLocaleString();
-      totalEl.style.display = '';
+    if (totalEl && totalValEl) {
+      if (sort === 'earners') {
+        const totalSats = data.reduce((s, u) => s + Number(u.total_sats), 0);
+        if (totalSats > 0) { totalValEl.textContent = totalSats.toLocaleString(); totalEl.style.display = ''; }
+        else totalEl.style.display = 'none';
+      } else {
+        totalEl.style.display = 'none';
+      }
     }
 
-    const maxSats = Math.max(1, ...data.map(u => Number(u.total_sats)));
+    const maxVal = Math.max(1, ...data.map(u => Number(u.sort_val)));
 
     const BADGE_MAP = { first_build:'🔨', first_sats:'⚡', demo_champ:'🏆', streak:'🔥' };
 
@@ -1226,6 +1258,13 @@ async function loadLeaderboard() {
       if (rank === 2) return `<span class="lb-medal lb-medal-silver">2</span>`;
       if (rank === 3) return `<span class="lb-medal lb-medal-bronze">3</span>`;
       return `<span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted);min-width:28px;text-align:center;display:inline-block">#${rank}</span>`;
+    };
+
+    const primaryStat = (u) => {
+      if (sort === 'zappers')  return `🤙 ${Number(u.sort_val).toLocaleString()}`;
+      if (sort === 'projects') return `📦 ${Number(u.sort_val)}`;
+      if (sort === 'active')   return `⚡ ${Number(u.sort_val)} actions`;
+      return `⚡ ${Number(u.total_sats).toLocaleString()}`;
     };
 
     el.innerHTML = `<div class="lb-table">` + data.map(u => {
@@ -1237,7 +1276,7 @@ async function loadLeaderboard() {
         : `<div class="lb-avatar lb-avatar-placeholder">${esc((u.name||'?')[0].toUpperCase())}</div>`;
       const tierClass = u.rank === 1 ? 'lb-rank-gold' : u.rank === 2 ? 'lb-rank-silver' : u.rank === 3 ? 'lb-rank-bronze' : '';
       const selfClass = (myId && u.user_id === myId) ? 'lb-row-self' : '';
-      const barPct = Math.round((Number(u.total_sats) / maxSats) * 100);
+      const barPct = Math.round((Number(u.sort_val) / maxVal) * 100);
       return `
         <div class="lb-row ${tierClass} ${selfClass}">
           <div class="lb-rank">${rankEl(u.rank)}</div>
@@ -1247,10 +1286,10 @@ async function loadLeaderboard() {
             <div class="lb-badges">${badgePills}</div>
           </div>
           <div class="lb-bar-wrap"><div class="lb-bar-fill" style="width:${barPct}%"></div></div>
-          <div class="lb-stat lb-sats">⚡ ${Number(u.total_sats).toLocaleString()}</div>
-          ${u.zaps_received > 0 ? `<div class="lb-stat lb-meta" title="Zaps received">🤙 ${Number(u.zaps_received).toLocaleString()}</div>` : ''}
+          <div class="lb-stat lb-sats">${primaryStat(u)}</div>
+          ${sort === 'earners' && u.zaps_received > 0 ? `<div class="lb-stat lb-meta" title="Zaps received">🤙 ${Number(u.zaps_received).toLocaleString()}</div>` : ''}
+          ${sort !== 'projects' ? `<div class="lb-stat lb-meta">📦 ${u.projects_count}</div>` : ''}
           <div class="lb-stat lb-meta">🏆 ${u.bounties_won} won</div>
-          <div class="lb-stat lb-meta">📦 ${u.projects_count}</div>
         </div>`;
     }).join('') + `</div>`;
   } catch {
@@ -1267,11 +1306,22 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProjectDecksDropdown();
 });
 
-// Load leaderboard lazily when tab is clicked
+// Load leaderboard lazily when sidebar tab is clicked
+let _lbLoaded = false;
 document.querySelectorAll('.sidebar-link').forEach(link => {
   if (link.dataset.view === 'leaderboard') {
-    link.addEventListener('click', () => { loadLeaderboard(); }, { once: true });
+    link.addEventListener('click', () => {
+      if (!_lbLoaded) { _lbLoaded = true; loadLeaderboard('earners'); }
+    });
   }
+});
+
+// Leaderboard sort tab clicks
+document.addEventListener('click', e => {
+  const tab = e.target.closest('.lb-tab');
+  if (!tab) return;
+  const sort = tab.dataset.sort;
+  if (sort && sort !== _lbCurrentSort) loadLeaderboard(sort);
 });
 </script>
 <script>

@@ -44,10 +44,42 @@
       <div class="form-group"><label>Repo URL</label><input type="url" id="editProjRepo"></div>
       <div class="form-group"><label>Demo URL</label><input type="url" id="editProjDemo"></div>
     </div>
-    <div class="form-group"><label>Attach Deck</label><select id="editProjDeck"><option value="">None</option></select></div>
+    <div class="form-group"><p style="font-size:0.8rem;color:var(--muted2);margin:4px 0 0">Presentation versions are managed from the project page.</p></div>
     <div class="modal-actions">
       <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
       <button class="btn btn-primary" onclick="saveProject()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Version Modal -->
+<div class="modal-overlay" id="uploadVersionModal">
+  <div class="modal-content" style="max-width:440px">
+    <button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('open')">&times;</button>
+    <div class="modal-title">Upload New Version</div>
+    <div class="form-group">
+      <label>Presentation File (.html or .zip)</label>
+      <div id="versionDropZone" onclick="document.getElementById('versionFileInput').click()"
+        style="border:2px dashed var(--border);border-radius:var(--radius);padding:24px 16px;text-align:center;cursor:pointer;transition:border-color .15s"
+        onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:1.4rem;margin-bottom:6px">📽</div>
+        <div id="versionFileName" style="font-size:0.82rem;color:var(--muted2)">Drop file or click to browse</div>
+        <input type="file" id="versionFileInput" accept=".html,.htm,.zip" style="display:none" onchange="handleVersionFileSelect(this)">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Version Label <span style="color:var(--muted2);font-weight:400">(optional)</span></label>
+      <input type="text" id="versionLabel" placeholder="e.g. Demo Day v2, Final Pitch…">
+    </div>
+    <div id="versionUploadProgress" style="display:none;margin-bottom:12px">
+      <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+        <div id="versionProgressBar" style="height:100%;width:0;background:var(--accent);transition:width .2s"></div>
+      </div>
+      <div id="versionUploadStatus" style="font-size:0.75rem;color:var(--muted2);margin-top:4px">Uploading…</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" id="uploadVersionBtn" onclick="submitVersionUpload()">Upload</button>
     </div>
   </div>
 </div>
@@ -106,16 +138,7 @@ async function loadProject() {
 
       ${p.bounty_title ? `<div style="margin-bottom:16px"><span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--btc-gold);padding:4px 12px;border:1px solid rgba(242,177,52,.2);border-radius:100px;background:rgba(242,177,52,.06)">⚡ ${esc(p.bounty_title)}</span></div>` : ''}
 
-      ${p.deck_id ? `
-      <div class="viewer-frame-wrap" style="margin-bottom:20px">
-        <iframe class="viewer-frame" src="/presentations/${esc(p.deck_id)}/${esc(p.deck_entry_point || 'index.html')}" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>
-        <a href="/deck/${esc(p.deck_id)}" class="viewer-fullscreen" style="opacity:1">Open Deck →</a>
-      </div>` : (p.deck_thumbnail ? `
-      <div style="margin-bottom:20px">
-        <a href="/deck/${esc(p.deck_id)}">
-          <img src="/thumbnails/${esc(p.deck_thumbnail)}" style="width:100%;border-radius:var(--radius-lg);border:1px solid var(--border)" alt="Presentation">
-        </a>
-      </div>` : '')}
+      <div id="deckVersionsSection" style="margin-bottom:4px"></div>
 
       <div class="viewer-desc">${esc(p.description)}</div>
 
@@ -126,7 +149,6 @@ async function loadProject() {
       <div class="viewer-actions">
         ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="btn">⌥ Repository</a>` : ''}
         ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="btn">↗ Live Demo</a>` : ''}
-        ${p.deck_id ? `<a href="/deck/${esc(p.deck_id)}" class="btn">📽 Presentation</a>` : ''}
         <button class="btn" id="editProjectBtn" style="display:none" onclick="openEditProject()">Edit</button>
         <button class="btn btn-danger" id="deleteProjectBtn" style="display:none" onclick="deleteProject()">🗑 Delete</button>
         <button class="btn" id="zapProjectBtn" onclick="openZapModal()" style="border-color:rgba(242,177,52,.5);color:var(--btc-bright)">⚡ Zap</button>
@@ -149,6 +171,7 @@ async function loadProject() {
     loadVoteState();
     checkOwnership();
     loadZaps();
+    loadDeckVersions(p);
   } catch(e) {
     document.getElementById('projectContent').innerHTML = '<div class="empty-state"><h3>Failed to load project</h3></div>';
   }
@@ -406,13 +429,6 @@ function openEditProject() {
   document.getElementById('editProjTags').value = p.tags || '';
   document.getElementById('editProjRepo').value = p.repo_url || '';
   document.getElementById('editProjDemo').value = p.demo_url || '';
-  document.getElementById('editProjDeck').value = p.deck_id || '';
-  // Load decks dropdown
-  fetch('/api/decks?limit=48').then(r=>r.json()).then(data=>{
-    const sel = document.getElementById('editProjDeck');
-    sel.innerHTML = '<option value="">None</option>';
-    (data.decks||[]).forEach(d => { const o=document.createElement('option'); o.value=d.id; o.textContent=d.title; if(d.id===p.deck_id)o.selected=true; sel.appendChild(o); });
-  });
   document.getElementById('editProjectModal').classList.add('open');
 }
 
@@ -425,7 +441,6 @@ async function saveProject() {
     tags: document.getElementById('editProjTags').value.trim(),
     repo_url: document.getElementById('editProjRepo').value.trim(),
     demo_url: document.getElementById('editProjDemo').value.trim(),
-    deck_id: document.getElementById('editProjDeck').value || null,
   };
   const r = await fetch('/api/projects/' + projectId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   if (r.ok) { document.getElementById('editProjectModal').classList.remove('open'); loadProject(); }

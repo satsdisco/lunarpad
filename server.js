@@ -191,6 +191,20 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS project_decks (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL,
+    deck_id     TEXT NOT NULL,
+    version     INTEGER NOT NULL DEFAULT 1,
+    label       TEXT,
+    is_current  INTEGER DEFAULT 1,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (deck_id) REFERENCES decks(id)
+  );
+`);
+
 // ─── Schema migrations (safe on existing DBs) ────────────────────────────────
 for (const sql of [
   'ALTER TABLE users ADD COLUMN lightning_address TEXT',
@@ -209,6 +223,7 @@ for (const sql of [
   'ALTER TABLE zaps ADD COLUMN recipient_address TEXT',
   'ALTER TABLE zaps ADD COLUMN forward_status TEXT',
   'ALTER TABLE zaps ADD COLUMN forward_payment_hash TEXT',
+  'ALTER TABLE decks ADD COLUMN hidden INTEGER DEFAULT 0',
 ]) {
   try { db.exec(sql); } catch (_) { /* column already exists */ }
 }
@@ -317,7 +332,7 @@ const stmts = {
   setThumbnail:  db.prepare('UPDATE decks SET thumbnail = ? WHERE id = ?'),
   incrementView: db.prepare('UPDATE decks SET views = views + 1 WHERE id = ?'),
   count:         db.prepare('SELECT COUNT(*) as c FROM decks'),
-  allTags:       db.prepare("SELECT tags FROM decks WHERE tags IS NOT NULL AND tags != ''"),
+  allTags:       db.prepare("SELECT tags FROM decks WHERE tags IS NOT NULL AND tags != '' AND (hidden = 0 OR hidden IS NULL)"),
   deleteDeck:    db.prepare('DELETE FROM decks WHERE id = ?'),
   addVote:       db.prepare('INSERT OR IGNORE INTO votes (target_type, target_id, voter_ip) VALUES (?, ?, ?)'),
   removeVote:    db.prepare('DELETE FROM votes WHERE target_type = ? AND target_id = ? AND voter_ip = ?'),
@@ -628,6 +643,11 @@ app.get('/api/decks', requireAuth, (req, res) => {
 
   const conditions = [];
   const params = [];
+
+  // Exclude hidden decks (project versions) unless admin requests them
+  if (!(req.query.include_hidden === 'true' && req.user?.is_admin)) {
+    conditions.push('(hidden = 0 OR hidden IS NULL)');
+  }
 
   if (search) {
     conditions.push('(title LIKE ? OR author LIKE ? OR description LIKE ? OR tags LIKE ?)');
@@ -1546,7 +1566,7 @@ app.put('/api/projects/:id', requireAuth, (req, res) => {
   db.prepare(`UPDATE projects SET
     name = COALESCE(?, name), description = COALESCE(?, description),
     status = COALESCE(?, status), tags = COALESCE(?, tags),
-    category = COALESCE(?, category), repo_url = ?, demo_url = ?, deck_id = ?
+    category = COALESCE(?, category), repo_url = ?, demo_url = ?, deck_id = COALESCE(?, deck_id)
     WHERE id = ?`).run(
     name || null, description || null, status || null,
     Array.isArray(tags) ? tags.join(',') : (tags || null),
@@ -1615,28 +1635,216 @@ app.post('/api/projects/:id/comments', requireAuth, (req, res) => {
   res.json({ id });
 });
 
+// ─── Project Deck Versions API ────────────────────────────────────────────────
+
+// GET /api/projects/:id/decks — list all deck versions with deck metadata
+app.get('/api/projects/:id/decks', (req, res) => {
+  const rows = db.prepare(`
+    SELECT pd.id, pd.project_id, pd.deck_id, pd.version, pd.label, pd.is_current, pd.created_at,
+           d.title, d.thumbnail, d.entry_point
+    FROM project_decks pd
+    JOIN decks d ON pd.deck_id = d.id
+    WHERE pd.project_id = ?
+    ORDER BY pd.version ASC
+  `).all(req.params.id);
+  res.json(rows);
+});
+
+// POST /api/projects/:id/decks — link an existing deck as a new version
+app.post('/api/projects/:id/decks', requireAuth, (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Not found' });
+  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const { deck_id, label } = req.body;
+  if (!deck_id) return res.status(400).json({ error: 'deck_id required' });
+  const deck = db.prepare('SELECT * FROM decks WHERE id = ?').get(deck_id);
+  if (!deck) return res.status(404).json({ error: 'Deck not found' });
+
+  const lastVersion = db.prepare('SELECT MAX(version) as v FROM project_decks WHERE project_id = ?').get(req.params.id);
+  const version = (lastVersion?.v || 0) + 1;
+  const resolvedLabel = label || `v${version}`;
+
+  db.prepare('UPDATE project_decks SET is_current = 0 WHERE project_id = ?').run(req.params.id);
+
+  const id = crypto.randomUUID();
+  db.prepare('INSERT INTO project_decks (id, project_id, deck_id, version, label, is_current) VALUES (?, ?, ?, ?, ?, 1)')
+    .run(id, req.params.id, deck_id, version, resolvedLabel);
+
+  // Mark deck hidden so it won't appear in gallery
+  db.prepare('UPDATE decks SET hidden = 1 WHERE id = ?').run(deck_id);
+
+  res.json({ id, version, label: resolvedLabel });
+});
+
+// POST /api/projects/:id/decks/upload — upload a new deck directly as a project version
+app.post('/api/projects/:id/decks/upload', requireAuth, upload.single('file'), async (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(404).json({ error: 'Not found' });
+  }
+  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  const { label } = req.body;
+  const lastVersion = db.prepare('SELECT MAX(version) as v FROM project_decks WHERE project_id = ?').get(req.params.id);
+  const version = (lastVersion?.v || 0) + 1;
+  const resolvedLabel = label || `v${version}`;
+
+  const deckId = crypto.randomUUID();
+  const deckDir = path.join(UPLOADS_DIR, deckId);
+  fs.mkdirSync(deckDir, { recursive: true });
+
+  try {
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let entryPoint = 'index.html';
+
+    if (ext === '.zip') {
+      await fs.createReadStream(req.file.path)
+        .pipe(unzipper.Extract({ path: deckDir }))
+        .promise();
+      fs.copyFileSync(req.file.path, path.join(deckDir, '_original.zip'));
+      entryPoint = detectEntryPoint(deckDir) || 'index.html';
+    } else {
+      fs.copyFileSync(req.file.path, path.join(deckDir, 'index.html'));
+    }
+    fs.unlinkSync(req.file.path);
+
+    const deckTitle = `${project.name} — ${resolvedLabel}`;
+    db.prepare(`INSERT INTO decks (id, title, author, filename, entry_point, uploaded_by, hidden)
+      VALUES (?, ?, ?, ?, ?, ?, 1)`).run(
+      deckId, deckTitle, project.builder || 'Anonymous',
+      req.file.originalname, entryPoint, req.user?.id
+    );
+
+    // Set all previous versions as not current, then insert new one
+    db.prepare('UPDATE project_decks SET is_current = 0 WHERE project_id = ?').run(req.params.id);
+
+    const versionId = crypto.randomUUID();
+    db.prepare('INSERT INTO project_decks (id, project_id, deck_id, version, label, is_current) VALUES (?, ?, ?, ?, ?, 1)')
+      .run(versionId, req.params.id, deckId, version, resolvedLabel);
+
+    generateThumbnail(deckId, entryPoint).catch(err => {
+      console.warn(`[thumb] ${deckId}: ${err.message}`);
+    });
+
+    res.json({ deck_id: deckId, version, label: resolvedLabel });
+  } catch (err) {
+    console.error('Project deck upload error:', err);
+    fs.rmSync(deckDir, { recursive: true, force: true });
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: err.message || 'Upload failed' });
+  }
+});
+
+// DELETE /api/projects/:id/decks/:version_id — remove a version
+app.delete('/api/projects/:id/decks/:version_id', requireAuth, (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Not found' });
+  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const entry = db.prepare('SELECT * FROM project_decks WHERE id = ? AND project_id = ?')
+    .get(req.params.version_id, req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Version not found' });
+
+  const total = db.prepare('SELECT COUNT(*) as c FROM project_decks WHERE project_id = ?').get(req.params.id).c;
+  if (total <= 1) return res.status(400).json({ error: 'Cannot delete the only version' });
+
+  db.prepare('DELETE FROM project_decks WHERE id = ?').run(req.params.version_id);
+
+  // If deleted version was current, promote the most recent remaining one
+  if (entry.is_current) {
+    const prev = db.prepare('SELECT * FROM project_decks WHERE project_id = ? ORDER BY version DESC LIMIT 1')
+      .get(req.params.id);
+    if (prev) db.prepare('UPDATE project_decks SET is_current = 1 WHERE id = ?').run(prev.id);
+  }
+
+  res.json({ ok: true });
+});
+
+// PATCH /api/projects/:id/decks/:version_id/set-current — set a version as current
+app.patch('/api/projects/:id/decks/:version_id/set-current', requireAuth, (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Not found' });
+  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const entry = db.prepare('SELECT * FROM project_decks WHERE id = ? AND project_id = ?')
+    .get(req.params.version_id, req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Version not found' });
+
+  db.prepare('UPDATE project_decks SET is_current = 0 WHERE project_id = ?').run(req.params.id);
+  db.prepare('UPDATE project_decks SET is_current = 1 WHERE id = ?').run(req.params.version_id);
+
+  res.json({ ok: true });
+});
+
 // ─── User Profile API ─────────────────────────────────────────────────────────
 
 app.get('/api/leaderboard', (req, res) => {
-  const rows = db.prepare(`
-    SELECT u.id as user_id, u.name, u.avatar, u.badges,
-      COALESCE(SUM(CASE WHEN b.paid_out = 1 THEN b.sats_amount ELSE 0 END), 0) as bounty_sats,
-      COUNT(CASE WHEN b.paid_out = 1 THEN 1 END) as bounties_won,
-      COALESCE(u.total_sats_received, 0) as zaps_received
-    FROM users u
-    LEFT JOIN bounties b ON b.winner_id = u.id
-    WHERE u.name IS NOT NULL
-    GROUP BY u.id
-    ORDER BY (COALESCE(SUM(CASE WHEN b.paid_out = 1 THEN b.sats_amount ELSE 0 END), 0) + COALESCE(u.total_sats_received, 0)) DESC, bounties_won DESC
-    LIMIT 20
-  `).all();
+  const sort = req.query.sort || 'earners';
+  let rows;
+  if (sort === 'zappers') {
+    rows = db.prepare(`
+      SELECT u.id as user_id, u.name, u.avatar, u.badges,
+        COALESCE(SUM(CASE WHEN b.paid_out = 1 THEN b.sats_amount ELSE 0 END), 0) as bounty_sats,
+        COUNT(CASE WHEN b.paid_out = 1 THEN 1 END) as bounties_won,
+        COALESCE(u.total_sats_received, 0) as zaps_received,
+        (SELECT COALESCE(SUM(z.amount_sats),0) FROM zaps z WHERE z.user_id=u.id AND z.status='confirmed') +
+        (SELECT COALESCE(SUM(bp.amount_sats),0) FROM bounty_payments bp WHERE bp.user_id=u.id AND bp.payment_type='fund' AND bp.status='confirmed') as sort_val
+      FROM users u LEFT JOIN bounties b ON b.winner_id = u.id
+      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC LIMIT 20
+    `).all();
+  } else if (sort === 'projects') {
+    rows = db.prepare(`
+      SELECT u.id as user_id, u.name, u.avatar, u.badges,
+        COALESCE(SUM(CASE WHEN b.paid_out = 1 THEN b.sats_amount ELSE 0 END), 0) as bounty_sats,
+        COUNT(CASE WHEN b.paid_out = 1 THEN 1 END) as bounties_won,
+        COALESCE(u.total_sats_received, 0) as zaps_received,
+        (SELECT COUNT(*) FROM projects p WHERE p.user_id=u.id) as sort_val
+      FROM users u LEFT JOIN bounties b ON b.winner_id = u.id
+      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC LIMIT 20
+    `).all();
+  } else if (sort === 'active') {
+    rows = db.prepare(`
+      SELECT u.id as user_id, u.name, u.avatar, u.badges,
+        COALESCE(SUM(CASE WHEN b.paid_out = 1 THEN b.sats_amount ELSE 0 END), 0) as bounty_sats,
+        COUNT(CASE WHEN b.paid_out = 1 THEN 1 END) as bounties_won,
+        COALESCE(u.total_sats_received, 0) as zaps_received,
+        (SELECT COUNT(*) FROM projects p WHERE p.user_id=u.id) +
+        (SELECT COUNT(*) FROM bounty_participants bp2 WHERE bp2.user_id=u.id) +
+        (SELECT COUNT(*) FROM zaps z WHERE z.user_id=u.id AND z.status='confirmed') +
+        (SELECT COUNT(*) FROM bounty_payments bpay WHERE bpay.user_id=u.id AND bpay.status='confirmed') as sort_val
+      FROM users u LEFT JOIN bounties b ON b.winner_id = u.id
+      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC LIMIT 20
+    `).all();
+  } else {
+    rows = db.prepare(`
+      SELECT u.id as user_id, u.name, u.avatar, u.badges,
+        COALESCE(SUM(CASE WHEN b.paid_out = 1 THEN b.sats_amount ELSE 0 END), 0) as bounty_sats,
+        COUNT(CASE WHEN b.paid_out = 1 THEN 1 END) as bounties_won,
+        COALESCE(u.total_sats_received, 0) as zaps_received,
+        (COALESCE(SUM(CASE WHEN b.paid_out = 1 THEN b.sats_amount ELSE 0 END), 0) + COALESCE(u.total_sats_received, 0)) as sort_val
+      FROM users u LEFT JOIN bounties b ON b.winner_id = u.id
+      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC, bounties_won DESC LIMIT 20
+    `).all();
+  }
 
   const result = rows.map((u, i) => {
     const projects_count = db.prepare('SELECT COUNT(*) as c FROM projects WHERE user_id = ?').get(u.user_id)?.c || 0;
     let badges = [];
     try { badges = JSON.parse(u.badges || '[]'); } catch {}
     const total_sats = Number(u.bounty_sats) + Number(u.zaps_received);
-    return { rank: i + 1, user_id: u.user_id, name: u.name, avatar: u.avatar, total_sats, bounty_sats: Number(u.bounty_sats), zaps_received: Number(u.zaps_received), bounties_won: u.bounties_won, projects_count, badges };
+    return { rank: i + 1, user_id: u.user_id, name: u.name, avatar: u.avatar, total_sats, bounty_sats: Number(u.bounty_sats), zaps_received: Number(u.zaps_received), bounties_won: u.bounties_won, projects_count, badges, sort_val: Number(u.sort_val || 0) };
   });
   res.json(result);
 });
@@ -1651,9 +1859,12 @@ app.get('/api/users/:id', (req, res) => {
   const bountiesWon = db.prepare("SELECT COUNT(*) as c FROM bounties WHERE winner_id = ? AND paid_out = 1").get(req.params.id)?.c || 0;
   const zapsReceived = db.prepare("SELECT COALESCE(total_sats_received, 0) as s FROM users WHERE id = ?").get(req.params.id)?.s || 0;
   const totalSats = Number(bountySats) + Number(zapsReceived);
+  const zapsSent = db.prepare("SELECT COALESCE(SUM(amount_sats), 0) as s FROM zaps WHERE user_id = ? AND status = 'confirmed'").get(req.params.id)?.s || 0;
+  const bountyFunded = db.prepare("SELECT COALESCE(SUM(amount_sats), 0) as s FROM bounty_payments WHERE user_id = ? AND payment_type = 'fund' AND status = 'confirmed'").get(req.params.id)?.s || 0;
+  const totalZapsSent = Number(zapsSent) + Number(bountyFunded);
   let badges = [];
   try { badges = JSON.parse(user.badges || '[]'); } catch {}
-  res.json({ ...user, badges, deck_count: deckCount, project_count: projectCount, total_sats_earned: totalSats, bounty_sats: Number(bountySats), zaps_received: Number(zapsReceived), bounties_won: bountiesWon });
+  res.json({ ...user, badges, deck_count: deckCount, project_count: projectCount, total_sats_earned: totalSats, bounty_sats: Number(bountySats), zaps_received: Number(zapsReceived), bounties_won: bountiesWon, total_zaps_sent: totalZapsSent });
 });
 
 app.get('/api/users/:id/decks', (req, res) => {

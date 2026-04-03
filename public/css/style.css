@@ -1267,6 +1267,8 @@ a:hover { color: var(--accent); }
 .stat-bounties { border-top-color: #3CCBDA; }
 .stat-projects { border-top-color: var(--accent); }
 .stat-decks    { border-top-color: rgba(124,92,252,0.4); }
+.stat-zaps     { border-top-color: #FF8C42; }
+.profile-stat-value.orange { color: #FF8C42; }
 
 .profile-stat-value {
   font-family: var(--font-mono);
@@ -1316,6 +1318,62 @@ a:hover { color: var(--accent); }
   text-transform: none;
   letter-spacing: 0;
   margin-left: 6px;
+}
+
+/* ─── Collapsible Badge Collection ──────────────────────────────────────── */
+.badge-collection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+.badge-collection-header:hover .profile-section-title { color: var(--text); }
+.badge-collection-subtitle {
+  font-size: 0.7rem;
+  color: var(--muted2);
+  margin-right: 8px;
+}
+.badge-chevron {
+  color: var(--muted);
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+.badge-collection-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+.badge-collection-body.expanded {
+  max-height: 2400px;
+}
+
+/* ─── Leaderboard Tabs ───────────────────────────────────────────────────── */
+.lb-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.lb-tab {
+  padding: 5px 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font);
+  letter-spacing: 0.02em;
+}
+.lb-tab:hover { border-color: var(--accent); color: var(--accent); }
+.lb-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 .badges-grid {
