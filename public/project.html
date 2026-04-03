@@ -201,6 +201,7 @@ async function loadProject() {
 
       <!-- Overview Tab -->
       <div class="project-tab-view active" id="ptab-overview">
+        <div id="overviewDeckEmbed"></div>
         <div class="project-desc-full">${esc(p.description).replace(/\n/g, '<br>')}</div>
 
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
@@ -567,6 +568,11 @@ async function handleBannerUpload(input) {
 
 // ─── Deck Versions ────────────────────────────────────────────────────────────
 
+function switchPresentationsView(deckId, entryPoint) {
+  const iframe = document.querySelector('#deckEmbedSection iframe');
+  if (iframe) iframe.src = `/presentations/${deckId}/${entryPoint}`;
+}
+
 async function loadDeckVersions(project) {
   const section = document.getElementById('deckVersionsSection');
   const embedSection = document.getElementById('deckEmbedSection');
@@ -597,17 +603,18 @@ async function loadDeckVersions(project) {
           ? `<img src="/thumbnails/${esc(v.thumbnail)}" style="width:60px;height:34px;border-radius:4px;object-fit:cover">`
           : `<div style="width:60px;height:34px;border-radius:4px;background:var(--glass);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted2)">🎭</div>`;
         const label = v.label || ('v' + v.version);
-        const current = v.is_current
-          ? '<span style="font-size:0.6rem;padding:2px 6px;background:rgba(124,92,252,0.15);border:1px solid rgba(124,92,252,0.3);border-radius:100px;color:var(--accent);font-weight:600">Current</span>'
-          : (canManage ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:2px 6px" onclick="event.stopPropagation();setCurrentVersion('${esc(project.id)}','${esc(v.id)}')">Set Current</button>` : '');
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color .15s" onclick="window.open('/deck/${esc(v.deck_id)}','_blank')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        const ep = esc(v.entry_point || 'index.html');
+        const starBtn = canManage
+          ? `<button class="btn btn-sm" style="font-size:0.9rem;padding:2px 6px;background:none;border-color:transparent;color:${v.is_current ? 'var(--btc-bright)' : 'var(--muted2)'}" title="${v.is_current ? 'Featured' : 'Set as featured'}" onclick="event.stopPropagation();setCurrentVersion('${esc(project.id)}','${esc(v.id)}')">${v.is_current ? '⭐' : '☆'}</button>`
+          : (v.is_current ? '<span style="font-size:0.6rem;padding:2px 6px;background:rgba(124,92,252,0.15);border:1px solid rgba(124,92,252,0.3);border-radius:100px;color:var(--accent);font-weight:600">Current</span>' : '');
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color .15s" onclick="switchPresentationsView('${esc(v.deck_id)}','${ep}')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
           ${thumb}
           <div style="flex:1;min-width:0">
             <div style="font-size:0.8rem;font-weight:600;color:var(--text)">${esc(label)}</div>
             <div style="font-size:0.7rem;color:var(--muted2)">${new Date(v.created_at).toLocaleDateString('en',{month:'short',day:'numeric'})}</div>
           </div>
           <button class="btn btn-sm" style="font-size:0.65rem;padding:3px 8px" onclick="event.stopPropagation();window.open('/deck/${esc(v.deck_id)}','_blank')">View</button>
-          ${current}
+          ${starBtn}
         </div>`;
       }).join('');
     } else if (project.deck_id) {
@@ -643,16 +650,20 @@ async function loadDeckVersions(project) {
     }
 
     // Embed viewer
-    if (embedSection && embedDeckId) {
+    if (embedDeckId) {
+      window._currentDeck = { deck_id: embedDeckId, entry_point: embedEntryPoint };
       const embedSrc = `/presentations/${esc(embedDeckId)}/${esc(embedEntryPoint)}`;
       const fullscreenUrl = `/deck/${esc(embedDeckId)}`;
-      embedSection.innerHTML = `
+      const embedHtml = `
         <div class="project-embed-wrap">
           <iframe src="${embedSrc}" title="Presentation preview" allowfullscreen></iframe>
           <div class="project-embed-fullscreen">
             <a href="${fullscreenUrl}" target="_blank" class="btn btn-sm" style="font-size:0.7rem;padding:4px 10px">↗ Fullscreen</a>
           </div>
         </div>`;
+      if (embedSection) embedSection.innerHTML = embedHtml;
+      const overviewEmbed = document.getElementById('overviewDeckEmbed');
+      if (overviewEmbed) overviewEmbed.innerHTML = `<div style="margin-bottom:20px">${embedHtml}</div>`;
     }
 
     const uploadBtn = canManage
