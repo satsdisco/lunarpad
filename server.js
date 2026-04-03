@@ -1049,7 +1049,7 @@ const SEED_WELCOME = /* html */`<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Welcome to DeckPad</title>
+<title>Welcome to LunarPad</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--gold:#f5c518;--bg:#080808}
@@ -1106,7 +1106,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#f0f
 <div class="deck" id="deck">
 
   <div class="slide s1 active">
-    <div class="logo-mark">🎭 DeckPad</div>
+    <div class="logo-mark">🚀 LunarPad</div>
     <div class="tagline">Your stage for HTML presentations.<br>Upload, share, and present anything built for the web.</div>
     <div class="pill">✦ Built for the Open Web</div>
   </div>
@@ -1122,7 +1122,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#f0f
 
   <div class="slide s3">
     <div class="slide-title">Any framework. <em>Any style.</em></div>
-    <div class="sub">DeckPad hosts them all — no conversion needed</div>
+    <div class="sub">LunarPad hosts them all — no conversion needed</div>
     <div class="fw-grid">
       <div class="fw-pill">Reveal.js</div>
       <div class="fw-pill">Slidev</div>
@@ -1430,10 +1430,10 @@ async function seedDemoDecks() {
 
   const seeds = [
     {
-      title: 'Welcome to DeckPad',
-      author: 'DeckPad Team',
-      description: 'An introduction to DeckPad — the HTML presentation hosting platform. Upload any HTML deck and present it to the world.',
-      tags: 'demo,welcome,intro,deckpad',
+      title: 'Welcome to LunarPad',
+      author: 'LunarPad Team',
+      description: 'An introduction to LunarPad — the HTML presentation hosting platform. Upload any HTML deck and present it to the world.',
+      tags: 'demo,welcome,intro,lunarpad',
       html: SEED_WELCOME,
     },
     {
@@ -1521,8 +1521,8 @@ function seedPlatformData() {
 
   // Bounties — the 50k bounty is linked to the demo day event
   const bounties = [
-    { title: 'Build a Voting System for Presentations', description: 'Add upvote/downvote capabilities to the DeckPad presentation gallery so the community can surface the best content.', sats_amount: 10000, status: 'completed', tags: 'deckpad,voting,frontend', event_id: null },
-    { title: 'Best Demo at LR Demo Day #1', description: 'Best overall demo at the first LR Demo Day. Judged by audience vote. Ship something real.', sats_amount: 50000, status: 'open', tags: 'deckpad,platform,fullstack', event_id: eventId },
+    { title: 'Build a Voting System for Presentations', description: 'Add upvote/downvote capabilities to the LunarPad presentation gallery so the community can surface the best content.', sats_amount: 10000, status: 'completed', tags: 'lunarpad,voting,frontend', event_id: null },
+    { title: 'Best Demo at LR Demo Day #1', description: 'Best overall demo at the first LR Demo Day. Judged by audience vote. Ship something real.', sats_amount: 50000, status: 'open', tags: 'lunarpad,platform,fullstack', event_id: eventId },
     { title: 'LNURL-Auth Integration', description: 'Integrate LNURL-Auth so builders can log in with their Lightning wallet — no email, no password, just a QR code scan.', sats_amount: 25000, status: 'open', tags: 'lightning,auth,bitcoin', event_id: null },
     { title: 'Automating the Trading Engine', description: 'Build automation for the banking house trading engine. Connect LPs, implement smart order routing, and enable automated execution across OTC desks. The team that ships a working prototype wins 1 BTC.', sats_amount: 100000000, status: 'open', tags: 'trading,automation,execution,bitcoin', event_id: null },
   ];
@@ -1537,7 +1537,7 @@ function seedPlatformData() {
   const deckId1 = allDecks[0]?.id || null;
   const deckId2 = allDecks[1]?.id || null;
   const speakers = [
-    { name: 'satsdisco', project_title: 'DeckPad', description: 'HTML presentation hosting platform with auto-thumbnails, voting, and a community gallery.', duration: 10, github_url: 'https://github.com/satsdisco/deckpad', demo_url: 'https://decks.satsdisco.com', deck_id: deckId1 },
+    { name: 'satsdisco', project_title: 'LunarPad', description: 'HTML presentation hosting platform with auto-thumbnails, voting, and a community gallery.', duration: 10, github_url: 'https://github.com/satsdisco/lunarpad', demo_url: 'https://decks.satsdisco.com', deck_id: deckId1 },
     { name: 'noderunner', project_title: 'LNConnect', description: 'A simple dashboard for monitoring your Lightning node channels, capacity, and routing fees in real-time.', duration: 5, github_url: 'https://github.com/noderunner/lnconnect', demo_url: '', deck_id: deckId2 },
   ];
   for (const s of speakers) {
@@ -1548,7 +1548,7 @@ function seedPlatformData() {
 
   // Projects
   const projects = [
-    { name: 'DeckPad', builder: 'satsdisco', description: 'Your stage for HTML presentations. Upload any HTML deck and share it with the world. Built with Express, SQLite, and Puppeteer.', status: 'building', tags: 'web,presentations,hosting,deckpad', repo_url: 'https://github.com/satsdisco/deckpad', demo_url: 'https://deckpad.app' },
+    { name: 'LunarPad', builder: 'satsdisco', description: 'Your stage for HTML presentations. Upload any HTML deck and share it with the world. Built with Express, SQLite, and Puppeteer.', status: 'building', tags: 'web,presentations,hosting,lunarpad', repo_url: 'https://github.com/satsdisco/lunarpad', demo_url: 'https://lunarpad.dev' },
     { name: 'LNConnect', builder: 'noderunner', description: 'Real-time Lightning node monitoring dashboard. Track channels, capacity, routing fees, and peer health from one place.', status: 'building', tags: 'lightning,bitcoin,dashboard,nodes', repo_url: 'https://github.com/noderunner/lnconnect', demo_url: '' },
   ];
   for (const p of projects) {
@@ -1563,7 +1563,7 @@ function seedPlatformData() {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const server = app.listen(PORT, () => {
-  console.log(`\n🎭 DeckPad running at http://localhost:${PORT}\n`);
+  console.log(`\n🚀 LunarPad running at http://localhost:${PORT}\n`);
   seedDemoDecks().catch(console.error);
   seedPlatformData();
 });
