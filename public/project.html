@@ -137,6 +137,10 @@ function timeAgo(dateStr) {
   return Math.floor(days / 30) + 'mo ago';
 }
 
+function shortUrl(url) {
+  try { const u = new URL(url); return (u.hostname + u.pathname).replace(/^www\./,'').replace(/\/$/,''); } catch { return url; }
+}
+
 function daysAgo(dateStr) {
   const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
   if (days === 0) return 'today';
@@ -191,37 +195,23 @@ async function loadProject() {
       </div>`;
     }
 
-    // Stats bar
-    const statsBar = `
-      <div class="project-stats-bar">
-        <span id="statsZaps">⚡ — sats</span>
-        <span id="statsComments">💬 — comments</span>
-        <span>🕐 Created ${daysAgo(p.created_at)}</span>
-        ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" style="text-decoration:none"><span style="color:var(--btc-bright);border:1px solid rgba(242,177,52,.25);border-radius:100px;padding:2px 8px;background:rgba(242,177,52,.06)">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
-      </div>`;
-
     document.getElementById('projectContent').innerHTML = `
       ${bannerHtml}
 
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:16px 0 4px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:16px 0 12px;gap:12px">
         <div>
           <h1 class="viewer-title" style="margin-bottom:4px">${esc(p.name)}</h1>
-          <div style="font-size:0.85rem;color:var(--muted)">by <strong style="color:var(--text)">${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.builder)}</a>` : esc(p.builder)}</strong></div>
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:8px">by <strong style="color:var(--text)">${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.builder)}</a>` : esc(p.builder)}</strong></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span class="card-tag ${p.category ? 'cat-' + p.category : ''}" style="font-size:0.7rem">${esc(p.category || 'project')}</span>
+            <span class="card-tag" style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${statusMap[p.status] || p.status}</span>
+            ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" style="text-decoration:none"><span style="color:var(--btc-bright);border:1px solid rgba(242,177,52,.25);border-radius:100px;padding:2px 8px;font-size:0.75rem;background:rgba(242,177,52,.06)">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
+          </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span class="card-tag ${p.category ? 'cat-' + p.category : ''}" style="font-size:0.7rem">${esc(p.category || 'project')}</span>
-          <span class="card-tag" style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${statusMap[p.status] || p.status}</span>
+        <div style="display:flex;gap:6px;align-items:flex-start;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm" id="editProjectBtn" style="display:none;font-size:0.7rem;color:var(--muted)" onclick="openEditProject()">✏️ Edit</button>
+          <button class="btn btn-sm" id="deleteProjectBtn" style="display:none;font-size:0.7rem;color:#a04040;border-color:transparent" onclick="deleteProject()">🗑</button>
         </div>
-      </div>
-
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-        ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="btn" style="border-radius:20px">⌥ Repo</a>` : ''}
-        ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="btn" style="border-radius:20px">↗ Demo</a>` : ''}
-        ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" style="text-decoration:none"><span style="color:var(--btc-bright);border:1px solid rgba(242,177,52,.25);border-radius:100px;padding:2px 8px;font-size:0.75rem;background:rgba(242,177,52,.06)">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
-        <div style="flex:1"></div>
-        <span style="font-size:0.75rem;color:var(--muted2)">🕰 Created ${daysAgo(p.created_at)}</span>
-        <button class="btn btn-ghost btn-sm" id="editProjectBtn" style="display:none;font-size:0.7rem;color:var(--muted)" onclick="openEditProject()">✏️ Edit</button>
-        <button class="btn btn-sm" id="deleteProjectBtn" style="display:none;font-size:0.7rem;color:#a04040;border-color:transparent" onclick="deleteProject()">🗑</button>
       </div>
 
       <div class="project-tabs">
@@ -234,23 +224,30 @@ async function loadProject() {
         <div id="overviewDeckEmbed"></div>
         <div class="project-desc-full">${esc(p.description).replace(/\n/g, '<br>')}</div>
 
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:${(p.repo_url || p.demo_url) ? '12px' : '16px'}">
           ${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join('')}
         </div>
 
+        ${(p.repo_url || p.demo_url) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+          ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="project-link-card">⌥ Repository <span class="project-link-domain">→ ${esc(shortUrl(p.repo_url))}</span></a>` : ''}
+          ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="project-link-card">↗ Live Demo <span class="project-link-domain">→ ${esc(shortUrl(p.demo_url))}</span></a>` : ''}
+        </div>` : ''}
 
-
-        <div style="padding:20px;margin-top:20px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--glass)">
+        <div style="padding:20px;margin-top:4px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--glass)">
           <div class="project-stats-bar" style="margin-bottom:12px;padding:0">
             <span id="statsZaps">⚡ — sats</span>
             <span id="statsComments">💬 — comments</span>
             <span>▲ <span id="projVoteCountBtn">${p.votes || 0}</span> votes</span>
           </div>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <span style="font-size:0.85rem;color:var(--muted)">Support this project</span>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:${(p.repo_url || p.demo_url) ? '14px' : '0'}">
             <button class="vote-btn vote-pill" id="projVoteBtn" onclick="voteProject()" style="font-size:0.85rem;padding:8px 18px">▲ Upvote</button>
             <button class="btn btn-zap" id="zapProjectBtn" onclick="openZapModal()" style="font-size:0.82rem;padding:7px 16px">⚡ Zap sats</button>
           </div>
+          ${(p.repo_url || p.demo_url) ? `<div style="padding-top:14px;border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:0.78rem;color:var(--muted2)">
+            ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" style="color:var(--muted2);text-decoration:none;display:flex;align-items:center;gap:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted2)'">⌥ Repo</a>` : ''}
+            ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" style="color:var(--muted2);text-decoration:none;display:flex;align-items:center;gap:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted2)'">↗ Demo</a>` : ''}
+            <span style="margin-left:auto">🕐 Created ${daysAgo(p.created_at)}</span>
+          </div>` : `<div style="padding-top:14px;border-top:1px solid var(--border);font-size:0.78rem;color:var(--muted2);text-align:right">🕐 Created ${daysAgo(p.created_at)}</div>`}
         </div>
 
         <div class="comments-section" style="border:none;padding:0;margin-top:16px">
