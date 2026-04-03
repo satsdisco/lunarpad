@@ -480,23 +480,14 @@ async function loadProfile() {
           ? `<div class="profile-links-readonly">${currentLinkChips(user.website_url, user.github_url)}</div>`
           : '');
 
-    // ── Badge section: own profile only (collapsible, at bottom) ──
-    const badgesSectionHtml = isOwn
-      ? `<div class="profile-section">
-          <div class="badge-collection-header" onclick="toggleBadgeCollection()">
-            <div>
-              <span class="profile-section-title" style="margin-bottom:0">BADGE COLLECTION</span>
-              <span class="section-title-count">${earnedCount} / ${ALL_BADGES.length} earned</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <span class="badge-collection-subtitle" id="badgeCollectionSubtitle">Complete challenges to unlock badges</span>
-              <svg class="badge-chevron" id="badgeChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-          </div>
-          <div class="badge-collection-body" id="badgeCollectionBody">
-            <div class="badges-grid" style="margin-top:16px">${badgesHtml}</div>
-          </div>
+    // ── Badges tab: own profile only ──
+    const badgesTabHtml = isOwn
+      ? `<div class="profile-tab-view" id="ptab-badges">
+          <div class="badges-grid" style="margin-top:8px">${badgesHtml}</div>
         </div>`
+      : '';
+    const badgesTabBtn = isOwn
+      ? `<button class="profile-tab" onclick="switchProfileTab('badges', event)">Badges (${earnedCount}/${ALL_BADGES.length})</button>`
       : '';
 
     content.innerHTML = `
@@ -533,6 +524,7 @@ async function loadProfile() {
         <button class="profile-tab active" onclick="switchProfileTab('decks', event)">Decks (${decksRes.length})</button>
         <button class="profile-tab" onclick="switchProfileTab('projects', event)">Projects (${projRes.length})</button>
         ${adminTabs}
+        ${badgesTabBtn}
       </div>
 
       <div class="profile-tab-view active" id="ptab-decks">
@@ -546,7 +538,7 @@ async function loadProfile() {
       ${user.is_admin ? '<div class="profile-tab-view" id="ptab-bounties"><p style="color:var(--muted);font-size:0.85rem">Bounty management coming soon</p></div>' : ''}
       ${user.is_admin ? '<div class="profile-tab-view" id="ptab-events"><p style="color:var(--muted);font-size:0.85rem">Event management coming soon</p></div>' : ''}
 
-      ${badgesSectionHtml}
+      ${badgesTabHtml}
     `;
   } catch(e) {
     content.innerHTML = '<div class="empty-state"><h3>Failed to load profile</h3></div>';
@@ -604,24 +596,6 @@ function switchProfileTab(name, ev) {
   if (view) view.classList.add('active');
 }
 
-function toggleBadgeCollection() {
-  const body = document.getElementById('badgeCollectionBody');
-  const chevron = document.getElementById('badgeChevron');
-  const subtitle = document.getElementById('badgeCollectionSubtitle');
-  if (!body) return;
-  const isExpanded = body.classList.contains('expanded');
-  if (isExpanded) {
-    body.classList.remove('expanded');
-    if (chevron) chevron.style.transform = '';
-    if (subtitle) subtitle.style.display = '';
-    localStorage.setItem('lunarpad_badges_collapsed', 'true');
-  } else {
-    body.classList.add('expanded');
-    if (chevron) chevron.style.transform = 'rotate(180deg)';
-    if (subtitle) subtitle.style.display = 'none';
-    localStorage.setItem('lunarpad_badges_collapsed', 'false');
-  }
-}
 
 loadProfile().then(() => {
   // CountUp animation for stat numbers
@@ -667,19 +641,6 @@ loadProfile().then(() => {
       tooltip.classList.remove('visible');
     });
   });
-
-  // ── Badge collection collapsed state ──
-  const badgeBody = document.getElementById('badgeCollectionBody');
-  if (badgeBody) {
-    const collapsed = localStorage.getItem('lunarpad_badges_collapsed') !== 'false';
-    if (!collapsed) {
-      badgeBody.classList.add('expanded');
-      const chev = document.getElementById('badgeChevron');
-      const sub = document.getElementById('badgeCollectionSubtitle');
-      if (chev) chev.style.transform = 'rotate(180deg)';
-      if (sub) sub.style.display = 'none';
-    }
-  }
 
   // ── Achievement toasts ──
   const seenKey = 'lunarpad_seen_badges';
