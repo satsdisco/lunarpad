@@ -13,10 +13,8 @@
   <nav class="nav-tabs">
     <a href="/" class="nav-tab">Decks</a>
     <a href="/build" class="nav-tab active">Build in Public</a>
-    
   </nav>
   <div class="header-actions" id="authArea">
-    
     <div id="userArea"></div>
   </div>
 </header>
@@ -94,6 +92,9 @@
 
 <div id="zapOverlay" class="zap-overlay">⚡</div>
 
+<!-- Hidden banner file input -->
+<input type="file" id="bannerFileInput" accept="image/*" style="display:none" onchange="handleBannerUpload(this)">
+
 <footer class="footer">LunarPad — Build. Ship. Earn sats.</footer>
 
 <script>
@@ -108,8 +109,36 @@ function timeAgo(dateStr) {
   if (mins < 60) return mins + 'm ago';
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return hrs + 'h ago';
-  return Math.floor(hrs / 24) + 'd ago';
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return days + 'd ago';
+  return Math.floor(days / 30) + 'mo ago';
 }
+
+function daysAgo(dateStr) {
+  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (days === 0) return 'today';
+  if (days === 1) return '1 day ago';
+  return days + ' days ago';
+}
+
+let currentProject = null;
+let _commentsLoaded = false;
+
+// ─── Tab switching ────────────────────────────────────────────────────────────
+
+function switchProjectTab(name, ev) {
+  document.querySelectorAll('.project-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.project-tab-view').forEach(v => v.classList.remove('active'));
+  if (ev) ev.target.classList.add('active');
+  const view = document.getElementById('ptab-' + name);
+  if (view) view.classList.add('active');
+  if (name === 'comments' && !_commentsLoaded) {
+    _commentsLoaded = true;
+    loadComments();
+  }
+}
+
+// ─── Load project ─────────────────────────────────────────────────────────────
 
 async function loadProject() {
   try {
@@ -121,67 +150,137 @@ async function loadProject() {
     document.title = p.name + ' — LunarPad';
 
     const tags = typeof p.tags === 'string' ? p.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-    const catClass = p.category ? 'cat-' + p.category : '';
+    const catClass = p.category ? 'cat-' + p.category : 'cat-default';
     const statusMap = { idea: 'Idea', building: 'Building', shipped: 'Shipped' };
 
+    // Banner
+    let bannerHtml = '';
+    if (p.banner_url) {
+      bannerHtml = `<div class="project-banner-wrap" id="bannerWrap">
+        <img src="${esc(p.banner_url)}" class="project-banner" alt="">
+        <div class="project-banner-upload-overlay" id="bannerUploadOverlay" onclick="document.getElementById('bannerFileInput').click()" style="display:none">
+          <span style="font-size:1.4rem">📷</span>
+          <span style="font-size:0.75rem;margin-top:4px">Change Banner</span>
+        </div>
+      </div>`;
+    } else {
+      bannerHtml = `<div class="project-banner-wrap" id="bannerWrap">
+        <div class="project-banner-gradient ${catClass}"></div>
+        <div class="project-banner-upload-overlay" id="bannerUploadOverlay" onclick="document.getElementById('bannerFileInput').click()" style="display:none">
+          <span style="font-size:1.4rem">📷</span>
+          <span style="font-size:0.75rem;margin-top:4px">Add Banner</span>
+        </div>
+      </div>`;
+    }
+
+    // Stats bar
+    const statsBar = `
+      <div class="project-stats-bar">
+        <span id="statsZaps">⚡ — sats</span>
+        <span>▲ <span id="projVoteCount">${p.votes || 0}</span> votes</span>
+        <span id="statsComments">💬 — comments</span>
+        <span>🕐 Created ${daysAgo(p.created_at)}</span>
+        ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" style="text-decoration:none"><span style="color:var(--btc-bright);border:1px solid rgba(242,177,52,.25);border-radius:100px;padding:2px 8px;background:rgba(242,177,52,.06)">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
+      </div>`;
+
     document.getElementById('projectContent').innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      ${bannerHtml}
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:16px 0 4px;flex-wrap:wrap;gap:8px">
         <div>
-          <h1 class="viewer-title">${esc(p.name)}</h1>
-          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:4px">by <strong style="color:var(--text)">${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.builder)}</a>` : esc(p.builder)}</strong></div>
+          <h1 class="viewer-title" style="margin-bottom:4px">${esc(p.name)}</h1>
+          <div style="font-size:0.85rem;color:var(--muted)">by <strong style="color:var(--text)">${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.builder)}</a>` : esc(p.builder)}</strong></div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <span class="card-tag ${catClass}" style="font-size:0.7rem">${esc(p.category || 'project')}</span>
+          <span class="card-tag ${p.category ? 'cat-' + p.category : ''}" style="font-size:0.7rem">${esc(p.category || 'project')}</span>
           <span class="card-tag" style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${statusMap[p.status] || p.status}</span>
         </div>
       </div>
 
-      ${p.bounty_title ? `<div style="margin-bottom:16px"><span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--btc-gold);padding:4px 12px;border:1px solid rgba(242,177,52,.2);border-radius:100px;background:rgba(242,177,52,.06)">⚡ ${esc(p.bounty_title)}</span></div>` : ''}
+      ${statsBar}
 
-      <div id="deckVersionsSection" style="margin-bottom:4px"></div>
-
-      <div class="viewer-desc">${esc(p.description)}</div>
-
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
-        ${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join('')}
+      <div class="project-tabs">
+        <button class="project-tab active" onclick="switchProjectTab('overview', event)">Overview</button>
+        <button class="project-tab" onclick="switchProjectTab('presentations', event)">Presentations</button>
+        <button class="project-tab" onclick="switchProjectTab('comments', event)">Comments</button>
       </div>
 
-      <div class="viewer-actions">
-        ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="btn">⌥ Repository</a>` : ''}
-        ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="btn">↗ Live Demo</a>` : ''}
-        <button class="btn" id="editProjectBtn" style="display:none" onclick="openEditProject()">Edit</button>
-        <button class="btn btn-danger" id="deleteProjectBtn" style="display:none" onclick="deleteProject()">🗑 Delete</button>
-        <button class="btn" id="zapProjectBtn" onclick="openZapModal()" style="border-color:rgba(242,177,52,.5);color:var(--btc-bright)">⚡ Zap</button>
-        <button class="vote-btn" id="projVoteBtn" onclick="voteProject()">
-          <span class="arrow">▲</span>
-          <span id="projVoteCount">${p.votes || 0}</span>
-        </button>
+      <!-- Overview Tab -->
+      <div class="project-tab-view active" id="ptab-overview">
+        <div class="project-desc-full">${esc(p.description)}</div>
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+          ${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join('')}
+        </div>
+
+        <div id="zapStats" style="margin-bottom:16px"></div>
+
+        <div class="viewer-actions">
+          ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="btn">⌥ Repository</a>` : ''}
+          ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="btn">↗ Live Demo</a>` : ''}
+          <button class="btn" id="editProjectBtn" style="display:none" onclick="openEditProject()">Edit</button>
+          <button class="btn btn-danger" id="deleteProjectBtn" style="display:none" onclick="deleteProject()">🗑 Delete</button>
+          <button class="btn" id="zapProjectBtn" onclick="openZapModal()" style="border-color:rgba(242,177,52,.5);color:var(--btc-bright)">⚡ Zap</button>
+          <button class="vote-btn" id="projVoteBtn" onclick="voteProject()">
+            <span class="arrow">▲</span>
+            <span id="projVoteCountBtn">${p.votes || 0}</span>
+          </button>
+        </div>
       </div>
 
-      <div id="zapStats" style="margin-bottom:20px"></div>
+      <!-- Presentations Tab -->
+      <div class="project-tab-view" id="ptab-presentations">
+        <div id="deckEmbedSection"></div>
+        <div id="deckVersionsSection"></div>
+      </div>
 
-      <div class="comments-section">
-        <div class="comments-header">Comments</div>
-        <div id="commentFormArea"></div>
-        <div id="commentList"></div>
+      <!-- Comments Tab -->
+      <div class="project-tab-view" id="ptab-comments">
+        <div class="comments-section" style="border:none;padding:0">
+          <div id="commentFormArea"></div>
+          <div id="commentList"></div>
+        </div>
       </div>
     `;
 
-    loadComments();
     loadVoteState();
     checkOwnership();
     loadZaps();
     loadDeckVersions(p);
+    loadCommentCount();
+    loadZapTotal();
   } catch(e) {
     document.getElementById('projectContent').innerHTML = '<div class="empty-state"><h3>Failed to load project</h3></div>';
   }
 }
 
+// ─── Stats helpers ─────────────────────────────────────────────────────────────
+
+async function loadCommentCount() {
+  try {
+    const res = await fetch('/api/projects/' + projectId + '/comments');
+    const comments = await res.json();
+    const el = document.getElementById('statsComments');
+    if (el) el.textContent = '💬 ' + comments.length + ' comment' + (comments.length !== 1 ? 's' : '');
+  } catch {}
+}
+
+async function loadZapTotal() {
+  try {
+    const res = await fetch('/api/projects/' + projectId + '/zaps');
+    const data = await res.json();
+    const el = document.getElementById('statsZaps');
+    if (el) el.textContent = '⚡ ' + (data.total_sats ? Number(data.total_sats).toLocaleString() : '0') + ' sats';
+  } catch {}
+}
+
+// ─── Vote ─────────────────────────────────────────────────────────────────────
+
 async function loadVoteState() {
   try {
     const res = await fetch('/api/vote/count?type=project&id=' + projectId);
     const data = await res.json();
-    document.getElementById('projVoteCount').textContent = data.votes;
+    document.querySelectorAll('#projVoteCount, #projVoteCountBtn').forEach(el => el.textContent = data.votes);
     if (data.voted) document.getElementById('projVoteBtn').classList.add('voted');
   } catch {}
 }
@@ -190,10 +289,12 @@ async function voteProject() {
   try {
     const res = await fetch('/api/vote', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({type:'project',id:projectId}) });
     const data = await res.json();
-    document.getElementById('projVoteCount').textContent = data.votes;
+    document.querySelectorAll('#projVoteCount, #projVoteCountBtn').forEach(el => el.textContent = data.votes);
     document.getElementById('projVoteBtn').classList.toggle('voted', data.voted);
   } catch {}
 }
+
+// ─── Comments ─────────────────────────────────────────────────────────────────
 
 async function loadComments() {
   const formArea = document.getElementById('commentFormArea');
@@ -239,7 +340,7 @@ async function postComment() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ content: text })
     });
-    if (res.ok) { document.getElementById('commentText').value = ''; loadComments(); }
+    if (res.ok) { document.getElementById('commentText').value = ''; loadComments(); loadCommentCount(); }
     else { const e = await res.json(); alert(e.error || 'Failed'); }
   } catch { alert('Failed to post comment'); }
 }
@@ -252,8 +353,6 @@ async function voteComment(id, btn) {
     btn.querySelector('span:last-child').textContent = data.votes;
   } catch {}
 }
-
-let currentProject = null;
 
 // ─── Zap ─────────────────────────────────────────────────────────────────────
 
@@ -366,7 +465,7 @@ function startZapPolling(zapId) {
         const el = document.getElementById('zapPaymentStatus');
         if (el) el.innerHTML = '<div class="payment-confirmed">⚡ Zap sent!</div>';
         showZap();
-        setTimeout(() => { closeZapModal(); loadZaps(); }, 2800);
+        setTimeout(() => { closeZapModal(); loadZaps(); loadZapTotal(); }, 2800);
       } else if (data.no_verify) {
         clearInterval(_zapPollInterval); clearTimeout(_zapPollTimeout);
         const el = document.getElementById('zapPaymentStatus');
@@ -389,7 +488,7 @@ async function manualConfirmZap(zapId) {
       if (el) el.innerHTML = '<div class="payment-confirmed">⚡ Zap confirmed!</div>';
       if (btn) btn.style.display = 'none';
       showZap();
-      setTimeout(() => { closeZapModal(); loadZaps(); }, 2800);
+      setTimeout(() => { closeZapModal(); loadZaps(); loadZapTotal(); }, 2800);
     } else {
       if (btn) { btn.disabled = false; btn.textContent = '✅ I\'ve Paid — Confirm'; }
     }
@@ -397,6 +496,8 @@ async function manualConfirmZap(zapId) {
     if (btn) { btn.disabled = false; btn.textContent = '✅ I\'ve Paid — Confirm'; }
   }
 }
+
+// ─── Project management ───────────────────────────────────────────────────────
 
 async function deleteProject() {
   if (!confirm('Delete this project permanently?')) return;
@@ -414,6 +515,9 @@ async function checkOwnership() {
       if (isOwner || me.user.is_admin) {
         document.getElementById('editProjectBtn').style.display = '';
         document.getElementById('deleteProjectBtn').style.display = '';
+        // Show banner upload overlay
+        const overlay = document.getElementById('bannerUploadOverlay');
+        if (overlay) overlay.style.display = '';
       }
     }
   } catch {}
@@ -447,46 +551,129 @@ async function saveProject() {
   else { const e = await r.json().catch(()=>({})); alert(e.error || 'Save failed'); }
 }
 
-// ─── Deck Versions ──────────────────────────────────────────────────────
+// ─── Banner upload ────────────────────────────────────────────────────────────
+
+async function handleBannerUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('banner', file);
+  try {
+    const r = await fetch('/api/projects/' + projectId + '/banner', { method: 'POST', body: fd });
+    if (!r.ok) { alert('Banner upload failed'); return; }
+    const data = await r.json();
+    // Replace banner area
+    const wrap = document.getElementById('bannerWrap');
+    if (wrap && data.banner_url) {
+      wrap.innerHTML = `<img src="${esc(data.banner_url)}" class="project-banner" alt="">
+        <div class="project-banner-upload-overlay" onclick="document.getElementById('bannerFileInput').click()">
+          <span style="font-size:1.4rem">📷</span>
+          <span style="font-size:0.75rem;margin-top:4px">Change Banner</span>
+        </div>`;
+    }
+  } catch { alert('Banner upload failed'); }
+  input.value = '';
+}
+
+// ─── Deck Versions ────────────────────────────────────────────────────────────
 
 async function loadDeckVersions(project) {
   const section = document.getElementById('deckVersionsSection');
+  const embedSection = document.getElementById('deckEmbedSection');
   if (!section) return;
   try {
     const res = await fetch('/api/projects/' + project.id + '/decks');
     if (!res.ok) { section.innerHTML = ''; return; }
     const versions = await res.json();
-    if (!versions.length && !project.deck_id) { section.innerHTML = ''; return; }
+    if (!versions.length && !project.deck_id) { section.innerHTML = ''; embedSection.innerHTML = ''; return; }
 
     // Check ownership for upload button
     const meRes = await fetch('/api/me');
     const me = await meRes.json();
     const canManage = me.user && (me.user.id === project.user_id || me.user.is_admin);
 
+    // Find current deck for embed
+    let embedDeckId = null;
+    let embedEntryPoint = null;
+
     let items = '';
     if (versions.length) {
+      const currentVer = versions.find(v => v.is_current) || versions[0];
+      embedDeckId = currentVer.deck_id;
+      embedEntryPoint = currentVer.entry_point || 'index.html';
+
       items = versions.map(v => {
-        const thumb = v.thumbnail ? `<img src="/thumbnails/${esc(v.thumbnail)}" style="width:60px;height:34px;border-radius:4px;object-fit:cover">` : `<div style="width:60px;height:34px;border-radius:4px;background:var(--glass);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted2)">🎭</div>`;
-        const current = v.is_current ? '<span style="font-size:0.6rem;padding:2px 6px;background:rgba(124,92,252,0.15);border:1px solid rgba(124,92,252,0.3);border-radius:100px;color:var(--accent);font-weight:600">Current</span>' : (canManage ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:2px 6px" onclick="event.stopPropagation();setCurrentVersion('${esc(project.id)}','${esc(v.id)}')">Set Current</button>` : '');
+        const thumb = v.thumbnail
+          ? `<img src="/thumbnails/${esc(v.thumbnail)}" style="width:60px;height:34px;border-radius:4px;object-fit:cover">`
+          : `<div style="width:60px;height:34px;border-radius:4px;background:var(--glass);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted2)">🎭</div>`;
+        const label = v.label || ('v' + v.version);
+        const current = v.is_current
+          ? '<span style="font-size:0.6rem;padding:2px 6px;background:rgba(124,92,252,0.15);border:1px solid rgba(124,92,252,0.3);border-radius:100px;color:var(--accent);font-weight:600">Current</span>'
+          : (canManage ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:2px 6px" onclick="event.stopPropagation();setCurrentVersion('${esc(project.id)}','${esc(v.id)}')">Set Current</button>` : '');
         return `<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color .15s" onclick="window.open('/deck/${esc(v.deck_id)}','_blank')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
           ${thumb}
           <div style="flex:1;min-width:0">
-            <div style="font-size:0.8rem;font-weight:600;color:var(--text)">${esc(v.label || 'v' + v.version)}</div>
+            <div style="font-size:0.8rem;font-weight:600;color:var(--text)">${esc(label)}</div>
             <div style="font-size:0.7rem;color:var(--muted2)">${new Date(v.created_at).toLocaleDateString('en',{month:'short',day:'numeric'})}</div>
           </div>
+          <button class="btn btn-sm" style="font-size:0.65rem;padding:3px 8px" onclick="event.stopPropagation();window.open('/deck/${esc(v.deck_id)}','_blank')">View</button>
           ${current}
         </div>`;
       }).join('');
     } else if (project.deck_id) {
-      items = `<div style="font-size:0.78rem;color:var(--muted2);padding:8px"><a href="/deck/${esc(project.deck_id)}" target="_blank" style="color:var(--accent)">View attached presentation →</a> (legacy)</div>`;
+      // Legacy: fetch deck data and show card
+      try {
+        const deckRes = await fetch('/api/decks/' + project.deck_id);
+        if (deckRes.ok) {
+          const deck = await deckRes.json();
+          embedDeckId = project.deck_id;
+          embedEntryPoint = deck.entry_point || 'index.html';
+          const thumb = deck.thumbnail
+            ? `<img src="/thumbnails/${esc(deck.thumbnail)}" style="width:60px;height:34px;border-radius:4px;object-fit:cover">`
+            : `<div style="width:60px;height:34px;border-radius:4px;background:var(--glass);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted2)">🎭</div>`;
+          items = `<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color .15s" onclick="window.open('/deck/${esc(project.deck_id)}','_blank')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+            ${thumb}
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.8rem;font-weight:600;color:var(--text)">${esc(deck.title || 'Presentation')}</div>
+              <div style="font-size:0.7rem;color:var(--muted2)">v1</div>
+            </div>
+            <button class="btn btn-sm" style="font-size:0.65rem;padding:3px 8px" onclick="event.stopPropagation();window.open('/deck/${esc(project.deck_id)}','_blank')">View</button>
+            <span style="font-size:0.6rem;padding:2px 6px;background:rgba(124,92,252,0.15);border:1px solid rgba(124,92,252,0.3);border-radius:100px;color:var(--accent);font-weight:600">Current</span>
+          </div>`;
+        } else {
+          items = `<div style="font-size:0.78rem;color:var(--muted2);padding:8px"><a href="/deck/${esc(project.deck_id)}" target="_blank" style="color:var(--accent)">View attached presentation →</a></div>`;
+          embedDeckId = project.deck_id;
+          embedEntryPoint = 'index.html';
+        }
+      } catch {
+        items = `<div style="font-size:0.78rem;color:var(--muted2);padding:8px"><a href="/deck/${esc(project.deck_id)}" target="_blank" style="color:var(--accent)">View attached presentation →</a></div>`;
+        embedDeckId = project.deck_id;
+        embedEntryPoint = 'index.html';
+      }
     }
 
-    const uploadBtn = canManage ? `<button class="btn btn-sm" style="font-size:0.7rem" onclick="document.getElementById('uploadVersionModal').classList.add('open')">+ New Version</button>` : '';
+    // Embed viewer
+    if (embedSection && embedDeckId) {
+      const embedSrc = `/presentations/${esc(embedDeckId)}/${esc(embedEntryPoint)}`;
+      const fullscreenUrl = `/deck/${esc(embedDeckId)}`;
+      embedSection.innerHTML = `
+        <div class="project-embed-wrap">
+          <iframe src="${embedSrc}" title="Presentation preview" allowfullscreen></iframe>
+          <div class="project-embed-fullscreen">
+            <a href="${fullscreenUrl}" target="_blank" class="btn btn-sm" style="font-size:0.7rem;padding:4px 10px">↗ Fullscreen</a>
+          </div>
+        </div>`;
+    }
 
+    const uploadBtn = canManage
+      ? `<button class="btn btn-sm" style="font-size:0.7rem" onclick="document.getElementById('uploadVersionModal').classList.add('open')">+ New Version</button>`
+      : '';
+
+    const count = versions.length || (project.deck_id ? 1 : 0);
     section.innerHTML = `
       <div style="margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-family:var(--font-mono);font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent)">Presentations (${versions.length || (project.deck_id ? 1 : 0)})</span>
+          <span style="font-family:var(--font-mono);font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent)">Version History (${count})</span>
           ${uploadBtn}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">${items}</div>
@@ -525,9 +712,9 @@ async function submitVersionUpload() {
   finally { btn.disabled = false; btn.textContent = 'Upload'; document.getElementById('versionUploadProgress').style.display = 'none'; }
 }
 
-async function setCurrentVersion(projectId, versionId) {
+async function setCurrentVersion(projId, versionId) {
   try {
-    const r = await fetch('/api/projects/' + projectId + '/decks/' + versionId + '/set-current', { method: 'PATCH' });
+    const r = await fetch('/api/projects/' + projId + '/decks/' + versionId + '/set-current', { method: 'PATCH' });
     if (r.ok) loadDeckVersions(currentProject);
     else { const e = await r.json().catch(()=>({})); alert(e.error || 'Failed'); }
   } catch { alert('Failed to set version'); }

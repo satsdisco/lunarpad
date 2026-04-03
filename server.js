@@ -224,6 +224,8 @@ for (const sql of [
   'ALTER TABLE zaps ADD COLUMN forward_status TEXT',
   'ALTER TABLE zaps ADD COLUMN forward_payment_hash TEXT',
   'ALTER TABLE decks ADD COLUMN hidden INTEGER DEFAULT 0',
+  'ALTER TABLE projects ADD COLUMN banner_url TEXT',
+  'ALTER TABLE projects ADD COLUMN thumbnail_url TEXT',
 ]) {
   try { db.exec(sql); } catch (_) { /* column already exists */ }
 }
@@ -569,6 +571,16 @@ const avatarUpload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
     if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) cb(null, true);
     else cb(new Error('Only jpg, png, gif, or webp images are accepted'));
+  },
+});
+
+const bannerUpload = multer({
+  dest: TEMP_DIR,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter(req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) cb(null, true);
+    else cb(new Error('Only jpg, png, or webp images are accepted'));
   },
 });
 
@@ -1245,6 +1257,54 @@ app.post('/api/profile/avatar', requireAuth, avatarUpload.single('avatar'), (req
   res.json({ ok: true, avatar: avatarUrl });
 });
 
+// POST /api/projects/:id/banner — upload project banner image (max 5MB)
+app.post('/api/projects/:id/banner', requireAuth, bannerUpload.single('banner'), (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) { if (req.file) fs.unlinkSync(req.file.path); return res.status(404).json({ error: 'Not found' }); }
+  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const filename = 'proj-banner-' + req.params.id + ext;
+  const destPath = path.join(AVATARS_DIR, filename);
+  try {
+    fs.renameSync(req.file.path, destPath);
+  } catch (_) {
+    try { fs.copyFileSync(req.file.path, destPath); fs.unlinkSync(req.file.path); } catch (e) {
+      return res.status(500).json({ error: 'Failed to save banner' });
+    }
+  }
+  const bannerUrl = '/avatars/' + filename;
+  db.prepare('UPDATE projects SET banner_url = ? WHERE id = ?').run(bannerUrl, req.params.id);
+  res.json({ ok: true, banner_url: bannerUrl });
+});
+
+// POST /api/projects/:id/thumbnail — upload project thumbnail (max 2MB)
+app.post('/api/projects/:id/thumbnail', requireAuth, avatarUpload.single('thumbnail'), (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) { if (req.file) fs.unlinkSync(req.file.path); return res.status(404).json({ error: 'Not found' }); }
+  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const filename = 'proj-thumb-' + req.params.id + ext;
+  const destPath = path.join(AVATARS_DIR, filename);
+  try {
+    fs.renameSync(req.file.path, destPath);
+  } catch (_) {
+    try { fs.copyFileSync(req.file.path, destPath); fs.unlinkSync(req.file.path); } catch (e) {
+      return res.status(500).json({ error: 'Failed to save thumbnail' });
+    }
+  }
+  const thumbnailUrl = '/avatars/' + filename;
+  db.prepare('UPDATE projects SET thumbnail_url = ? WHERE id = ?').run(thumbnailUrl, req.params.id);
+  res.json({ ok: true, thumbnail_url: thumbnailUrl });
+});
+
 // POST /api/projects/:id/zap — generate invoice to zap this project's builder
 app.post('/api/projects/:id/zap', requireAuth, async (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
@@ -1596,11 +1656,13 @@ app.put('/api/decks/:id', requireAuth, (req, res) => {
 app.get('/api/projects/:id', (req, res) => {
   const row = db.prepare(`
     SELECT p.*, COALESCE(v.vote_count, 0) as votes, b.title as bounty_title,
-      d.title as deck_title, d.thumbnail as deck_thumbnail, d.entry_point as deck_entry_point
+      d.title as deck_title, d.thumbnail as deck_thumbnail, d.entry_point as deck_entry_point,
+      COALESCE(c.comment_count, 0) as comment_count
     FROM projects p
     LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'project' GROUP BY target_id) v ON p.id = v.target_id
     LEFT JOIN bounties b ON p.bounty_id = b.id
     LEFT JOIN decks d ON p.deck_id = d.id
+    LEFT JOIN (SELECT deck_id, COUNT(*) as comment_count FROM comments GROUP BY deck_id) c ON p.id = c.deck_id
     WHERE p.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
