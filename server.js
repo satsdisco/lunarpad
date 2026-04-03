@@ -37,6 +37,7 @@ for (const dir of [UPLOADS_DIR, THUMBNAILS_DIR, TEMP_DIR, AVATARS_DIR]) {
 // DB persists across restarts — schema uses CREATE TABLE IF NOT EXISTS
 
 const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA foreign_keys = OFF');
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id            TEXT PRIMARY KEY,
