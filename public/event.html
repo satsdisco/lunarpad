@@ -254,11 +254,28 @@ function switchTab(name) {
 function startCountdown() {
   if (!eventData?.date) return;
   function tick() {
-    const diff = new Date(eventData.date).getTime() - Date.now();
-    if (diff <= 0) { ['d','h','m','s'].forEach(u => { const e=document.getElementById('cd-'+u); if(e)e.textContent='0'; }); return; }
-    const d=Math.floor(diff/864e5), h=Math.floor(diff%864e5/36e5), m=Math.floor(diff%36e5/6e4), s=Math.floor(diff%6e4/1e3);
-    const el=(id,v)=>{ const e=document.getElementById('cd-'+id); if(e)e.textContent=String(v).padStart(2,'0'); };
-    el('d',d);el('h',h);el('m',m);el('s',s);
+    const eventDate = new Date(eventData.date + (eventData.time ? 'T' + eventData.time : 'T00:00'));
+    const diff = eventDate.getTime() - Date.now();
+    const container = document.querySelector('.event-hero-countdown');
+    if (!container) return;
+
+    if (diff > 0) {
+      const d=Math.floor(diff/864e5), h=Math.floor(diff%864e5/36e5), m=Math.floor(diff%36e5/6e4), s=Math.floor(diff%6e4/1e3);
+      // Restore chips if we previously showed LIVE/ENDED
+      if (!document.getElementById('cd-d')) {
+        container.innerHTML = `
+          <div class="cd-unit"><div class="cd-val" id="cd-d">--</div><div class="cd-label">Days</div></div>
+          <div class="cd-unit"><div class="cd-val" id="cd-h">--</div><div class="cd-label">Hrs</div></div>
+          <div class="cd-unit"><div class="cd-val" id="cd-m">--</div><div class="cd-label">Min</div></div>
+          <div class="cd-unit"><div class="cd-val" id="cd-s">--</div><div class="cd-label">Sec</div></div>`;
+      }
+      const el=(id,v)=>{ const e=document.getElementById('cd-'+id); if(e)e.textContent=String(v).padStart(2,'0'); };
+      el('d',d);el('h',h);el('m',m);el('s',s);
+    } else if (diff > -86400000) {
+      container.innerHTML = '<div class="event-status-live"><span class="live-dot"></span> LIVE NOW</div>';
+    } else {
+      container.innerHTML = '<div class="event-status-ended">Event Ended</div>';
+    }
   }
   tick(); setInterval(tick, 1000);
 }

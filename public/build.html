@@ -514,22 +514,24 @@ function updateCountdowns() {
   const now = Date.now();
   eventsData.forEach(ev => {
     if (!ev.date) return;
-    const target = new Date(ev.date).getTime();
-    const diff = target - now;
+    const eventDate = new Date(ev.date + (ev.time ? 'T' + ev.time : 'T00:00'));
+    const diff = eventDate.getTime() - now;
     const id = ev.id;
-    if (diff <= 0) {
-      ['d','h','m','s'].forEach(u => {
-        const el = document.getElementById('cd-' + u + '-' + id);
-        if (el) el.textContent = '0';
-      });
-      return;
+    const container = document.getElementById('countdown-' + id);
+    if (!container) return;
+
+    if (diff > 0) {
+      const days = Math.floor(diff / 86400000);
+      const hrs  = Math.floor((diff % 86400000) / 3600000);
+      const mins = Math.floor((diff % 3600000) / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      const set = (u, v) => { const el = document.getElementById('cd-' + u + '-' + id); if (el) el.textContent = String(v).padStart(2,'0'); };
+      set('d', days); set('h', hrs); set('m', mins); set('s', secs);
+    } else if (diff > -86400000) {
+      container.innerHTML = '<div class="event-status-live"><span class="live-dot"></span> LIVE NOW</div>';
+    } else {
+      container.innerHTML = '<div class="event-status-ended">Event Ended</div>';
     }
-    const days = Math.floor(diff / 86400000);
-    const hrs  = Math.floor((diff % 86400000) / 3600000);
-    const mins = Math.floor((diff % 3600000) / 60000);
-    const secs = Math.floor((diff % 60000) / 1000);
-    const set = (u, v) => { const el = document.getElementById('cd-' + u + '-' + id); if (el) el.textContent = String(v).padStart(2,'0'); };
-    set('d', days); set('h', hrs); set('m', mins); set('s', secs);
   });
 }
 
