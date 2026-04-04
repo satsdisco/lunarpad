@@ -1504,7 +1504,7 @@ async function loadLeaderboard(sort) {
       const selfClass = (myId && u.user_id === myId) ? 'lb-row-self' : '';
       const barPct = Math.round((Number(u.sort_val) / maxVal) * 100);
       return `
-        <div class="lb-row ${tierClass} ${selfClass}">
+        <div class="lb-row ${tierClass} ${selfClass}" onclick="location.href='/profile/${esc(u.user_id)}'" style="cursor:pointer">
           <div class="lb-rank">${rankEl(u.rank)}</div>
           <div class="lb-avatar-wrap">${avatarHtml}</div>
           <div class="lb-name-col">

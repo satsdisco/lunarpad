@@ -756,16 +756,18 @@ loadProfile().then(() => {
     const hue1 = h % 360;
     const hue2 = (h * 7 + 60) % 360;
     const hue3 = (h * 13 + 180) % 360;
-    banner.style.background = `linear-gradient(135deg, hsla(${hue1},50%,15%,1), hsla(${hue2},40%,10%,1), hsla(${hue3},30%,8%,1))`;
-    // Add subtle SVG pattern overlay
-    const circles = Array.from({length: 6}, (_, i) => {
+    // Sharp gradient with geometric shapes — no blur
+    const shapes = Array.from({length: 8}, (_, i) => {
       const cx = (h * (i+3) * 17) % 800;
-      const cy = (h * (i+7) * 11) % 120;
-      const r = 30 + ((h * (i+11)) % 80);
-      const opacity = 0.03 + ((h * (i+5)) % 5) / 100;
-      return `<circle cx='${cx}' cy='${cy}' r='${r}' fill='hsla(${(hue1 + i*40)%360},40%,50%,${opacity})'/>`;
+      const cy = (h * (i+7) * 11) % 140;
+      const r = 40 + ((h * (i+11)) % 100);
+      const opacity = 0.06 + ((h * (i+5)) % 8) / 100;
+      const hue = (hue1 + i * 45) % 360;
+      return `<circle cx='${cx}' cy='${cy}' r='${r}' fill='hsla(${hue},50%,40%,${opacity})'/>`;
     }).join('');
-    banner.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='800' height='120'>${circles}</svg>`)}"), ${banner.style.background}`;
+    const svgPattern = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='800' height='140'>${shapes}<text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-family='system-ui' font-size='60' font-weight='900' fill='rgba(255,255,255,0.02)'>${name.charAt(0).toUpperCase()}</text></svg>`);
+    banner.style.background = `url("data:image/svg+xml,${svgPattern}"), linear-gradient(135deg, hsla(${hue1},55%,18%,1) 0%, hsla(${hue2},45%,12%,1) 50%, hsla(${hue3},35%,8%,1) 100%)`;
+    banner.style.backgroundSize = 'cover';
   }
 
   // CountUp animation for stat numbers

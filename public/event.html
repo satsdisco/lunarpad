@@ -321,7 +321,7 @@ async function loadEvent() {
       if (s) s.style.display = s.style.display === 'none' ? 'block' : 'none';
     };
 
-    // Pre-fill RSVP from session (BUG-004)
+    // Pre-fill RSVP + Speaker forms from session
     try {
       const meRes2 = await fetch('/api/me').then(r => r.json());
       if (meRes2.user) {
@@ -329,6 +329,8 @@ async function loadEvent() {
         const re = document.getElementById('rsvpEmail');
         if (rn && !rn.value) rn.value = meRes2.user.name || '';
         if (re && !re.value) re.value = meRes2.user.email || '';
+        const sn = document.getElementById('spkName');
+        if (sn && !sn.value) sn.value = meRes2.user.name || '';
       }
     } catch {}
 

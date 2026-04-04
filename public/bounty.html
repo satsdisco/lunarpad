@@ -348,7 +348,7 @@ async function loadBounty() {
     // Action buttons
     let actionsHtml = '';
     const addSatsBtn = me.user && b.status === 'open'
-      ? `<button class="btn btn-zap" onclick="openFundModal('${esc(b.id)}')">⚡ Add Sats</button>`
+      ? `<button class="btn btn-zap" onclick="openFundModal('${esc(b.id)}')" title="Add sats to the prize pool — crowdfund this bounty!">⚡ Add to Prize Pool</button>`
       : '';
     if (b.status === 'open') {
       if (!me.user) {
@@ -613,7 +613,7 @@ function openFundModal(bountyId) {
 function renderAmountSelector(bountyId) {
   return `
     <div style="margin-bottom:18px">
-      <div style="font-size:1rem;font-weight:800;color:var(--btc-bright);margin-bottom:4px">⚡ Add Sats to Bounty</div>
+      <div style="font-size:1rem;font-weight:800;color:var(--btc-bright);margin-bottom:4px">⚡ Add to Prize Pool</div>
       <div style="font-size:0.78rem;color:var(--muted2)">Add sats to the prize pool</div>
     </div>
     <div class="sats-preset-row">
