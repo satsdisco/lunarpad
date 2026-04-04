@@ -12,6 +12,8 @@ const { DatabaseSync } = require('node:sqlite');
 const puppeteer = require('puppeteer');
 const cookieSession = require('cookie-session');
 const QRCode = require('qrcode');
+let sharp;
+try { sharp = require('sharp'); } catch { sharp = null; }
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -1242,7 +1244,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
 });
 
 // POST /api/profile/avatar — upload profile photo
-app.post('/api/profile/avatar', requireAuth, avatarUpload.single('avatar'), (req, res) => {
+app.post('/api/profile/avatar', requireAuth, avatarUpload.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const ext = path.extname(req.file.originalname).toLowerCase();
   const filename = req.user.id + ext;
@@ -1254,13 +1256,19 @@ app.post('/api/profile/avatar', requireAuth, avatarUpload.single('avatar'), (req
       return res.status(500).json({ error: 'Failed to save avatar' });
     }
   }
+  if (sharp) {
+    try {
+      const processed = await sharp(destPath).resize(400, 400, { fit: 'cover', position: 'center' }).toBuffer();
+      fs.writeFileSync(destPath, processed);
+    } catch (_) {}
+  }
   const avatarUrl = '/avatars/' + filename;
   db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatarUrl, req.user.id);
   res.json({ ok: true, avatar: avatarUrl });
 });
 
 // POST /api/projects/:id/banner — upload project banner image (max 5MB)
-app.post('/api/projects/:id/banner', requireAuth, bannerUpload.single('banner'), (req, res) => {
+app.post('/api/projects/:id/banner', requireAuth, bannerUpload.single('banner'), async (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) { if (req.file) fs.unlinkSync(req.file.path); return res.status(404).json({ error: 'Not found' }); }
   if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
@@ -1277,6 +1285,12 @@ app.post('/api/projects/:id/banner', requireAuth, bannerUpload.single('banner'),
     try { fs.copyFileSync(req.file.path, destPath); fs.unlinkSync(req.file.path); } catch (e) {
       return res.status(500).json({ error: 'Failed to save banner' });
     }
+  }
+  if (sharp) {
+    try {
+      const processed = await sharp(destPath).resize(400, 400, { fit: 'cover', position: 'center' }).toBuffer();
+      fs.writeFileSync(destPath, processed);
+    } catch (_) {}
   }
   const bannerUrl = '/avatars/' + filename;
   db.prepare('UPDATE projects SET banner_url = ? WHERE id = ?').run(bannerUrl, req.params.id);
