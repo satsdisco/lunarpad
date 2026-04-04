@@ -415,6 +415,8 @@ const stmts = {
 // ─── Express app ─────────────────────────────────────────────────────────────
 
 const app = express();
+// Trust proxy (Cloudflare tunnel terminates TLS)
+if (isSecure) app.set('trust proxy', 1);
 // Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -443,7 +445,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const isSecure = process.env.NODE_ENV === 'production' || !!process.env.BASE_URL;
 app.use(cookieSession({
-  name: isSecure ? '__Host-deckpad_session' : 'deckpad_session',
+  name: 'deckpad_session',
   keys: [process.env.SESSION_SECRET || 'dev-secret-change-me'],
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   sameSite: 'lax',
@@ -617,12 +619,10 @@ app.post('/auth/login', (req, res) => {
 
 app.get('/auth/logout', (req, res) => {
   req.session = null;
-  const cookieName = isSecure ? '__Host-deckpad_session' : 'deckpad_session';
-  res.clearCookie(cookieName);
-  res.clearCookie(cookieName + '.sig');
-  // Also clear old cookies in case of transition
   res.clearCookie('deckpad_session');
   res.clearCookie('deckpad_session.sig');
+  res.clearCookie('__Host-deckpad_session');
+  res.clearCookie('__Host-deckpad_session.sig');
   res.redirect('/welcome');
 });
 
