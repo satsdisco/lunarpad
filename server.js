@@ -1288,7 +1288,7 @@ app.post('/api/projects/:id/banner', requireAuth, bannerUpload.single('banner'),
   }
   if (sharp) {
     try {
-      const processed = await sharp(destPath).resize(400, 400, { fit: 'cover', position: 'center' }).toBuffer();
+      const processed = await sharp(destPath).resize(800, null, { fit: 'inside', withoutEnlargement: true }).toBuffer();
       fs.writeFileSync(destPath, processed);
     } catch (_) {}
   }

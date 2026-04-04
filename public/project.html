@@ -786,7 +786,7 @@ function openCropModal(imageSrc, target) {
   if (_cropper) { _cropper.destroy(); _cropper = null; }
   img.onload = () => {
     _cropper = new Cropper(img, {
-      aspectRatio: 1,
+      aspectRatio: NaN, // free crop — CSS handles display (square icon on page, wide banner on cards)
       viewMode: 1,
       dragMode: 'move',
       cropBoxResizable: true,
@@ -809,7 +809,7 @@ async function saveCrop() {
   if (!_cropper) return;
   const btn = document.getElementById('cropSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving...';
-  const canvas = _cropper.getCroppedCanvas({ width: 400, height: 400 });
+  const canvas = _cropper.getCroppedCanvas({ maxWidth: 800, maxHeight: 800 });
   canvas.toBlob(async (blob) => {
     const fd = new FormData();
     fd.append('banner', blob, 'project.jpg');
