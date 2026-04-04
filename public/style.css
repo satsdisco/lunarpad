@@ -778,8 +778,8 @@ a:hover { color: var(--accent); }
   font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
 }
 .qr-wrap {
-  display: inline-flex; padding: 12px; background: #fff; border-radius: var(--radius);
-  margin-bottom: 10px;
+  display: inline-flex; padding: 12px; background: #0d0f1a; border-radius: var(--radius);
+  margin-bottom: 10px; border: 1px solid var(--border2);
 }
 .qr-img { width: 160px; height: 160px; display: block; }
 .qr-url {

@@ -55,11 +55,12 @@
     </div>
 
     <div class="qr-box" id="qrBox" style="display:none">
-      <label>Scan to vote</label>
+      <label>Scan to view & vote on your phone</label>
       <div class="qr-wrap">
-        <img id="qrImg" class="qr-img" src="" alt="QR code" loading="lazy">
+        <img id="qrImg" class="qr-img" src="" alt="QR code" loading="lazy" onerror="this.parentElement.innerHTML='<div style=padding:20px;color:var(--muted)>QR failed to load</div>'">
       </div>
       <div class="qr-url" id="qrUrl"></div>
+      <div style="font-size:0.68rem;color:var(--muted2);margin-top:6px">Great for demo day — put this on screen for the audience</div>
     </div>
 
     <div class="comments-section">
