@@ -175,31 +175,16 @@ async function loadProject() {
     const catClass = p.category ? 'cat-' + p.category : 'cat-default';
     const statusMap = { idea: 'Idea', building: 'Building', shipped: 'Shipped' };
 
-    // Banner
-    let bannerHtml = '';
-    if (p.banner_url) {
-      bannerHtml = `<div class="project-banner-wrap" id="bannerWrap">
-        <img src="${esc(p.banner_url)}" class="project-banner" alt="">
-        <div class="project-banner-upload-overlay" id="bannerUploadOverlay" onclick="document.getElementById('bannerFileInput').click()" style="display:none">
-          <span style="font-size:1.4rem">📷</span>
-          <span style="font-size:0.75rem;margin-top:4px">Change Banner</span>
-        </div>
-      </div>`;
-    } else {
-      bannerHtml = `<div class="project-banner-wrap" id="bannerWrap">
-        <img src="${projectVisual(p.name, p.category, 1200, 200)}" class="project-banner" alt="">
-        <div class="project-banner-upload-overlay" id="bannerUploadOverlay" onclick="document.getElementById('bannerFileInput').click()" style="display:none">
-          <span style="font-size:1.4rem">📷</span>
-          <span style="font-size:0.75rem;margin-top:4px">Add Banner</span>
-        </div>
-      </div>`;
-    }
+    // Project image (small icon, not full banner)
+    const projectImg = p.thumbnail_url || p.banner_url || projectVisual(p.name, p.category, 120, 120);
 
     document.getElementById('projectContent').innerHTML = `
-      ${bannerHtml}
 
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:16px 0 12px;gap:12px">
-        <div>
+      <div style="display:flex;align-items:flex-start;gap:16px;margin:16px 0 12px">
+        <div style="position:relative;flex-shrink:0">
+          <img src="${esc(projectImg)}" alt="" style="width:72px;height:72px;border-radius:var(--radius-lg);object-fit:cover;border:2px solid var(--border);background:var(--glass)">
+        </div>
+        <div style="flex:1;min-width:0">
           <h1 class="viewer-title" style="margin-bottom:4px">${esc(p.name)}</h1>
           <div style="font-size:0.85rem;color:var(--muted);margin-bottom:8px">by <strong style="color:var(--text)">${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.builder)}</a>` : esc(p.builder)}</strong></div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
