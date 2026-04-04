@@ -229,6 +229,7 @@ for (const sql of [
   'ALTER TABLE decks ADD COLUMN hidden INTEGER DEFAULT 0',
   'ALTER TABLE projects ADD COLUMN banner_url TEXT',
   'ALTER TABLE projects ADD COLUMN thumbnail_url TEXT',
+  'ALTER TABLE decks ADD COLUMN total_sats_received INTEGER DEFAULT 0',
 ]) {
   try { db.exec(sql); } catch (_) { /* column already exists */ }
 }
@@ -1386,6 +1387,63 @@ app.get('/api/projects/:id/zaps', (req, res) => {
   res.json({ zaps, total_sats: row?.total || 0 });
 });
 
+// POST /api/decks/:id/zap — generate invoice to zap this deck's uploader
+app.post('/api/decks/:id/zap', requireAuth, async (req, res) => {
+  const deck = db.prepare('SELECT * FROM decks WHERE id = ?').get(req.params.id);
+  if (!deck) return res.status(404).json({ error: 'Deck not found' });
+  const amount_sats = parseInt(req.body.amount_sats);
+  if (!amount_sats || amount_sats < 1) return res.status(400).json({ error: 'amount_sats required' });
+  if (amount_sats > 10_000_000) return res.status(400).json({ error: 'amount_sats exceeds maximum (10M sats)' });
+
+  let recipientAddress = null;
+  let recipient = deck.author;
+
+  if (deck.uploaded_by) {
+    const uploader = db.prepare('SELECT name, lightning_address FROM users WHERE id = ?').get(deck.uploaded_by);
+    if (uploader?.lightning_address) {
+      recipientAddress = uploader.lightning_address;
+      recipient = uploader.name || deck.author;
+    }
+  }
+  if (!recipientAddress && deck.author) {
+    const uploader = db.prepare("SELECT name, lightning_address FROM users WHERE name = ? AND lightning_address IS NOT NULL LIMIT 1").get(deck.author);
+    if (uploader?.lightning_address) {
+      recipientAddress = uploader.lightning_address;
+      recipient = uploader.name || deck.author;
+    }
+  }
+
+  try {
+    const webhookUrl = (process.env.BASE_URL || `http://localhost:${PORT}`) + '/api/webhook/lnbits';
+    const lnbitsInv = await lnbitsCreateInvoice(amount_sats, `Zap: ${deck.title} by ${deck.author}`, webhookUrl);
+    const zapId = crypto.randomUUID();
+    db.prepare(`INSERT INTO zaps (id, target_type, target_id, user_id, user_name, amount_sats, payment_request, payment_hash, verify_url, status, recipient_address)
+      VALUES (?, 'deck', ?, ?, ?, ?, ?, ?, NULL, 'pending', ?)`).run(
+      zapId, deck.id,
+      req.user.id, req.user.name || req.user.email,
+      amount_sats, lnbitsInv.payment_request, lnbitsInv.payment_hash, recipientAddress
+    );
+    const qrData = 'lightning:' + lnbitsInv.payment_request.toUpperCase();
+    const qr_data_url = await makeQrDataUrl(qrData);
+    res.json({ zap_id: zapId, payment_request: lnbitsInv.payment_request, qr_data_url, recipient });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// GET /api/decks/:id/zaps — confirmed zaps for this deck
+app.get('/api/decks/:id/zaps', (req, res) => {
+  const zaps = db.prepare(
+    `SELECT id, user_id, user_name, amount_sats, created_at
+     FROM zaps WHERE target_type = 'deck' AND target_id = ? AND status = 'confirmed'
+     ORDER BY created_at DESC LIMIT 20`
+  ).all(req.params.id);
+  const row = db.prepare(
+    `SELECT COALESCE(SUM(amount_sats), 0) as total FROM zaps WHERE target_type = 'deck' AND target_id = ? AND status = 'confirmed'`
+  ).get(req.params.id);
+  res.json({ zaps, total_sats: row?.total || 0 });
+});
+
 // GET /api/zaps/verify/:zap_id — check payment via LNbits API or verify URL
 app.get('/api/zaps/verify/:zap_id', async (req, res) => {
   const zap = db.prepare('SELECT * FROM zaps WHERE id = ?').get(req.params.zap_id);
@@ -1404,10 +1462,18 @@ app.get('/api/zaps/verify/:zap_id', async (req, res) => {
     }
     if (paid) {
       db.prepare(`UPDATE zaps SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(zap.id);
-      db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-      const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
-      if (project?.user_id) {
-        db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+      if (zap.target_type === 'deck') {
+        db.prepare(`UPDATE decks SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
+        const deck = db.prepare('SELECT uploaded_by FROM decks WHERE id = ?').get(zap.target_id);
+        if (deck?.uploaded_by) {
+          db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, deck.uploaded_by);
+        }
+      } else {
+        db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
+        const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
+        if (project?.user_id) {
+          db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+        }
       }
       if (zap.user_id) cachedBadgeCheck(zap.user_id);
       autoForwardZap(zap).catch(e => console.error('[verify autoForward]', e.message));
@@ -1445,10 +1511,18 @@ app.post('/api/zaps/confirm/:zap_id', requireAuth, (req, res) => {
   if (zap.status === 'confirmed') return res.json({ settled: true, amount_sats: zap.amount_sats });
   if (zap.user_id !== req.user.id && !req.user.is_admin) return res.status(403).json({ error: 'Not authorized' });
   db.prepare(`UPDATE zaps SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(zap.id);
-  db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-  const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
-  if (project?.user_id) {
-    db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+  if (zap.target_type === 'deck') {
+    db.prepare(`UPDATE decks SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
+    const deck = db.prepare('SELECT uploaded_by FROM decks WHERE id = ?').get(zap.target_id);
+    if (deck?.uploaded_by) {
+      db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, deck.uploaded_by);
+    }
+  } else {
+    db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
+    const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
+    if (project?.user_id) {
+      db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+    }
   }
   if (zap.user_id) cachedBadgeCheck(zap.user_id);
   autoForwardZap(zap).catch(e => console.error('[confirm autoForward]', e.message));
@@ -1470,10 +1544,18 @@ app.post('/api/webhook/lnbits', async (req, res) => {
   if (zap) {
     if (zap.status !== 'confirmed') {
       db.prepare(`UPDATE zaps SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(zap.id);
-      db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-      const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
-      if (project?.user_id) {
-        db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+      if (zap.target_type === 'deck') {
+        db.prepare(`UPDATE decks SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
+        const deck = db.prepare('SELECT uploaded_by FROM decks WHERE id = ?').get(zap.target_id);
+        if (deck?.uploaded_by) {
+          db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, deck.uploaded_by);
+        }
+      } else {
+        db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
+        const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
+        if (project?.user_id) {
+          db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+        }
       }
       if (zap.user_id) cachedBadgeCheck(zap.user_id);
       autoForwardZap(zap).catch(e => console.error('[webhook autoForward]', e.message));
