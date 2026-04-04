@@ -230,9 +230,13 @@ for (const sql of [
   'ALTER TABLE projects ADD COLUMN banner_url TEXT',
   'ALTER TABLE projects ADD COLUMN thumbnail_url TEXT',
   'ALTER TABLE decks ADD COLUMN total_sats_received INTEGER DEFAULT 0',
+  'ALTER TABLE decks ADD COLUMN slug TEXT',
+  'ALTER TABLE projects ADD COLUMN slug TEXT',
 ]) {
   try { db.exec(sql); } catch (_) { /* column already exists */ }
 }
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_decks_slug ON decks(slug) WHERE slug IS NOT NULL'); } catch (_) {}
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug) WHERE slug IS NOT NULL'); } catch (_) {}
 
 // ─── Badge definitions ────────────────────────────────────────────────────────
 
@@ -326,10 +330,25 @@ function cachedBadgeCheck(userId) {
   checkAndAwardBadges(userId);
 }
 
+// ─── Slug helpers ────────────────────────────────────────────────────────────
+
+function toSlug(title) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'deck';
+}
+
+function uniqueSlug(table, base) {
+  let slug = base;
+  let n = 2;
+  while (db.prepare(`SELECT 1 FROM ${table} WHERE slug = ?`).get(slug)) {
+    slug = `${base}-${n++}`;
+  }
+  return slug;
+}
+
 const stmts = {
   insert: db.prepare(`
-    INSERT INTO decks (id, title, author, description, tags, filename, entry_point, github_url, demo_url, uploaded_by)
-    VALUES (@id, @title, @author, @description, @tags, @filename, @entry_point, @github_url, @demo_url, @uploaded_by)
+    INSERT INTO decks (id, title, author, description, tags, filename, entry_point, github_url, demo_url, uploaded_by, slug)
+    VALUES (@id, @title, @author, @description, @tags, @filename, @entry_point, @github_url, @demo_url, @uploaded_by, @slug)
   `),
   findUserByGoogleId: db.prepare('SELECT * FROM users WHERE google_id = ?'),
   insertUser:         db.prepare('INSERT INTO users (id, google_id, email, name, avatar) VALUES (?, ?, ?, ?, ?)'),
@@ -557,6 +576,18 @@ app.get('/vote',     requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'publ
 app.get('/admin',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
 app.get('/bounty/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'bounty.html')));
 
+// Slug-based short URLs
+app.get('/d/:slug', requireAuth, (req, res) => {
+  const deck = db.prepare('SELECT id FROM decks WHERE slug = ?').get(req.params.slug);
+  if (!deck) return res.redirect('/decks');
+  res.redirect(301, `/deck/${deck.id}`);
+});
+app.get('/p/:slug', requireAuth, (req, res) => {
+  const project = db.prepare('SELECT id FROM projects WHERE slug = ?').get(req.params.slug);
+  if (!project) return res.redirect('/');
+  res.redirect(301, `/project/${project.id}`);
+});
+
 // ─── Upload ──────────────────────────────────────────────────────────────────
 
 const upload = multer({
@@ -599,6 +630,7 @@ app.post('/api/upload', requireAuth, upload.single('file'), async (req, res) => 
   }
 
   const id = crypto.randomUUID();
+  const slug = uniqueSlug('decks', toSlug(title.trim()));
   const deckDir = path.join(UPLOADS_DIR, id);
   fs.mkdirSync(deckDir, { recursive: true });
 
@@ -631,6 +663,7 @@ app.post('/api/upload', requireAuth, upload.single('file'), async (req, res) => 
       github_url: github_url.trim() || null,
       demo_url: demo_url.trim() || null,
       uploaded_by: req.user ? req.user.id : null,
+      slug,
     });
 
     // Async thumbnail — don't block the response
@@ -638,7 +671,7 @@ app.post('/api/upload', requireAuth, upload.single('file'), async (req, res) => 
       console.warn(`[thumb] ${id}: ${err.message}`);
     });
 
-    res.json({ id, title: title.trim() });
+    res.json({ id, slug, title: title.trim() });
   } catch (err) {
     console.error('Upload error:', err);
     fs.rmSync(deckDir, { recursive: true, force: true });
@@ -752,6 +785,25 @@ app.get('/api/decks/:id/votes', (req, res) => {
   const count = stmts.getVoteCount.get('deck', req.params.id).c;
   const voted = !!stmts.hasVoted.get('deck', req.params.id, voter);
   res.json({ votes: count, voted });
+});
+
+// GET /api/decks/:id/qr — generate QR code PNG for deck share URL
+app.get('/api/decks/:id/qr', async (req, res) => {
+  const deck = stmts.getById.get(req.params.id);
+  if (!deck) return res.status(404).json({ error: 'Not found' });
+  const base = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+  const url = deck.slug ? `${base}/d/${deck.slug}` : `${base}/deck/${deck.id}`;
+  try {
+    const buffer = await QRCode.toBuffer(url, {
+      type: 'png', width: 300, margin: 2,
+      color: { dark: '#e8e6f0', light: '#0d0f1a' },
+    });
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: 'QR generation failed' });
+  }
 });
 
 // GET /api/decks/:id/download
@@ -1707,17 +1759,18 @@ app.post('/api/projects', requireAuth, (req, res) => {
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   if (!builder || !builder.trim()) return res.status(400).json({ error: 'builder required' });
   const id = crypto.randomUUID();
+  const slug = uniqueSlug('projects', toSlug(name.trim()));
   const { deck_id } = req.body;
-  db.prepare(`INSERT INTO projects (id, name, builder, description, status, tags, category, bounty_id, user_id, deck_id, repo_url, demo_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  db.prepare(`INSERT INTO projects (id, name, builder, description, status, tags, category, bounty_id, user_id, deck_id, repo_url, demo_url, slug)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, name.trim(), builder.trim(), description || null,
     status || 'building',
     Array.isArray(tags) ? tags.join(',') : (tags || null),
     category || null, bounty_id || null, req.user?.id || null, deck_id || null,
-    repo_url || repo || null, demo_url || demo || null
+    repo_url || repo || null, demo_url || demo || null, slug
   );
   if (req.user?.id) checkAndAwardBadges(req.user.id);
-  res.json({ id });
+  res.json({ id, slug });
 });
 
 // PUT /api/projects/:id — edit project (owner only)

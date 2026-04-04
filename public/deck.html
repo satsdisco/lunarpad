@@ -45,12 +45,21 @@
       <a class="btn btn-ghost" id="demoBtn" href="#" target="_blank" rel="noopener" style="display:none">↗ Live Demo</a>
       <button class="btn btn-ghost" id="embedBtn">⟨/⟩ Embed Code</button>
       <button class="btn btn-ghost" id="linkBtn">🔗 Copy Link</button>
+      <button class="btn btn-ghost" id="qrBtn" onclick="toggleQR()">⬡ QR Code</button>
       <button class="btn btn-danger" id="deleteBtn" style="display:none;">🗑 Delete</button>
     </div>
 
     <div class="embed-box" id="embedBox">
       <label>Embed this presentation</label>
       <code id="embedCode"></code>
+    </div>
+
+    <div class="qr-box" id="qrBox" style="display:none">
+      <label>Scan to vote</label>
+      <div class="qr-wrap">
+        <img id="qrImg" class="qr-img" src="" alt="QR code" loading="lazy">
+      </div>
+      <div class="qr-url" id="qrUrl"></div>
     </div>
 
     <div class="comments-section">
@@ -75,6 +84,26 @@
 
 <script>
   const deckId = window.location.pathname.split('/').pop();
+
+  function toggleQR() {
+    const box = document.getElementById('qrBox');
+    const img = document.getElementById('qrImg');
+    const urlEl = document.getElementById('qrUrl');
+    if (box.style.display === 'none' || !box.style.display) {
+      if (!img.src || img.src === window.location.origin + '/') {
+        img.src = `/api/decks/${deckId}/qr`;
+        // Show the slug URL or fallback
+        const base = window.location.origin;
+        fetch(`/api/decks/${deckId}`).then(r => r.json()).then(d => {
+          urlEl.textContent = d.slug ? `${base}/d/${d.slug}` : `${base}/deck/${deckId}`;
+        });
+      }
+      box.style.display = 'block';
+      document.getElementById('embedBox').style.display = 'none';
+    } else {
+      box.style.display = 'none';
+    }
+  }
 
   async function loadDeck() {
     const res = await fetch(`/api/decks/${deckId}`);

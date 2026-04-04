@@ -3,94 +3,367 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LunarPad</title>
+<title>LunarPad — Build. Ship. Earn Sats.</title>
 <link rel="stylesheet" href="/css/style.css">
 <style>
-  .landing { max-width: 400px; margin: 0 auto; padding: 80px 24px; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
-  .landing-logo { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 800; color: var(--text); margin-bottom: 8px; }
-  .landing-logo .slash { color: var(--text); font-weight: 400; }
-  .landing-logo .accent { color: var(--btc-gold); }
-  .landing-desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 32px; }
-  .auth-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
-  .auth-tab {
-    padding: 10px 20px; font-size: 0.82rem; font-weight: 500;
-    color: var(--muted); cursor: pointer; border: none; background: none;
-    border-bottom: 2px solid transparent; font-family: var(--font); transition: all .15s;
-  }
-  .auth-tab:hover { color: var(--text); }
-  .auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .auth-form { display: none; }
-  .auth-form.active { display: block; }
-  .auth-form .form-group { margin-bottom: 14px; }
-  .auth-form .form-group label { font-family: var(--font-mono); display: block; font-size: 0.7rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .06em; }
-  .auth-form input {
-    width: 100%; padding: 10px 14px; background: var(--glass); border: 1px solid var(--border);
-    border-radius: var(--radius); color: var(--text); font-size: 0.85rem;
-    font-family: var(--font); outline: none; transition: border-color .2s;
-  }
-  .auth-form input:focus { border-color: var(--accent); }
-  .auth-form input::placeholder { color: var(--muted2); }
-  .auth-submit {
-    width: 100%; padding: 11px; font-size: 0.85rem; font-weight: 600;
-    color: #fff; background: var(--accent); border: none;
-    border-radius: var(--radius); cursor: pointer; font-family: var(--font);
-    transition: all .2s; margin-top: 8px;
-  }
-  .auth-submit:hover { background: var(--accent-hover); }
-  .auth-error { font-size: 0.8rem; color: var(--danger, #e5484d); margin-top: 8px; display: none; }
-  .landing-footer { margin-top: 40px; font-family: var(--font-mono); font-size: 0.65rem; color: var(--dim); }
-  .landing-footer a { color: var(--muted2); }
-  .landing-footer a:hover { color: var(--accent); }
-  @media (max-width: 480px) { .landing { padding: 40px 20px; } }
+/* ── Starfield ── */
+.starfield {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+}
+.starfield::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255,255,255,0.6) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255,255,255,0.4) 1px, transparent 1px);
+  background-size: 250px 250px, 170px 170px, 120px 120px;
+  background-position: 0 0, 85px 40px, 40px 100px;
+  animation: star-drift 120s linear infinite;
+  opacity: 0.55;
+}
+.starfield::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.7) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px);
+  background-size: 300px 300px, 80px 80px;
+  background-position: 130px 60px, 20px 150px;
+  animation: star-drift 80s linear infinite reverse;
+  opacity: 0.35;
+}
+@keyframes star-drift {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-250px); }
+}
+
+/* ── Nebula glow ── */
+.nebula {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 70% 20%, rgba(124,92,252,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 20% 70%, rgba(124,92,252,0.07) 0%, transparent 60%);
+}
+
+/* ── Layout ── */
+.landing-page {
+  position: relative; z-index: 1;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+}
+
+/* ── Landing Nav ── */
+.landing-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 40px;
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  background: rgba(13,15,26,0.6);
+  position: sticky; top: 0; z-index: 10;
+}
+.landing-nav-logo {
+  font-family: var(--font-mono);
+  font-size: 1.25rem; font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.landing-nav-logo .accent { color: var(--accent); }
+.landing-nav-actions { display: flex; gap: 10px; align-items: center; }
+
+/* ── Hero ── */
+.hero {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 80px 24px 60px;
+  text-align: center;
+  max-width: 860px; margin: 0 auto;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 14px; border-radius: 999px;
+  background: var(--accent-dim); border: 1px solid rgba(124,92,252,0.25);
+  font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700;
+  color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: 28px;
+}
+.hero-eyebrow::before { content: '●'; font-size: 0.5rem; animation: pulse-dot 2s ease infinite; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.hero-headline {
+  font-family: var(--font-mono);
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  font-weight: 800; line-height: 1.08;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+.hero-headline .hl { color: var(--accent); position: relative; }
+.hero-headline .hl::after {
+  content: '';
+  position: absolute; bottom: 2px; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+  border-radius: 2px;
+}
+.hero-sub {
+  font-size: 1.05rem; color: var(--muted); line-height: 1.6;
+  max-width: 520px; margin: 0 auto 36px;
+}
+.hero-ctas {
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 60px;
+}
+.hero-stat-bar {
+  display: flex; gap: 32px; justify-content: center;
+  font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted);
+}
+.hero-stat strong {
+  display: block; font-size: 1.4rem; font-weight: 800;
+  color: var(--text); letter-spacing: -0.02em;
+}
+
+/* ── Features ── */
+.features {
+  padding: 0 24px 80px;
+  max-width: 1100px; margin: 0 auto; width: 100%;
+}
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.feature-card {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px;
+  transition: border-color .2s, transform .2s;
+}
+.feature-card:hover {
+  border-color: var(--border2);
+  transform: translateY(-2px);
+}
+.feature-icon {
+  font-size: 1.6rem; margin-bottom: 14px;
+  display: block;
+  filter: drop-shadow(0 0 8px rgba(124,92,252,0.4));
+}
+.feature-title {
+  font-family: var(--font-mono); font-size: 0.9rem; font-weight: 700;
+  color: var(--text); margin-bottom: 8px;
+}
+.feature-desc {
+  font-size: 0.82rem; color: var(--muted); line-height: 1.55;
+}
+
+/* ── Auth split ── */
+.auth-section {
+  padding: 0 24px 80px;
+  max-width: 440px; margin: 0 auto; width: 100%;
+}
+.auth-card {
+  background: var(--glass);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px;
+}
+.auth-card-title {
+  font-family: var(--font-mono); font-size: 1rem; font-weight: 700;
+  color: var(--text); margin-bottom: 4px;
+}
+.auth-card-sub {
+  font-size: 0.78rem; color: var(--muted); margin-bottom: 24px;
+}
+.auth-tabs {
+  display: flex; gap: 0; margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.auth-tab {
+  padding: 9px 18px; font-size: 0.82rem; font-weight: 500;
+  color: var(--muted); cursor: pointer; border: none; background: none;
+  border-bottom: 2px solid transparent; font-family: var(--font);
+  transition: all .15s;
+}
+.auth-tab:hover { color: var(--text); }
+.auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.auth-form { display: none; }
+.auth-form.active { display: block; }
+.form-group { margin-bottom: 13px; }
+.form-group label {
+  font-family: var(--font-mono); display: block;
+  font-size: 0.68rem; font-weight: 700;
+  color: var(--muted); margin-bottom: 5px;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.form-group input {
+  width: 100%; padding: 10px 14px;
+  background: rgba(13,15,26,0.6); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 0.85rem;
+  font-family: var(--font); outline: none; transition: border-color .2s;
+}
+.form-group input:focus { border-color: var(--accent); }
+.form-group input::placeholder { color: var(--muted2); }
+.auth-submit {
+  width: 100%; padding: 11px; font-size: 0.85rem; font-weight: 600;
+  color: #fff; background: var(--accent); border: none;
+  border-radius: var(--radius); cursor: pointer; font-family: var(--font);
+  transition: all .2s; margin-top: 8px;
+}
+.auth-submit:hover { background: var(--accent-hover); }
+.auth-error {
+  font-size: 0.78rem; color: #e5484d; margin-top: 8px; display: none;
+}
+
+/* ── Landing footer ── */
+.landing-footer {
+  text-align: center; padding: 24px;
+  font-family: var(--font-mono); font-size: 0.65rem; color: var(--dim);
+  border-top: 1px solid var(--border);
+}
+.landing-footer a { color: var(--muted2); }
+.landing-footer a:hover { color: var(--accent); }
+
+/* ── Section label ── */
+.section-label {
+  font-family: var(--font-mono); font-size: 0.68rem; font-weight: 700;
+  color: var(--muted2); letter-spacing: 0.1em; text-transform: uppercase;
+  text-align: center; margin-bottom: 32px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .landing-nav { padding: 14px 20px; }
+  .landing-nav-logo { font-size: 1.05rem; }
+  .hero { padding: 48px 20px 40px; }
+  .hero-stat-bar { gap: 20px; flex-wrap: wrap; }
+  .features { padding: 0 16px 60px; }
+  .auth-section { padding: 0 16px 60px; }
+  .auth-card { padding: 24px 20px; }
+}
 </style>
 </head>
 <body>
-<div class="landing">
-  <div class="landing-logo">Lunar<span class="slash">\</span><span class="accent">Pad</span></div>
-  <div class="landing-desc">Build. Ship. Earn sats.</div>
 
-  <div class="auth-tabs">
-    <button class="auth-tab active">Sign In</button>
-  </div>
+<div class="starfield"></div>
+<div class="nebula"></div>
 
-  <form class="auth-form active" id="form-login" onsubmit="return doLogin(event)">
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" id="loginUser" placeholder="your username" autocomplete="username" required>
+<div class="landing-page">
+  <!-- Nav -->
+  <nav class="landing-nav">
+    <div class="landing-nav-logo">Lunar<span class="accent">\Pad</span></div>
+    <div class="landing-nav-actions">
+      <a href="/decks" class="btn btn-ghost" style="font-size:0.8rem;padding:7px 14px">Browse Decks</a>
     </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="loginPass" placeholder="••••••" autocomplete="current-password" required>
-    </div>
-    <button type="submit" class="auth-submit">Sign In</button>
-    <div class="auth-error" id="loginError"></div>
-  </form>
+  </nav>
 
-  <form class="auth-form" id="form-register" onsubmit="return doRegister(event)">
-    <div class="form-group">
-      <label>Display Name</label>
-      <input type="text" id="regName" placeholder="How others see you" autocomplete="name">
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-eyebrow">Bitcoin Builder Platform</div>
+    <h1 class="hero-headline">
+      Present. Compete.<br>
+      Earn <span class="hl">Sats</span>.
+    </h1>
+    <p class="hero-sub">
+      LunarPad is where Bitcoin builders share their work, demo at hackathons, and get rewarded with Lightning bounties.
+    </p>
+    <div class="hero-ctas">
+      <a href="/decks" class="btn btn-primary" style="padding:12px 28px;font-size:0.9rem">Browse Decks</a>
+      <a href="#sign-in" class="btn btn-ghost" style="padding:12px 28px;font-size:0.9rem" onclick="scrollToAuth()">Start Building</a>
     </div>
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" id="regUser" placeholder="Choose a username" autocomplete="username" required>
+    <div class="hero-stat-bar">
+      <div class="hero-stat"><strong>⚡</strong>Lightning Fast</div>
+      <div class="hero-stat"><strong>₿</strong>Bitcoin Native</div>
+      <div class="hero-stat"><strong>🌙</strong>Build in Public</div>
     </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="regPass" placeholder="Choose a password" autocomplete="new-password" required>
-    </div>
-    <button type="submit" class="auth-submit">Create Account</button>
-    <div class="auth-error" id="regError"></div>
-  </form>
+  </section>
 
-  <div class="landing-footer"><a href="https://github.com/satsdisco/lunarpad">source</a> · open source</div>
+  <!-- Features -->
+  <section class="features">
+    <div class="section-label">Everything you need to ship</div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">📡</span>
+        <div class="feature-title">Upload Decks</div>
+        <div class="feature-desc">Drop in your HTML presentation or zip file. Instant preview, fullscreen mode, and shareable links.</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">⚡</span>
+        <div class="feature-title">Earn Sats</div>
+        <div class="feature-desc">Lightning bounties tied to demo days and hackathons. Win sats, get paid directly to your Lightning address.</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🛰️</span>
+        <div class="feature-title">Build in Public</div>
+        <div class="feature-desc">Log your projects, link your decks, and track progress. The community can vote and zap your work.</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🏆</span>
+        <div class="feature-title">Vote & Discover</div>
+        <div class="feature-desc">Discover what builders are shipping. Vote on the best projects and compete at live demo days.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Auth -->
+  <section class="auth-section" id="sign-in">
+    <div class="auth-card">
+      <div class="auth-card-title">Join LunarPad</div>
+      <div class="auth-card-sub">Sign in to upload decks, join bounties, and earn sats.</div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuth('login', this)">Sign In</button>
+        <button class="auth-tab" onclick="switchAuth('register', this)">Register</button>
+      </div>
+
+      <form class="auth-form active" id="form-login" onsubmit="return doLogin(event)">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="loginUser" placeholder="your username" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPass" placeholder="••••••" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="auth-submit">Sign In →</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+
+      <form class="auth-form" id="form-register" onsubmit="return doRegister(event)">
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" id="regName" placeholder="How others see you" autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="regUser" placeholder="Choose a username" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="regPass" placeholder="Choose a password" autocomplete="new-password" required>
+        </div>
+        <button type="submit" class="auth-submit">Create Account →</button>
+        <div class="auth-error" id="regError"></div>
+      </form>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <a href="https://github.com/satsdisco/lunarpad">open source</a> · built on Bitcoin ·
+    <span style="color:var(--accent)">⚡</span> Lightning native
+  </footer>
 </div>
 
 <script>
-function switchAuth(tab) {
+function scrollToAuth() {
+  document.getElementById('sign-in').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function switchAuth(tab, el) {
   document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
-  event.target.classList.add('active');
+  el.classList.add('active');
   document.getElementById('form-' + tab).classList.add('active');
 }
 
@@ -131,7 +404,7 @@ async function doRegister(e) {
 }
 
 // Auto-redirect if already logged in
-fetch('/api/me').then(r=>r.json()).then(d=>{if(d.user)window.location.href='/';}).catch(()=>{});
+fetch('/api/me').then(r => r.json()).then(d => { if (d.user) window.location.href = '/'; }).catch(() => {});
 </script>
 </body>
 </html>
