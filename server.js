@@ -774,7 +774,12 @@ app.get('/api/decks/:id/download', (req, res) => {
 // ─── Bounties API ────────────────────────────────────────────────────────────
 
 app.get('/api/bounties', (req, res) => {
-  const rows = db.prepare('SELECT * FROM bounties ORDER BY created_at DESC').all();
+  const rows = db.prepare(`
+    SELECT b.*, COALESCE(pc.cnt, 0) as participant_count
+    FROM bounties b
+    LEFT JOIN (SELECT bounty_id, COUNT(*) as cnt FROM bounty_participants GROUP BY bounty_id) pc ON b.id = pc.bounty_id
+    ORDER BY b.created_at DESC
+  `).all();
   res.json(rows);
 });
 
