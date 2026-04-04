@@ -333,14 +333,16 @@ async function loadEvent() {
     } catch {}
 
     // Add to Calendar (Google Calendar link)
-    if (ev.date) {
+    if (ev.date && !isEnded) {
       const calBtn = document.getElementById('addToCalBtn');
-      const start = ev.date.replace(/-/g, '') + (ev.time ? 'T' + ev.time.replace(/:/g, '') + '00' : '');
-      const end = ev.date.replace(/-/g, '') + (ev.time ? 'T' + String(parseInt(ev.time) + 2).padStart(2,'0') + ev.time.slice(2).replace(/:/g, '') + '00' : '');
-      const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(ev.name)}&dates=${start}/${end}&details=${encodeURIComponent(ev.description || '')}&location=${encodeURIComponent(ev.location || '')}`;
-      calBtn.href = gcalUrl;
-      calBtn.target = '_blank';
-      if (!isEnded) calBtn.style.display = '';
+      if (calBtn) {
+        const start = ev.date.replace(/-/g, '') + (ev.time ? 'T' + ev.time.replace(/:/g, '') + '00' : '');
+        const end = ev.date.replace(/-/g, '') + (ev.time ? 'T' + String(parseInt(ev.time) + 2).padStart(2,'0') + ev.time.slice(2).replace(/:/g, '') + '00' : '');
+        const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(ev.name)}&dates=${start}/${end}&details=${encodeURIComponent(ev.description || '')}&location=${encodeURIComponent(ev.location || '')}`;
+        calBtn.href = gcalUrl;
+        calBtn.target = '_blank';
+        calBtn.style.display = '';
+      }
     }
 
     // BUG-002/003: Hide inappropriate CTAs for ended events

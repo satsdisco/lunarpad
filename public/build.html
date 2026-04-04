@@ -140,6 +140,12 @@
           </div>
           <div class="carousel-counter" id="eventCounter"></div>
           <div class="mini-cal" id="miniCal"></div>
+          <div id="pastEventsSection" style="display:none;margin-top:24px">
+            <div class="section-header" style="margin-bottom:12px">
+              <span class="section-title" style="font-size:0.75rem;color:var(--muted2)">Past Events</span>
+            </div>
+            <div id="pastEventsGrid" class="project-grid"></div>
+          </div>
         </div>
 
         <div class="section-block" id="section-speakers" style="display:none">
@@ -522,21 +528,56 @@ async function loadEvents() {
     heroEventData = _upcoming[0] || null;
     renderHeroBanner(heroEventData);
 
-    if (!eventsData.length) {
+    // Split into upcoming and past events
+    const now = new Date();
+    const upcomingEvents = eventsData.filter(ev => !ev.date || new Date(ev.date) >= new Date(now.toISOString().split('T')[0]));
+    const pastEvents = eventsData.filter(ev => ev.date && new Date(ev.date) < new Date(now.toISOString().split('T')[0]));
+
+    if (!upcomingEvents.length && !pastEvents.length) {
       grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📅</div><h3>No upcoming events</h3><p>Nothing scheduled yet — stay tuned</p></div>`;
       return;
     }
-    grid.innerHTML = eventsData.map(ev => renderEventCard(ev)).join('');
+
+    // Carousel shows only upcoming events
+    if (upcomingEvents.length) {
+      grid.innerHTML = upcomingEvents.map(ev => renderEventCard(ev)).join('');
+    } else {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📅</div><h3>No upcoming events</h3><p>Check the archive below for past events.</p></div>`;
+    }
+
+    // Past events archive
+    if (pastEvents.length) {
+      const pastSection = document.getElementById('pastEventsSection');
+      const pastGrid = document.getElementById('pastEventsGrid');
+      if (pastSection && pastGrid) {
+        pastSection.style.display = 'block';
+        pastGrid.innerHTML = pastEvents.map(ev => {
+          const dateStr = ev.date ? new Date(ev.date).toLocaleDateString('en', {month:'short', day:'numeric', year:'numeric'}) : 'TBD';
+          const evType = ev.event_type || ev.type || 'Event';
+          const typeIcons = { 'demo-day': '🎤', 'hackathon': '⚡', 'bounty': '🏆' };
+          const icon = typeIcons[evType] || '📅';
+          return `<div class="project-card" onclick="location.href='/event/${ev.id}'" style="cursor:pointer;opacity:0.7">
+            <div class="project-card-body" style="padding:14px 16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                <div class="project-name">${icon} ${esc(ev.name)}</div>
+                <span class="card-tag" style="font-size:0.55rem;text-transform:uppercase">Ended</span>
+              </div>
+              <div style="font-size:0.75rem;color:var(--muted2)">📅 ${dateStr}${ev.location ? ' · 📍 ' + esc(ev.location) : ''}</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
     const counter = document.getElementById('eventCounter');
-    if (counter) {
-      counter.innerHTML = `<button class="carousel-counter-nav" onclick="scrollCarousel(-1)">‹</button><span id="carouselPos">1 / ${eventsData.length}</span><button class="carousel-counter-nav" onclick="scrollCarousel(1)">›</button>`;
+    if (counter && upcomingEvents.length > 1) {
+      counter.innerHTML = `<button class="carousel-counter-nav" onclick="scrollCarousel(-1)">‹</button><span id="carouselPos">1 / ${upcomingEvents.length}</span><button class="carousel-counter-nav" onclick="scrollCarousel(1)">›</button>`;
       // Track scroll position
       const grid = document.getElementById('eventsGrid');
       grid.addEventListener('scroll', () => {
         const cardW = grid.querySelector('.event-card')?.offsetWidth || 300;
         const idx = Math.round(grid.scrollLeft / (cardW + 16)) + 1;
         const posEl = document.getElementById('carouselPos');
-        if (posEl) posEl.textContent = idx + ' / ' + eventsData.length;
+        if (posEl) posEl.textContent = idx + ' / ' + upcomingEvents.length;
       });
     }
     startCountdowns();
@@ -544,7 +585,6 @@ async function loadEvents() {
     eventsData.forEach(ev => loadEventBounties(ev.id));
 
     // Find next demo-day for speaker section
-    const now = new Date();
     const demoDays = eventsData.filter(ev =>
       (ev.event_type || ev.type || '').toLowerCase().includes('demo') &&
       new Date(ev.date) > now
