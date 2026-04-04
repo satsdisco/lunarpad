@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Profile — LunarPad</title>
 <link rel="stylesheet" href="/css/style.css">
+<link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css'>
+<script src='https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js'></script>
+<style>
+.cropper-modal { background: rgba(0,0,0,0.7) !important; }
+.cropper-view-box { outline: 2px solid var(--accent) !important; outline-color: rgba(124,92,252,0.75) !important; }
+.cropper-line { background-color: var(--accent) !important; }
+.cropper-point { background-color: var(--accent) !important; width: 8px !important; height: 8px !important; }
+.cropper-dashed { border-color: rgba(255,255,255,0.2) !important; }
+</style>
 </head>
 <body>
 
@@ -89,32 +98,78 @@ function triggerAvatarUpload() {
   document.getElementById('avatarFileInput').click();
 }
 
-async function handleAvatarUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const fd = new FormData();
-  fd.append('avatar', file);
-  try {
-    const r = await fetch('/api/profile/avatar', { method: 'POST', body: fd });
-    if (!r.ok) { alert('Upload failed'); return; }
-    const data = await r.json();
-    const ts = '?t=' + Date.now();
-    const img = document.getElementById('profileAvatarImg');
-    const placeholder = document.getElementById('profileAvatarPlaceholder');
-    if (img) {
-      img.src = data.avatar + ts;
-    } else if (placeholder) {
-      const newImg = document.createElement('img');
-      newImg.id = 'profileAvatarImg';
-      newImg.className = placeholder.className.replace('profile-avatar-placeholder', 'profile-avatar');
-      newImg.src = data.avatar + ts;
-      newImg.alt = '';
-      newImg.style.cssText = 'width:80px;height:80px;border-radius:50%;object-fit:cover;';
-      newImg.onerror = function() { this.style.display='none'; placeholder.style.display='flex'; };
-      placeholder.parentNode.insertBefore(newImg, placeholder);
-      placeholder.style.display = 'none';
-    }
-  } catch(e) { alert('Upload failed'); }
+function handleAvatarUpload(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    openCropModal(e.target.result, 'avatar');
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+let _cropper = null;
+let _cropTarget = null;
+
+function openCropModal(imageSrc, target) {
+  _cropTarget = target;
+  const img = document.getElementById('cropImage');
+  img.src = imageSrc;
+  document.getElementById('cropModal').classList.add('open');
+  if (_cropper) { _cropper.destroy(); _cropper = null; }
+  img.onload = () => {
+    _cropper = new Cropper(img, {
+      aspectRatio: 1,
+      viewMode: 1,
+      dragMode: 'move',
+      cropBoxResizable: true,
+      cropBoxMovable: true,
+      background: false,
+      guides: false,
+      center: true,
+      highlight: false,
+      autoCropArea: 0.8,
+    });
+  };
+}
+
+function closeCropModal() {
+  document.getElementById('cropModal').classList.remove('open');
+  if (_cropper) { _cropper.destroy(); _cropper = null; }
+}
+
+async function saveCrop() {
+  if (!_cropper) return;
+  const btn = document.getElementById('cropSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const canvas = _cropper.getCroppedCanvas({ width: 400, height: 400 });
+  canvas.toBlob(async (blob) => {
+    const fd = new FormData();
+    fd.append('avatar', blob, 'avatar.jpg');
+    try {
+      const r = await fetch('/api/profile/avatar', { method: 'POST', body: fd });
+      if (r.ok) {
+        const data = await r.json();
+        const ts = '?t=' + Date.now();
+        const img = document.getElementById('profileAvatarImg');
+        const placeholder = document.getElementById('profileAvatarPlaceholder');
+        if (img) {
+          img.src = data.avatar + ts;
+        } else if (placeholder) {
+          const newImg = document.createElement('img');
+          newImg.id = 'profileAvatarImg';
+          newImg.className = placeholder.className.replace('profile-avatar-placeholder', 'profile-avatar');
+          newImg.src = data.avatar + ts;
+          newImg.alt = '';
+          newImg.style.cssText = 'width:80px;height:80px;border-radius:50%;object-fit:cover;';
+          newImg.onerror = function() { this.style.display='none'; placeholder.style.display='flex'; };
+          placeholder.parentNode.insertBefore(newImg, placeholder);
+          placeholder.style.display = 'none';
+        }
+      } else { alert('Upload failed'); }
+    } catch { alert('Upload failed'); }
+    btn.disabled = false; btn.textContent = 'Save';
+    closeCropModal();
+  }, 'image/jpeg', 0.9);
 }
 
 function enterLnEditMode() {
@@ -722,7 +777,20 @@ function openLightbox(src) {
   document.getElementById('lightboxImg').src = src;
   document.getElementById('lightbox').classList.add('open');
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('lightbox')?.classList.remove('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.getElementById('lightbox')?.classList.remove('open'); closeCropModal(); } });
 </script>
+<div class='modal-overlay' id='cropModal'>
+  <div class='modal-content' style='max-width:500px'>
+    <button class='modal-close' onclick='closeCropModal()'>&times;</button>
+    <div class='modal-title'>Crop Image</div>
+    <div style='width:100%;max-height:400px;overflow:hidden;background:#000;border-radius:8px'>
+      <img id='cropImage' src='' style='max-width:100%;display:block'>
+    </div>
+    <div style='display:flex;gap:8px;justify-content:flex-end;margin-top:16px'>
+      <button class='btn' onclick='closeCropModal()'>Cancel</button>
+      <button class='btn btn-primary' id='cropSaveBtn' onclick='saveCrop()'>Save</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
