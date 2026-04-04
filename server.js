@@ -415,8 +415,6 @@ const stmts = {
 // ─── Express app ─────────────────────────────────────────────────────────────
 
 const app = express();
-// Trust proxy (Cloudflare tunnel terminates TLS)
-if (isSecure) app.set('trust proxy', 1);
 // Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -444,6 +442,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const isSecure = process.env.NODE_ENV === 'production' || !!process.env.BASE_URL;
+// Trust proxy (Cloudflare tunnel terminates TLS)
+if (isSecure) app.set('trust proxy', 1);
 app.use(cookieSession({
   name: 'deckpad_session',
   keys: [process.env.SESSION_SECRET || 'dev-secret-change-me'],
