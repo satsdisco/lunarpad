@@ -190,7 +190,7 @@
       </div>
       <div class="form-group">
         <label>Builder Name</label>
-        <input type="text" id="projBuilder" placeholder="Your name">
+        <input type="text" id="projBuilder" placeholder="Your name" readonly style="opacity:0.7;cursor:default">
       </div>
     </div>
     <div class="form-group">
@@ -1362,6 +1362,12 @@ async function initAuth() {
     const area = document.getElementById('userArea');
     if (!area) return;
     if (data.user) {
+      // Pre-fill builder name in project form
+      const builderInput = document.getElementById('projBuilder');
+      if (builderInput && !builderInput.value) builderInput.value = data.user.name || data.user.email || '';
+      // Also pre-fill speaker name
+      const spkNameInput = document.getElementById('spkName');
+      if (spkNameInput && !spkNameInput.value) spkNameInput.value = data.user.name || '';
       area.innerHTML = `
         <div class="user-menu">
           <div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')">
