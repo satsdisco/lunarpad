@@ -208,48 +208,81 @@ db.exec(`
   );
 `);
 
-// ─── Schema migrations (safe on existing DBs) ────────────────────────────────
-for (const sql of [
-  'ALTER TABLE users ADD COLUMN lightning_address TEXT',
-  'ALTER TABLE users ADD COLUMN badges TEXT',
-  'ALTER TABLE users ADD COLUMN total_sats_received INTEGER DEFAULT 0',
-  'ALTER TABLE users ADD COLUMN bio TEXT',
-  'ALTER TABLE users ADD COLUMN website_url TEXT',
-  'ALTER TABLE users ADD COLUMN github_url TEXT',
-  'ALTER TABLE bounties ADD COLUMN winner_id TEXT',
-  'ALTER TABLE bounties ADD COLUMN winner_name TEXT',
-  'ALTER TABLE bounties ADD COLUMN paid_out INTEGER DEFAULT 0',
-  'ALTER TABLE bounties ADD COLUMN funded_amount INTEGER DEFAULT 0',
-  'ALTER TABLE projects ADD COLUMN total_sats_received INTEGER DEFAULT 0',
-  'ALTER TABLE bounty_payments ADD COLUMN payment_hash TEXT',
-  'ALTER TABLE zaps ADD COLUMN payment_hash TEXT',
-  'ALTER TABLE zaps ADD COLUMN recipient_address TEXT',
-  'ALTER TABLE zaps ADD COLUMN forward_status TEXT',
-  'ALTER TABLE zaps ADD COLUMN forward_payment_hash TEXT',
-  'ALTER TABLE decks ADD COLUMN hidden INTEGER DEFAULT 0',
-  'ALTER TABLE projects ADD COLUMN banner_url TEXT',
-  'ALTER TABLE projects ADD COLUMN thumbnail_url TEXT',
-  'ALTER TABLE decks ADD COLUMN total_sats_received INTEGER DEFAULT 0',
-  'ALTER TABLE decks ADD COLUMN slug TEXT',
-  'ALTER TABLE projects ADD COLUMN slug TEXT',
-]) {
-  try { db.exec(sql); } catch (_) { /* column already exists */ }
+// ─── Migration System ──────────────────────────────────────────────────────
+// Each migration runs exactly once. Tracked in _migrations table.
+db.exec(`CREATE TABLE IF NOT EXISTS _migrations (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
+
+const MIGRATIONS = [
+  // v1-v5: Column additions (originally untracked ALTER TABLEs)
+  { name: 'v001_user_fields', sql: [
+    'ALTER TABLE users ADD COLUMN lightning_address TEXT',
+    'ALTER TABLE users ADD COLUMN badges TEXT',
+    'ALTER TABLE users ADD COLUMN total_sats_received INTEGER DEFAULT 0',
+    'ALTER TABLE users ADD COLUMN bio TEXT',
+    'ALTER TABLE users ADD COLUMN website_url TEXT',
+    'ALTER TABLE users ADD COLUMN github_url TEXT',
+  ]},
+  { name: 'v002_bounty_fields', sql: [
+    'ALTER TABLE bounties ADD COLUMN winner_id TEXT',
+    'ALTER TABLE bounties ADD COLUMN winner_name TEXT',
+    'ALTER TABLE bounties ADD COLUMN paid_out INTEGER DEFAULT 0',
+    'ALTER TABLE bounties ADD COLUMN funded_amount INTEGER DEFAULT 0',
+  ]},
+  { name: 'v003_project_sats', sql: [
+    'ALTER TABLE projects ADD COLUMN total_sats_received INTEGER DEFAULT 0',
+  ]},
+  { name: 'v004_payment_fields', sql: [
+    'ALTER TABLE bounty_payments ADD COLUMN payment_hash TEXT',
+    'ALTER TABLE zaps ADD COLUMN payment_hash TEXT',
+    'ALTER TABLE zaps ADD COLUMN recipient_address TEXT',
+    'ALTER TABLE zaps ADD COLUMN forward_status TEXT',
+    'ALTER TABLE zaps ADD COLUMN forward_payment_hash TEXT',
+  ]},
+  { name: 'v005_deck_project_fields', sql: [
+    'ALTER TABLE decks ADD COLUMN hidden INTEGER DEFAULT 0',
+    'ALTER TABLE projects ADD COLUMN banner_url TEXT',
+    'ALTER TABLE projects ADD COLUMN thumbnail_url TEXT',
+    'ALTER TABLE decks ADD COLUMN total_sats_received INTEGER DEFAULT 0',
+  ]},
+  { name: 'v006_slugs', sql: [
+    'ALTER TABLE decks ADD COLUMN slug TEXT',
+    'ALTER TABLE projects ADD COLUMN slug TEXT',
+  ]},
+  { name: 'v007_slug_indexes', sql: [
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_decks_slug ON decks(slug) WHERE slug IS NOT NULL',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug) WHERE slug IS NOT NULL',
+  ]},
+  { name: 'v008_live_sessions', sql: [
+    `CREATE TABLE IF NOT EXISTS live_sessions (
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL UNIQUE,
+      current_speaker_id TEXT,
+      is_active INTEGER DEFAULT 1,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`,
+  ]},
+];
+
+// Run pending migrations
+const applied = new Set(db.prepare('SELECT name FROM _migrations').all().map(r => r.name));
+for (const m of MIGRATIONS) {
+  if (applied.has(m.name)) continue;
+  console.log(`[migration] Running ${m.name}...`);
+  for (const sql of m.sql) {
+    try { db.exec(sql); } catch (e) {
+      // Ignore "duplicate column" / "already exists" errors
+      if (!e.message?.includes('duplicate') && !e.message?.includes('already exists')) {
+        console.error(`[migration] ${m.name} warning:`, e.message);
+      }
+    }
+  }
+  db.prepare('INSERT INTO _migrations (name) VALUES (?)').run(m.name);
+  console.log(`[migration] ✓ ${m.name}`);
 }
-
-// ─── Live session table ────────────────────────────────────────────────────────
-try {
-  db.exec(`CREATE TABLE IF NOT EXISTS live_sessions (
-    id TEXT PRIMARY KEY,
-    event_id TEXT NOT NULL UNIQUE,
-    current_speaker_id TEXT,
-    is_active INTEGER DEFAULT 1,
-    updated_at TEXT DEFAULT (datetime('now'))
-  )`);
-} catch (_) {}
-
-
-try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_decks_slug ON decks(slug) WHERE slug IS NOT NULL'); } catch (_) {}
-try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug) WHERE slug IS NOT NULL'); } catch (_) {}
 
 // ─── Badge definitions ────────────────────────────────────────────────────────
 
@@ -504,12 +537,44 @@ app.get('/auth/google/callback', async (req, res) => {
     });
     const profile = await userRes.json();
 
-    // Find or create user
+    // Find or create user — with account linking
     let user = stmts.findUserByGoogleId.get(profile.id);
+
+    if (!user && profile.email) {
+      // Check if an existing account has this email — link it
+      const existingByEmail = db.prepare('SELECT * FROM users WHERE email = ?').get(profile.email);
+      if (existingByEmail) {
+        db.prepare('UPDATE users SET google_id = ?, avatar = COALESCE(avatar, ?) WHERE id = ?').run(
+          profile.id, profile.picture || null, existingByEmail.id
+        );
+        user = stmts.getUserById.get(existingByEmail.id);
+        console.log(`[auth] Linked Google account to existing user: ${existingByEmail.name} (${existingByEmail.id})`);
+      }
+    }
+
+    if (!user && req.session?.userId) {
+      // User is already logged in — link Google to their current account
+      const current = stmts.getUserById.get(req.session.userId);
+      if (current && !current.google_id) {
+        db.prepare('UPDATE users SET google_id = ?, email = COALESCE(email, ?), avatar = COALESCE(avatar, ?) WHERE id = ?').run(
+          profile.id, profile.email || null, profile.picture || null, current.id
+        );
+        user = stmts.getUserById.get(current.id);
+        console.log(`[auth] Linked Google to logged-in user: ${current.name} (${current.id})`);
+      }
+    }
+
     if (!user) {
+      // Brand new user — create account
       const id = crypto.randomUUID();
       stmts.insertUser.run(id, profile.id, profile.email || null, profile.name || null, profile.picture || null);
       user = stmts.getUserById.get(id);
+      console.log(`[auth] Created new Google user: ${profile.name} (${id})`);
+    }
+
+    // Update avatar if missing
+    if (user && !user.avatar && profile.picture) {
+      db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(profile.picture, user.id);
     }
 
     req.session.userId = user.id;
@@ -563,7 +628,7 @@ app.get('/auth/logout', (req, res) => {
 
 app.get('/api/me', (req, res) => {
   if (req.user) {
-    res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name, avatar: req.user.avatar, is_admin: !!req.user.is_admin, lightning_address: req.user.lightning_address || null, bio: req.user.bio || null, website_url: req.user.website_url || null, github_url: req.user.github_url || null } });
+    res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name, avatar: req.user.avatar, is_admin: !!req.user.is_admin, lightning_address: req.user.lightning_address || null, bio: req.user.bio || null, website_url: req.user.website_url || null, github_url: req.user.github_url || null, has_google: !!req.user.google_id } });
   } else {
     res.json({ user: null });
   }
