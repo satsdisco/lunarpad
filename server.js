@@ -259,7 +259,7 @@ const BADGES = {
   demo_champ:     { id: 'demo_champ',     emoji: '🏆', name: 'Demo Day Champion',  desc: 'Won a demo day bounty' },
   streak:         { id: 'streak',         emoji: '🔥', name: 'On a Streak',        desc: 'Submitted projects in 2+ events' },
   zap_master:     { id: 'zap_master',     emoji: '⚡', name: 'Zap Master',         desc: 'Zapped 5+ projects' },
-  generous:       { id: 'generous',       emoji: '💰', name: 'Generous Funder',    desc: 'Funded 3+ bounties' },
+  generous:       { id: 'generous',       emoji: '💰', name: 'Big Spender',         desc: 'Added to 3+ bounty prize pools' },
   popular:        { id: 'popular',        emoji: '🌟', name: 'Popular Project',    desc: 'Received 10+ votes on a project' },
   early_adopter:  { id: 'early_adopter',  emoji: '🚀', name: 'Early Adopter',      desc: 'Joined in the first month' },
   presenter:      { id: 'presenter',      emoji: '🎤', name: 'Presenter',          desc: 'Presented at a demo day' },
@@ -1177,7 +1177,7 @@ app.post('/api/bounties/:id/fund', requireAuth, async (req, res) => {
   try {
     // Use LNbits API directly for reliable invoice creation + verification
     const webhookUrl = (process.env.BASE_URL || `http://localhost:${PORT}`) + '/api/webhook/lnbits';
-    const inv = await lnbitsCreateInvoice(amount_sats, `Fund bounty: ${bounty.title}`, webhookUrl);
+    const inv = await lnbitsCreateInvoice(amount_sats, `Bounty prize pool: ${bounty.title}`, webhookUrl);
     const paymentId = crypto.randomUUID();
     db.prepare(`INSERT INTO bounty_payments (id, bounty_id, user_id, user_name, amount_sats, payment_type, payment_request, payment_hash, verify_url, status)
       VALUES (?, ?, ?, ?, ?, 'fund', ?, ?, NULL, 'pending')`).run(

@@ -388,12 +388,12 @@ async function loadBounty() {
     if (confirmedPayments.length > 0) {
       fundersHtml = `
         <div style="margin-bottom:24px">
-          <div class="bounty-section-label"># Recent Funders</div>
-          <div class="funders-list">
+          <div class="bounty-section-label"># Recent Contributors</div>
+          <div class="contributors-list">
             ${confirmedPayments.slice(0, 8).map(p => `
-              <div class="funder-chip">
-                <span class="funder-name">${(p.user_id && p.user_name) ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.user_name)}</a>` : esc(p.user_name || 'Anonymous')}</span>
-                <span class="funder-amount">⚡ ${Number(p.amount_sats).toLocaleString()}</span>
+              <div class="contributor-chip">
+                <span class="contributor-name">${(p.user_id && p.user_name) ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.user_name)}</a>` : esc(p.user_name || 'Anonymous')}</span>
+                <span class="contributor-amount">⚡ ${Number(p.amount_sats).toLocaleString()}</span>
               </div>`).join('')}
           </div>
         </div>`;
@@ -614,7 +614,7 @@ function renderAmountSelector(bountyId) {
   return `
     <div style="margin-bottom:18px">
       <div style="font-size:1rem;font-weight:800;color:var(--btc-bright);margin-bottom:4px">⚡ Add Sats to Bounty</div>
-      <div style="font-size:0.78rem;color:var(--muted2)">Fund this bounty via Lightning</div>
+      <div style="font-size:0.78rem;color:var(--muted2)">Add sats to the prize pool</div>
     </div>
     <div class="sats-preset-row">
       ${[1000,5000,10000,21000,50000,100000].map(v =>

@@ -426,7 +426,7 @@ async function loadBounties() {
       const fundingBar = fundedAmt > 0 ? `
         <div class="bounty-card-progress-wrap">
           <div class="bounty-card-progress-bg"><div class="bounty-card-progress-fill" style="width:${fundedPct}%"></div></div>
-          <div class="bounty-card-progress-meta">⚡ ${fundedAmt.toLocaleString()} funded</div>
+          <div class="bounty-card-progress-meta">⚡ ${fundedAmt.toLocaleString()} in the pot</div>
         </div>` : '';
       return `
         <div class="bounty-card" onclick="window.location.href='/bounty/${esc(b.id)}'" style="cursor:pointer">
