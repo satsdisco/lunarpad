@@ -460,7 +460,8 @@ a:hover { color: var(--accent); }
   font-family: var(--font-mono);
 }
 .vote-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-.vote-btn.voted { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 12px rgba(57,217,138,.15); }
+.vote-btn.voted { border-color: var(--accent); color: #fff; background: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+.vote-btn.voted:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .vote-btn .arrow { font-size: 0.8rem; line-height: 1; }
 
 /* Project showcase */
@@ -478,11 +479,13 @@ a:hover { color: var(--accent); }
 }
 .project-card-visual {
   width: 100%;
-  height: 120px;
+  height: 140px;
   object-fit: cover;
+  object-position: center center;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   display: block;
   flex-shrink: 0;
+  background: var(--glass);
 }
 .project-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.3); }
 .project-name { font-size: 0.92rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
@@ -3223,8 +3226,9 @@ body::after {
 /* ─── Project Page Redesign ──────────────────────────────────────────────── */
 
 .project-banner-wrap { position: relative; width: 100%; margin-bottom: 0; }
-.project-banner { width: 100%; height: 200px; object-fit: cover; border-radius: 0 0 var(--radius-lg) var(--radius-lg); display: block; }
-.project-banner-gradient { width: 100%; height: 200px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.project-banner-wrap::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 72px; background: linear-gradient(to bottom, transparent, var(--bg)); border-radius: 0 0 var(--radius-lg) var(--radius-lg); pointer-events: none; }
+.project-banner { width: 100%; height: 160px; object-fit: cover; object-position: center center; border-radius: 0 0 var(--radius-lg) var(--radius-lg); display: block; background: var(--glass); }
+.project-banner-gradient { width: 100%; height: 160px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 .project-banner-gradient.cat-game { background: linear-gradient(135deg, #3d0066, #0a0628); }
 .project-banner-gradient.cat-tool { background: linear-gradient(135deg, #0a2840, #0d0f1a); }
 .project-banner-gradient.cat-finance { background: linear-gradient(135deg, #3d2800, #0d0f1a); }
@@ -3298,10 +3302,37 @@ body::after {
 .btn-danger-ghost { color: var(--danger); border-color: transparent; }
 .btn-danger-ghost:hover { border-color: var(--danger); color: var(--danger); }
 
+.project-link-card {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border: 1px solid var(--border2);
+  border-radius: var(--radius); background: var(--glass);
+  font-size: 0.82rem; font-weight: 600; color: var(--text);
+  text-decoration: none; transition: border-color .15s, background .15s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;
+}
+.project-link-card:hover { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+.project-link-domain { font-weight: 400; color: var(--muted2); font-size: 0.78rem; font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; }
+.project-link-card:hover .project-link-domain { color: var(--accent); }
+
 @media (max-width: 600px) {
   .project-stats-bar { gap: 10px; font-size: 0.75rem; }
   .project-tab { padding: 8px 10px; font-size: 0.75rem; }
-  .project-banner, .project-banner-gradient { height: 140px; }
+  .project-banner, .project-banner-gradient { height: 120px; }
   .project-action-row { flex-direction: column; align-items: flex-start; }
   .project-actions-owner { margin-top: 4px; }
+  .project-link-card { max-width: 100%; }
+}
+
+/* ─── Lightbox ───────────────────────────────────────────────────────────── */
+.lightbox-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  cursor: zoom-out; opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.lightbox-overlay.open { opacity: 1; pointer-events: auto; }
+.lightbox-overlay img {
+  max-width: 90vw; max-height: 85vh; border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
 }
