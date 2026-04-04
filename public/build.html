@@ -495,7 +495,7 @@ async function loadBounties() {
     grid.innerHTML = sortedBounties.map(b => {
       const statusClass = { open: 'open', claimed: 'claimed', completed: 'completed' }[b.status] || 'open';
       const statusLabel = { open: 'Open', claimed: 'Claimed', completed: 'Completed' }[b.status] || b.status;
-      const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
+      const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
       const deadline = b.deadline ? `<span class="bounty-deadline">⏳ ${esc(new Date(b.deadline).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>` : '';
       const participantCount = Array.isArray(b.participants) ? b.participants.length : (b.participant_count || 0);
       const fundedAmt = Number(b.funded_amount || 0);
@@ -513,17 +513,22 @@ async function loadBounties() {
           ${completedBadge}
           <div class="bounty-card-inner">
             <div class="bounty-header">
-              <div class="bounty-title">${esc(b.title)}</div>
+              <div class="bounty-title-wrap">
+                <div class="bounty-title">${esc(b.title)}</div>
+                ${deadline}
+              </div>
               <span class="bounty-status ${statusClass}">${statusLabel}</span>
             </div>
-            ${b.description ? `<div style='font-size:0.79rem;color:var(--text2);line-height:1.55;margin:6px 0 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden'>${esc(b.description)}</div>` : ''}
-            <div class="bounty-sats-big">⚡ ${Number(b.sats_amount || 0).toLocaleString()}<span class="sats-label">sats</span></div>
-            ${deadline}
+            ${b.description ? `<div class="bounty-desc-clamp">${esc(b.description)}</div>` : ''}
+            <div class="bounty-sats-row">
+              <div class="bounty-sats-big">⚡ ${Number(b.sats_amount || 0).toLocaleString()}<span class="sats-label">sats</span></div>
+              <div class="bounty-meta-pill">👥 ${participantCount}</div>
+            </div>
             ${fundingBar}
             ${winner}
-            <div class="bounty-bottom">
-              ${tags ? `<div class="card-tags" style="margin-top:10px">${tags}</div>` : ''}
-              <div style="margin-top:10px;font-size:0.72rem;color:var(--muted2)">👥 ${participantCount} participant${participantCount !== 1 ? 's' : ''}</div>
+            ${tags ? `<div class="card-tags bounty-tags-row">${tags}</div>` : ''}
+            <div class="bounty-footer-row">
+              <div class="bounty-footer-copy">Prize pool</div>
               <a href="/bounty/${esc(b.id)}" class="bounty-view-link" onclick="event.stopPropagation()">View Bounty →</a>
             </div>
           </div>
