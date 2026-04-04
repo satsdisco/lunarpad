@@ -778,8 +778,8 @@ a:hover { color: var(--accent); }
   font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
 }
 .qr-wrap {
-  display: inline-flex; padding: 12px; background: #0d0f1a; border-radius: var(--radius);
-  margin-bottom: 10px; border: 1px solid var(--border2);
+  display: inline-flex; padding: 12px; background: #fff; border-radius: var(--radius);
+  margin-bottom: 10px;
 }
 .qr-img { width: 160px; height: 160px; display: block; }
 .qr-url {
@@ -899,15 +899,15 @@ a:hover { color: var(--accent); }
 }
 .carousel-nav {
   position: absolute; top: 50%; transform: translateY(-50%);
-  background: rgba(12,14,20,.85); border: 1px solid var(--border);
-  border-radius: 50%; width: 36px; height: 36px;
+  background: rgba(12,14,20,.9); border: 1px solid var(--border2);
+  border-radius: 50%; width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: var(--muted); font-size: 1rem;
-  backdrop-filter: blur(8px); transition: all .15s; z-index: 2;
+  cursor: pointer; color: var(--muted); font-size: 1.1rem;
+  backdrop-filter: blur(12px); transition: all .15s; z-index: 2;
 }
-.carousel-nav:hover { border-color: var(--accent); color: var(--accent); }
-.carousel-nav.prev { left: -12px; }
-.carousel-nav.next { right: -12px; }
+.carousel-nav:hover { border-color: var(--accent); color: var(--accent); background: rgba(124,92,252,.1); }
+.carousel-nav.prev { left: -18px; }
+.carousel-nav.next { right: -18px; }
 
 /* Mini Calendar */
 .mini-cal {
