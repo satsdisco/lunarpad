@@ -220,7 +220,7 @@ async function loadBounty() {
     const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
     const participants = b.participants || [];
     const alreadyJoined = me.user && participants.some(p => p.user_name === me.user.name || p.user_id === me.user.id);
-    const isAdmin = me.user && me.user.is_admin;
+    const isAdmin = !!(me.user && me.user.is_admin);
     const isWinner = me.user && b.winner_id && b.winner_id === me.user.id;
     const hasSubmitted = me.user && submissions.some(p => p.user_id === me.user.id);
 
@@ -437,7 +437,7 @@ async function loadBounty() {
       ${fundersHtml}
       ${winnerSection}
       ${claimSection}
-      ${adminSection}
+      ${isAdmin ? adminSection : ''}
 
       <div style="margin-bottom:24px">
         <div class="bounty-section-label"># Participants (${participants.length})</div>
