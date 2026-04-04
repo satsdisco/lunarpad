@@ -181,8 +181,10 @@ async function loadProject() {
     document.getElementById('projectContent').innerHTML = `
 
       <div style="display:flex;align-items:flex-start;gap:16px;margin:16px 0 12px">
-        <div style="position:relative;flex-shrink:0">
-          <img src="${esc(projectImg)}" alt="" style="width:72px;height:72px;border-radius:var(--radius-lg);object-fit:cover;border:2px solid var(--border);background:var(--glass)">
+        <div style="position:relative;flex-shrink:0;cursor:pointer" id="projectImgWrap" onclick="document.getElementById('projImgInput')?.click()">
+          <img src="${esc(projectImg)}" alt="" id="projectImgEl" style="width:72px;height:72px;border-radius:var(--radius-lg);object-fit:cover;border:2px solid var(--border);background:var(--glass);display:block">
+          <div id="projImgOverlay" style="display:none;position:absolute;inset:0;border-radius:var(--radius-lg);background:rgba(0,0,0,0.5);cursor:pointer;align-items:center;justify-content:center;font-size:1.2rem">📷</div>
+          <input type="file" id="projImgInput" accept="image/*" style="display:none" onchange="uploadProjectImage(this)">
         </div>
         <div style="flex:1;min-width:0">
           <h1 class="viewer-title" style="margin-bottom:4px">${esc(p.name)}</h1>
@@ -521,9 +523,18 @@ async function checkOwnership() {
       if (isOwner || me.user.is_admin) {
         document.getElementById('editProjectBtn').style.display = '';
         document.getElementById('deleteProjectBtn').style.display = '';
-        // Show banner upload overlay
-        const overlay = document.getElementById('bannerUploadOverlay');
-        if (overlay) overlay.style.display = '';
+        // Show project image upload overlay on hover
+        const imgOverlay = document.getElementById('projImgOverlay');
+        if (imgOverlay) {
+          imgOverlay.style.display = 'flex';
+          imgOverlay.style.opacity = '0';
+          imgOverlay.style.transition = 'opacity 0.2s';
+          const wrap = document.getElementById('projectImgWrap');
+          if (wrap) {
+            wrap.onmouseenter = () => imgOverlay.style.opacity = '1';
+            wrap.onmouseleave = () => imgOverlay.style.opacity = '0';
+          }
+        }
       }
     }
   } catch {}
@@ -734,6 +745,20 @@ async function setCurrentVersion(projId, versionId) {
     if (r.ok) loadDeckVersions(currentProject);
     else { const e = await r.json().catch(()=>({})); alert(e.error || 'Failed'); }
   } catch { alert('Failed to set version'); }
+}
+
+async function uploadProjectImage(input) {
+  if (!input.files[0]) return;
+  const fd = new FormData();
+  fd.append('banner', input.files[0]);
+  try {
+    const r = await fetch('/api/projects/' + projectId + '/banner', { method: 'POST', body: fd });
+    if (r.ok) {
+      const data = await r.json();
+      const img = document.getElementById('projectImgEl');
+      if (img) img.src = data.banner_url + '?t=' + Date.now();
+    } else { alert('Upload failed'); }
+  } catch { alert('Upload failed'); }
 }
 
 loadProject();
