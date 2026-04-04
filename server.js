@@ -667,7 +667,13 @@ app.get('/',         requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'publ
 app.get('/decks',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
 app.get('/upload',   requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'upload.html')));
 app.get('/deck/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'deck.html')));
-app.get('/build',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));  // keep /build as alias
+app.get('/build',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));
+// Deep-link aliases for SPA sidebar sections
+app.get('/events',      requireAuth, (_, res) => res.redirect('/#events'));
+app.get('/projects',    requireAuth, (_, res) => res.redirect('/#projects'));
+app.get('/bounties',    requireAuth, (_, res) => res.redirect('/#bounties'));
+app.get('/leaderboard', requireAuth, (_, res) => res.redirect('/#leaderboard'));
+app.get('/speakers',    requireAuth, (_, res) => res.redirect('/#speakers'));
 // Catch bare routes without IDs — redirect to Build in Public
 app.get('/event', requireAuth, (_, res) => res.redirect('/'));
 app.get('/event/', requireAuth, (_, res) => res.redirect('/'));

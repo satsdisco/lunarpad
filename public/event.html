@@ -220,6 +220,7 @@ async function loadEvent() {
           <div class="event-hero-actions">
             ${heroActionsHtml}
           </div>
+          <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px" id="countdownLabel">Event starts in</div>
           <div class="event-hero-countdown">
             <div class="cd-unit"><div class="cd-val" id="cd-d">--</div><div class="cd-label">Days</div></div>
             <div class="cd-unit"><div class="cd-val" id="cd-h">--</div><div class="cd-label">Hrs</div></div>
@@ -306,9 +307,20 @@ async function loadEvent() {
     // Wire up action buttons (avoiding inline onclick with escaping issues)
     const shareBtn = document.getElementById('shareBtn');
     if (shareBtn) shareBtn.onclick = function() {
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        shareBtn.textContent = '\u2713 Copied!'; setTimeout(() => shareBtn.textContent = 'Share', 1800);
-      }).catch(() => {});
+      if (navigator.share) {
+        navigator.share({ title: ev.name + ' — LunarPad', url: window.location.href }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+          shareBtn.textContent = '\u2713 Copied!'; setTimeout(() => shareBtn.textContent = 'Share', 1800);
+          // Toast
+          const toast = document.createElement('div');
+          toast.textContent = '\ud83d\udcce Link copied to clipboard!';
+          toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:10px 20px;border-radius:100px;font-size:0.82rem;font-weight:600;z-index:9999;opacity:0;transition:opacity .2s';
+          document.body.appendChild(toast);
+          requestAnimationFrame(() => toast.style.opacity = '1');
+          setTimeout(() => { toast.style.opacity = '0'; toast.addEventListener('transitionend', () => toast.remove()); }, 2000);
+        }).catch(() => {});
+      }
     };
     const rsvpToggle = document.getElementById('rsvpToggle');
     if (rsvpToggle) rsvpToggle.onclick = () => {

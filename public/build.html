@@ -462,14 +462,24 @@ let heroEventData = null;
 let countdownTimers = {};
 
 // ─── Sidebar Navigation ───────────────────────────────────────────────────
+function switchToView(viewName) {
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+  document.querySelectorAll('.build-view').forEach(v => v.classList.remove('active'));
+  const link = document.querySelector('.sidebar-link[data-view="' + viewName + '"]');
+  const view = document.getElementById('view-' + viewName);
+  if (link) link.classList.add('active');
+  if (view) view.classList.add('active');
+}
+
 document.querySelectorAll('.sidebar-link').forEach(link => {
-  link.addEventListener('click', () => {
-    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-    document.querySelectorAll('.build-view').forEach(v => v.classList.remove('active'));
-    link.classList.add('active');
-    document.getElementById('view-' + link.dataset.view).classList.add('active');
-  });
+  link.addEventListener('click', () => switchToView(link.dataset.view));
 });
+
+// Deep-link: switch to tab based on URL hash
+const hashView = window.location.hash.replace('#', '');
+if (hashView && document.getElementById('view-' + hashView)) {
+  switchToView(hashView);
+}
 
 // ─── Bounties ─────────────────────────────────────────────────────────────
 async function loadBounties() {
@@ -621,10 +631,11 @@ function renderHeroBanner(ev) {
   hero.innerHTML = `
     <div class="event-hero-banner ${typeClass}">
       <div class="event-hero-type-badge ${badgeClass}">${icon} ${typeLabel}</div>
-      <div class="event-hero-badge">NEXT UP</div>
+      <div class="event-hero-badge" style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:rgba(57,217,138,0.12);border:1px solid rgba(57,217,138,0.25);border-radius:100px;color:#39d98a;font-size:0.65rem;font-weight:800;margin-bottom:10px"><span style="width:6px;height:6px;border-radius:50%;background:#39d98a;animation:live-pulse 1.5s ease infinite"></span> NEXT UP</div>
       <h2 class="event-hero-title">${esc(ev.name)}</h2>
       <div class="event-hero-meta">📅 ${dateStr}${ev.location ? ' · 📍 ' + esc(ev.location) : ''}</div>
       ${desc ? `<p class="event-hero-desc">${esc(desc)}</p>` : ''}
+      <div style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Event starts in</div>
       <div class="event-hero-countdown">
         <div class="countdown-chip"><div class="countdown-chip-val" id="hero-cd-d">--</div><div class="countdown-chip-label">Days</div></div>
         <div class="countdown-chip"><div class="countdown-chip-val" id="hero-cd-h">--</div><div class="countdown-chip-label">Hrs</div></div>
