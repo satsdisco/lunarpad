@@ -35,8 +35,11 @@
     <div class="viewer-desc" id="deckDesc"></div>
     <div class="viewer-tags" id="deckTags"></div>
 
+    <div id="deckZapStats"></div>
+
     <div class="viewer-actions">
       <button class="vote-btn" id="voteBtn"><span class="arrow">▲</span><span id="voteCount">0</span></button>
+      <button class="btn btn-zap" id="zapDeckBtn" onclick="openZapModal()" style="display:none">⚡ Zap</button>
       <button class="btn btn-ghost" id="downloadBtn">⬇ Download</button>
       <a class="btn btn-ghost" id="githubBtn" href="#" target="_blank" rel="noopener" style="display:none">⌥ GitHub</a>
       <a class="btn btn-ghost" id="demoBtn" href="#" target="_blank" rel="noopener" style="display:none">↗ Live Demo</a>
@@ -57,6 +60,16 @@
     </div>
   </div>
 </div>
+
+<!-- Deck Zap Modal -->
+<div class="modal-overlay" id="zapModal">
+  <div class="modal-content" style="max-width:440px;text-align:center">
+    <button class="modal-close" onclick="closeZapModal()">&times;</button>
+    <div id="zapModalBody"></div>
+  </div>
+</div>
+
+<div id="zapOverlay" class="zap-overlay">⚡</div>
 
 <footer class="footer">LunarPad — Build. Ship. Earn sats.</footer>
 
@@ -120,12 +133,18 @@
     // Load comments
     loadComments(deck.id);
 
-    // Show delete only if user owns this deck
+    // Show delete + zap button based on auth
     fetch('/api/me').then(r=>r.json()).then(d => {
       if (d.user && (d.user.is_admin || (deck.uploaded_by && d.user.id === deck.uploaded_by))) {
         document.getElementById('deleteBtn').style.display = '';
       }
+      if (d.user) {
+        document.getElementById('zapDeckBtn').style.display = '';
+      }
     });
+
+    // Load zap total
+    loadZapTotal();
 
     // Delete
     document.getElementById('deleteBtn').addEventListener('click', async () => {
@@ -271,6 +290,140 @@
     document.getElementById('cvcount-' + commentId).textContent = data.votes;
     btn.classList.toggle('voted', data.voted);
     if (data.error) { alert(data.error); }
+  }
+
+  // ─── Zap ─────────────────────────────────────────────────────────────────
+  let _zapPollInterval = null;
+  let _zapPollTimeout = null;
+
+  function showZap() {
+    const el = document.getElementById('zapOverlay');
+    el.classList.add('active');
+    setTimeout(() => el.classList.remove('active'), 1600);
+  }
+
+  function closeZapModal() {
+    document.getElementById('zapModal').classList.remove('open');
+    if (_zapPollInterval) { clearInterval(_zapPollInterval); _zapPollInterval = null; }
+    if (_zapPollTimeout) { clearTimeout(_zapPollTimeout); _zapPollTimeout = null; }
+  }
+
+  async function loadZapTotal() {
+    try {
+      const res = await fetch('/api/decks/' + deckId + '/zaps');
+      const data = await res.json();
+      const el = document.getElementById('deckZapStats');
+      if (!el || !data.total_sats) return;
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:rgba(242,177,52,.06);border:1px solid rgba(242,177,52,.15);border-radius:var(--radius);margin-bottom:12px">
+          <span style="font-family:var(--font-mono);font-size:0.88rem;font-weight:800;color:var(--btc-bright)">⚡ ${Number(data.total_sats).toLocaleString()} sats received</span>
+        </div>`;
+    } catch {}
+  }
+
+  function openZapModal() {
+    const presets = [1000, 5000, 10000, 21000, 50000, 100000];
+    document.getElementById('zapModalBody').innerHTML = `
+      <div style="font-size:1.05rem;font-weight:800;color:var(--btc-bright);margin-bottom:4px">⚡ Zap Creator</div>
+      <div style="font-size:0.8rem;color:var(--muted2);margin-bottom:20px">Tip the creator directly via Lightning</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:16px">
+        ${presets.map(s => `<button class="sats-preset-btn" onclick="setZapAmount(${s}, this)">${s >= 1000 ? (s/1000)+'k' : s}</button>`).join('')}
+      </div>
+      <div style="margin-bottom:16px">
+        <input type="number" id="zapAmountInput" min="1" placeholder="Custom amount (sats)"
+          style="width:100%;padding:10px 14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.9rem;text-align:center">
+      </div>
+      <button class="btn btn-primary" style="width:100%;padding:12px" onclick="generateZapInvoice()">Generate Invoice</button>
+      <div id="zapError" style="color:#e05;font-size:0.8rem;margin-top:8px"></div>
+    `;
+    document.getElementById('zapModal').classList.add('open');
+  }
+
+  function setZapAmount(val, btn) {
+    document.getElementById('zapAmountInput').value = val;
+    document.querySelectorAll('.sats-preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  async function generateZapInvoice() {
+    const amount = parseInt(document.getElementById('zapAmountInput').value);
+    if (!amount || amount < 1) { document.getElementById('zapError').textContent = 'Enter an amount'; return; }
+    document.getElementById('zapError').textContent = '';
+    document.getElementById('zapModalBody').innerHTML = `<div style="padding:32px 0;color:var(--muted2);font-size:0.85rem">Generating invoice...</div>`;
+    try {
+      const r = await fetch('/api/decks/' + deckId + '/zap', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ amount_sats: amount }),
+      });
+      if (!r.ok) { const e = await r.json(); openZapModal(); document.getElementById('zapError').textContent = e.error || 'Failed'; return; }
+      const data = await r.json();
+      document.getElementById('zapModalBody').innerHTML = `
+        <div style="margin-bottom:12px">
+          <div style="font-size:0.95rem;font-weight:800;color:var(--btc-bright)">⚡ ${Number(amount).toLocaleString()} sats</div>
+          <div style="font-size:0.75rem;color:var(--muted2);margin-top:2px">→ ${esc(data.recipient)}</div>
+        </div>
+        ${data.qr_data_url ? `<img src="${data.qr_data_url}" style="width:200px;height:200px;border-radius:8px;margin-bottom:12px" alt="QR">` : ''}
+        <div style="margin-bottom:12px">
+          <button class="btn btn-sm" style="width:100%" onclick="navigator.clipboard.writeText('${esc(data.payment_request)}').then(()=>this.textContent='Copied!').catch(()=>{})">Copy Invoice</button>
+        </div>
+        <div id="zapPaymentStatus" class="payment-waiting">
+          <span class="waiting-dots">Waiting for payment<span class="dot-anim">...</span></span>
+        </div>
+        <button class="btn btn-primary" style="margin-top:10px;width:100%;display:none" id="confirmZapBtn" onclick="manualConfirmZap('${esc(data.zap_id)}')">✅ I've Paid — Confirm</button>
+      `;
+      startZapPolling(data.zap_id);
+    } catch (e) {
+      openZapModal();
+      document.getElementById('zapError').textContent = 'Error: ' + e.message;
+    }
+  }
+
+  function startZapPolling(zapId) {
+    const TIMEOUT_MS = 5 * 60 * 1000;
+    _zapPollTimeout = setTimeout(() => {
+      clearInterval(_zapPollInterval);
+      const el = document.getElementById('zapPaymentStatus');
+      if (el) el.innerHTML = 'Payment not detected — it may still arrive later.';
+    }, TIMEOUT_MS);
+    _zapPollInterval = setInterval(async () => {
+      try {
+        const r = await fetch('/api/zaps/verify/' + zapId);
+        const data = await r.json();
+        if (data.settled) {
+          clearInterval(_zapPollInterval); clearTimeout(_zapPollTimeout);
+          const el = document.getElementById('zapPaymentStatus');
+          if (el) el.innerHTML = '<div class="payment-confirmed">⚡ Zap sent!</div>';
+          showZap();
+          setTimeout(() => { closeZapModal(); loadZapTotal(); }, 2800);
+        } else if (data.no_verify) {
+          clearInterval(_zapPollInterval); clearTimeout(_zapPollTimeout);
+          const el = document.getElementById('zapPaymentStatus');
+          if (el) el.innerHTML = '<span style="font-size:0.78rem;color:var(--muted2)">Auto-verification not available.<br>Click below after you\'ve paid.</span>';
+          const btn = document.getElementById('confirmZapBtn');
+          if (btn) btn.style.display = '';
+        }
+      } catch {}
+    }, 3000);
+  }
+
+  async function manualConfirmZap(zapId) {
+    const btn = document.getElementById('confirmZapBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Confirming…'; }
+    try {
+      const r = await fetch('/api/zaps/confirm/' + zapId, { method: 'POST' });
+      const data = await r.json();
+      if (data.settled) {
+        const el = document.getElementById('zapPaymentStatus');
+        if (el) el.innerHTML = '<div class="payment-confirmed">⚡ Zap confirmed!</div>';
+        if (btn) btn.style.display = 'none';
+        showZap();
+        setTimeout(() => { closeZapModal(); loadZapTotal(); }, 2800);
+      } else {
+        if (btn) { btn.disabled = false; btn.textContent = '✅ I\'ve Paid — Confirm'; }
+      }
+    } catch {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ I\'ve Paid — Confirm'; }
+    }
   }
 
   loadDeck();
