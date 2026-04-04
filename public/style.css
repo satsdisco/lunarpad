@@ -3171,6 +3171,13 @@ body::after {
 }
 
 
+/* ─── Error State ─────────────────────────────────────────────────────────── */
+.error-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+.error-state span { font-size: 2rem; display: block; margin-bottom: 8px; }
+.error-state p { font-size: 0.85rem; margin-bottom: 0; }
+.error-state button { background: none; border: 1px solid var(--border2); color: var(--accent); padding: 6px 16px; border-radius: 100px; cursor: pointer; font-size: 0.8rem; margin-top: 8px; font-family: var(--font); transition: border-color .15s, color .15s; }
+.error-state button:hover { border-color: var(--accent); }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MOBILE POLISH: 640px breakpoint
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -3198,6 +3205,8 @@ body::after {
   .prize-pool-breakdown { flex-direction: column; align-items: flex-start; gap: 4px; }
   /* QR code in payment modal */
   .payment-qr, img[alt="QR code"], #paymentModalBody img { max-width: 200px !important; width: 100% !important; }
+  /* Bounty action buttons full-width */
+  .btn-join-hunt { width: 100%; justify-content: center; }
 
   /* ── Profile page ── */
   .profile-header-top { flex-direction: column; align-items: center; text-align: center; }

@@ -186,7 +186,7 @@ function renderTimeline(status, hasSubmissions) {
 
 async function loadBounty() {
   const id = window.location.pathname.split('/').pop();
-  if (!id) { document.getElementById('bountyContent').innerHTML = '<div class="empty-state"><p>Bounty not found.</p></div>'; return; }
+  if (!id) { document.getElementById('bountyContent').innerHTML = '<div class="error-state"><span>⚠️</span><p>Bounty not found.</p></div>'; return; }
 
   try {
     const [bRes, meRes, lnCfgRes] = await Promise.all([
@@ -196,7 +196,7 @@ async function loadBounty() {
     ]);
 
     if (!bRes.ok) {
-      document.getElementById('bountyContent').innerHTML = '<div class="empty-state"><p>Bounty not found.</p></div>';
+      document.getElementById('bountyContent').innerHTML = '<div class="error-state"><span>⚠️</span><p>Bounty not found.</p></div>';
       return;
     }
 
@@ -462,7 +462,7 @@ async function loadBounty() {
 
   } catch (e) {
     console.error('Failed to load bounty:', e);
-    document.getElementById('bountyContent').innerHTML = '<div class="empty-state"><p>Failed to load bounty. Please try again.</p></div>';
+    document.getElementById('bountyContent').innerHTML = '<div class="error-state"><span>⚠️</span><p>Failed to load bounty.</p><button onclick="loadBounty()">Retry</button></div>';
   }
 }
 

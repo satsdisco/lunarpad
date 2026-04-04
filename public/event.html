@@ -138,7 +138,13 @@
 
 <div class="container" style="padding-top:24px;padding-bottom:64px;">
   <a href="javascript:history.back()" class="viewer-back">Back</a>
-  <div id="eventContent"><div class="empty-state"><p>Loading...</p></div></div>
+  <div id="eventContent">
+    <div class="skeleton-card" style="height:220px;border-radius:var(--radius-lg);margin-bottom:24px"></div>
+    <div class="skeleton-card" style="height:80px;margin-bottom:12px"></div>
+    <div class="skeleton-card" style="height:48px;margin-bottom:24px"></div>
+    <div class="skeleton-card" style="height:110px;margin-bottom:12px"></div>
+    <div class="skeleton-card" style="height:110px"></div>
+  </div>
 </div>
 
 <footer class="footer">LunarPad — Build. Ship. Earn sats.</footer>
@@ -186,6 +192,7 @@ async function loadEvent() {
             <button class="btn btn-primary" onclick="document.getElementById('signupSection').style.display=document.getElementById('signupSection').style.display==='none'?'block':'none'">Present at this Event</button>
             <button class="btn" onclick="navigator.clipboard.writeText(window.location.href).then(()=>{this.textContent='✓ Copied!';setTimeout(()=>this.textContent='Share',1800)}).catch(()=>{})" title="Copy event URL">Share</button>
             <a class="add-to-cal" id="addToCalBtn" style="display:none">📅 Add to Calendar</a>
+            <a class="btn" id="goLiveBtn" style="display:none" href="#" target="_blank">🔴 Go Live</a>
           </div>
           <div class="event-hero-countdown">
             <div class="cd-unit"><div class="cd-val" id="cd-d">--</div><div class="cd-label">Days</div></div>
@@ -276,7 +283,7 @@ async function loadEvent() {
       calBtn.style.display = '';
     }
   } catch(e) {
-    document.getElementById('eventContent').innerHTML = '<div class="empty-state"><h3>Event not found</h3></div>';
+    document.getElementById('eventContent').innerHTML = '<div class="error-state"><span>⚠️</span><p>Failed to load event.</p><button onclick="loadEvent()">Retry</button></div>';
   }
 }
 
@@ -428,6 +435,11 @@ async function initAuth() {
     if (data.user) {
       area.innerHTML = `<div class="user-menu"><div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')"><img src="${data.user.avatar||''}" alt="" onerror="this.style.display='none'"><span>${data.user.name||data.user.email}</span></div><div class="user-dropdown"><a href="/profile">My Profile</a><a href="/auth/logout">Sign out</a></div></div>`;
       document.addEventListener('click',e=>{if(!e.target.closest('.user-menu'))document.querySelectorAll('.user-dropdown').forEach(d=>d.classList.remove('open'));});
+      if (data.user.is_admin) {
+        const eid = window.location.pathname.split('/').pop();
+        const liveBtn = document.getElementById('goLiveBtn');
+        if (liveBtn) { liveBtn.href = '/live/' + eid; liveBtn.style.display = ''; }
+      }
     } else { area.innerHTML = '<a href="/auth/google" class="sign-in-btn">Sign in</a>'; }
   } catch {}
 }

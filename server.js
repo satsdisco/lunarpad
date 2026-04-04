@@ -235,6 +235,19 @@ for (const sql of [
 ]) {
   try { db.exec(sql); } catch (_) { /* column already exists */ }
 }
+
+// ─── Live session table ────────────────────────────────────────────────────────
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS live_sessions (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL UNIQUE,
+    current_speaker_id TEXT,
+    is_active INTEGER DEFAULT 1,
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+} catch (_) {}
+
+
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_decks_slug ON decks(slug) WHERE slug IS NOT NULL'); } catch (_) {}
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug) WHERE slug IS NOT NULL'); } catch (_) {}
 
@@ -575,6 +588,7 @@ app.get('/profile/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'p
 app.get('/vote',     requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'vote.html')));
 app.get('/admin',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
 app.get('/bounty/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'bounty.html')));
+app.get('/live/:eventId', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'live.html')));
 
 // Slug-based short URLs
 app.get('/d/:slug', requireAuth, (req, res) => {
@@ -2284,6 +2298,55 @@ app.post('/api/decks/:id/comments', requireAuth, (req, res) => {
 app.get('/api/events/:id/bounties', (req, res) => {
   const rows = db.prepare("SELECT * FROM bounties WHERE event_id = ? ORDER BY created_at DESC").all(req.params.id);
   res.json(rows);
+});
+
+// ─── Live Presenter Mode API ──────────────────────────────────────────────────
+
+// GET /api/live/:eventId — get current live state (public, no auth for polling)
+app.get('/api/live/:eventId', (req, res) => {
+  const session = db.prepare('SELECT * FROM live_sessions WHERE event_id = ?').get(req.params.eventId);
+  if (!session || !session.is_active) return res.json({ active: false, speaker: null, speakers: [], event: null });
+
+  const event = db.prepare('SELECT id, name, description FROM events WHERE id = ?').get(req.params.eventId);
+  const speakers = db.prepare(`
+    SELECT s.*, COALESCE(v.vote_count, 0) as votes,
+      d.entry_point, d.id as deck_id_real
+    FROM speakers s
+    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
+    LEFT JOIN decks d ON s.deck_id = d.id
+    WHERE s.event_id = ?
+    ORDER BY s.created_at ASC
+  `).all(req.params.eventId);
+  const current = session.current_speaker_id
+    ? speakers.find(s => s.id === session.current_speaker_id) || null
+    : null;
+  res.json({ active: true, session, speaker: current, speakers, event });
+});
+
+// POST /api/live/:eventId/start — admin starts live session
+app.post('/api/live/:eventId/start', requireAuth, requireAdmin, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.eventId);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  const existing = db.prepare('SELECT id FROM live_sessions WHERE event_id = ?').get(req.params.eventId);
+  if (existing) {
+    db.prepare("UPDATE live_sessions SET is_active = 1, updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+  } else {
+    db.prepare("INSERT INTO live_sessions (id, event_id, is_active) VALUES (?, ?, 1)").run(crypto.randomUUID(), req.params.eventId);
+  }
+  res.json({ ok: true });
+});
+
+// POST /api/live/:eventId/stop — admin ends live session
+app.post('/api/live/:eventId/stop', requireAuth, requireAdmin, (req, res) => {
+  db.prepare("UPDATE live_sessions SET is_active = 0, current_speaker_id = NULL, updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+  res.json({ ok: true });
+});
+
+// POST /api/live/:eventId/speaker — admin sets current speaker
+app.post('/api/live/:eventId/speaker', requireAuth, requireAdmin, (req, res) => {
+  const { speaker_id } = req.body;
+  db.prepare("UPDATE live_sessions SET current_speaker_id = ?, updated_at = datetime('now') WHERE event_id = ?").run(speaker_id || null, req.params.eventId);
+  res.json({ ok: true });
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

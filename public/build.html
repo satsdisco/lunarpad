@@ -444,7 +444,7 @@ async function loadBounties() {
         </div>`;
     }).join('');
   } catch {
-    grid.innerHTML = `<div style="grid-column:1/-1;font-size:0.8rem;color:var(--muted2);padding:12px 0;">No bounties available right now.</div>`;
+    grid.innerHTML = `<div class="error-state" style="grid-column:1/-1"><span>⚠️</span><p>Failed to load bounties.</p><button onclick="loadBounties()">Retry</button></div>`;
   }
 }
 
@@ -484,7 +484,7 @@ async function loadEvents() {
       loadDecksForDropdown();
     }
   } catch {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📅</div><h3>Could not load events</h3><p>API unavailable</p></div>`;
+    grid.innerHTML = `<div class="error-state" style="grid-column:1/-1"><span>⚠️</span><p>Failed to load events.</p><button onclick="loadEvents()">Retry</button></div>`;
   }
 }
 
@@ -857,7 +857,7 @@ async function loadProjects() {
     const projects = await res.json();
     renderProjects(projects);
   } catch {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🛠</div><h3>Could not load projects</h3><p>API unavailable</p></div>`;
+    grid.innerHTML = `<div class="error-state" style="grid-column:1/-1"><span>⚠️</span><p>Failed to load projects.</p><button onclick="loadProjects()">Retry</button></div>`;
   }
 }
 
@@ -1404,7 +1404,7 @@ async function loadLeaderboard(sort) {
         </div>`;
     }).join('') + `</div>`;
   } catch {
-    el.innerHTML = `<div style="font-size:0.8rem;color:var(--muted2);padding:12px 0;">Could not load leaderboard.</div>`;
+    el.innerHTML = `<div class="error-state"><span>⚠️</span><p>Failed to load leaderboard.</p><button onclick="loadLeaderboard()">Retry</button></div>`;
   }
 }
 

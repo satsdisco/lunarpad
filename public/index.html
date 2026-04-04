@@ -56,8 +56,12 @@
 
   // Load tags
   async function loadTags() {
-    const res = await fetch('/api/tags');
-    const tags = await res.json();
+    let tags;
+    try {
+      const res = await fetch('/api/tags');
+      tags = await res.json();
+    } catch { return; }
+    if (!Array.isArray(tags)) return;
     const bar = document.getElementById('tagBar');
     bar.innerHTML = '';
     tags.forEach(tag => {
@@ -84,10 +88,15 @@
     if (currentSearch) params.set('search', currentSearch);
     if (activeTags.size) params.set('tags', [...activeTags].join(','));
 
-    const res = await fetch('/api/decks?' + params);
-    const data = await res.json();
-    renderGallery(data.decks);
-    renderPagination(data.pagination);
+    try {
+      const res = await fetch('/api/decks?' + params);
+      const data = await res.json();
+      renderGallery(data.decks);
+      renderPagination(data.pagination);
+    } catch {
+      const el = document.getElementById('gallery');
+      el.innerHTML = `<div class="error-state" style="grid-column:1/-1"><span>⚠️</span><p>Failed to load decks.</p><button onclick="loadDecks()">Retry</button></div>`;
+    }
   }
 
   function renderGallery(decks) {

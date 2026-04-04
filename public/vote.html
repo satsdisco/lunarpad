@@ -23,7 +23,10 @@
 
 <div class="vote-page container">
   <div id="voteContent">
-    <!-- Loaded dynamically -->
+    <div class="skeleton-card" style="height:180px;margin-bottom:16px;border-radius:var(--radius-lg)"></div>
+    <div class="skeleton-card" style="height:72px;margin-bottom:8px"></div>
+    <div class="skeleton-card" style="height:72px;margin-bottom:8px"></div>
+    <div class="skeleton-card" style="height:72px"></div>
   </div>
 </div>
 
@@ -104,7 +107,7 @@ async function loadVotePage() {
     updateAllCountdowns();
 
   } catch (e) {
-    content.innerHTML = renderEmptyState();
+    content.innerHTML = '<div class="error-state"><span>⚠️</span><p>Failed to load vote page.</p><button onclick="loadVotePage()">Retry</button></div>';
   }
 }
 
