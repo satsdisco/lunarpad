@@ -546,7 +546,7 @@ async function loadProfile() {
 
     content.innerHTML = `
       <div class="profile-banner-wrap">
-        <div class="profile-banner"></div>
+        <div class="profile-banner" id="profileBanner"></div>
         <div class="profile-header">
           <div class="profile-header-top">
             ${avatarHtml}
@@ -746,6 +746,28 @@ function renderBountyItem(b, isOwn) {
 
 
 loadProfile().then(() => {
+  // Generate profile banner gradient from user name
+  const banner = document.getElementById('profileBanner');
+  if (banner) {
+    const name = document.title.replace(' — LunarPad', '') || 'User';
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+    const h = Math.abs(hash);
+    const hue1 = h % 360;
+    const hue2 = (h * 7 + 60) % 360;
+    const hue3 = (h * 13 + 180) % 360;
+    banner.style.background = `linear-gradient(135deg, hsla(${hue1},50%,15%,1), hsla(${hue2},40%,10%,1), hsla(${hue3},30%,8%,1))`;
+    // Add subtle SVG pattern overlay
+    const circles = Array.from({length: 6}, (_, i) => {
+      const cx = (h * (i+3) * 17) % 800;
+      const cy = (h * (i+7) * 11) % 120;
+      const r = 30 + ((h * (i+11)) % 80);
+      const opacity = 0.03 + ((h * (i+5)) % 5) / 100;
+      return `<circle cx='${cx}' cy='${cy}' r='${r}' fill='hsla(${(hue1 + i*40)%360},40%,50%,${opacity})'/>`;
+    }).join('');
+    banner.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='800' height='120'>${circles}</svg>`)}"), ${banner.style.background}`;
+  }
+
   // CountUp animation for stat numbers
   const SATS_TARGET = document.querySelector('.profile-stat-value.gold[data-target]');
   document.querySelectorAll('.stat-countup[data-target]').forEach(el => {
@@ -846,5 +868,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.g
     </div>
   </div>
 </div>
+<script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
 </body>
 </html>

@@ -806,5 +806,6 @@ async function initAuth() {
 initAuth();
 </script>
 
+<script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
 </body>
 </html>

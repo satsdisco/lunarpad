@@ -3023,10 +3023,10 @@ const server = app.listen(PORT, () => {
   seedPlatformData();
 });
 
-// SPA catch-all — serve index for unknown routes
+// 404 catch-all — proper error page
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
-  res.sendFile(path.join(ROOT, 'public', 'index.html'));
+  res.status(404).sendFile(path.join(ROOT, 'public', '404.html'));
 });
 
 // Handle multer errors

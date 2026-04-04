@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 — LunarPad</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="logo">Lunar <span class="logo-slash"> \ </span><span class="logo-accent">Pad</span></a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab">Build in Public</a>
+    <a href="/decks" class="nav-tab">Decks</a>
+  </nav>
+  <div class="header-actions" id="authArea">
+    <div id="userArea"></div>
+  </div>
+</header>
+
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;padding:40px 20px;text-align:center">
+  <div style="font-size:4rem;margin-bottom:16px;opacity:0.4;filter:drop-shadow(0 0 20px rgba(124,92,252,0.4))">🌙</div>
+  <h1 style="font-family:var(--font-mono);font-size:1.8rem;font-weight:800;color:var(--text);margin-bottom:8px;letter-spacing:-0.02em">404</h1>
+  <p style="color:var(--muted);font-size:0.9rem;margin-bottom:24px;max-width:400px">This page doesn't exist. Maybe the URL is wrong, or it was removed.</p>
+  <a href="/" class="btn btn-primary" style="padding:10px 28px;font-size:0.9rem">Go to Build in Public →</a>
+</div>
+
+<footer class="footer">LunarPad — Build. Ship. Earn sats.</footer>
+
+<script>
+async function initAuth() {
+  try {
+    const res = await fetch('/api/me'); const data = await res.json();
+    const area = document.getElementById('userArea'); if (!area) return;
+    if (data.user) {
+      area.innerHTML = `<div class="user-menu"><div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')"><img src="${data.user.avatar||''}" alt="" onerror="this.style.display='none'"><span>${data.user.name||data.user.email}</span></div><div class="user-dropdown"><a href="/profile">My Profile</a><a href="/auth/logout">Sign out</a></div></div>`;
+    } else { area.innerHTML = '<a href="/welcome" class="sign-in-btn">Sign in</a>'; }
+  } catch {}
+}
+initAuth();
+</script>
+</body>
+</html>

@@ -164,6 +164,16 @@ async function loadEvent() {
       fetch('/api/events/' + eventId + '/rsvps').then(r => r.json()).catch(() => null)
     ]);
     eventData = evRes;
+    if (evRes.error || !evRes.id) {
+      document.getElementById('eventContent').innerHTML = `
+        <div style="text-align:center;padding:60px 20px">
+          <div style="font-size:2.5rem;margin-bottom:16px">🌙</div>
+          <h2 style="font-family:var(--font-mono);font-size:1.1rem;color:var(--text);margin-bottom:8px">Event not found</h2>
+          <p style="color:var(--muted);font-size:0.85rem;margin-bottom:20px">This event may have been removed or the link is incorrect.</p>
+          <a href="/" class="btn btn-primary" style="padding:10px 24px">Go to Build in Public →</a>
+        </div>`;
+      return;
+    }
     const ev = eventData;
     const bounties = bRes;
     const rsvpCount = rsvpRes ? (typeof rsvpRes.count === 'number' ? rsvpRes.count : (Array.isArray(rsvpRes) ? rsvpRes.length : 0)) : 0;
@@ -180,27 +190,35 @@ async function loadEvent() {
     const eventDate = ev.date ? new Date(ev.date + (ev.time ? 'T' + ev.time : 'T23:59:59')) : null;
     const isEnded = eventDate ? (Date.now() - eventDate.getTime() > 86400000) : false;
 
+    // Build action buttons outside template to avoid nested backtick issues
+    let heroActionsHtml = '';
+    if (isEnded) {
+      heroActionsHtml = '<button class="btn" id="shareBtn">Share</button>';
+    } else {
+      heroActionsHtml = '<button class="btn" id="rsvpToggle">RSVP</button>';
+      heroActionsHtml += '<button class="btn btn-primary" id="presentToggle">Present at this Event</button>';
+      heroActionsHtml += '<button class="btn" id="shareBtn">Share</button>';
+      heroActionsHtml += '<a class="add-to-cal" id="addToCalBtn" style="display:none">📅 Add to Calendar</a>';
+    }
+    heroActionsHtml += '<a class="btn" id="goLiveBtn" style="display:none" href="#" target="_blank">🔴 Go Live</a>';
+
+    const endedBadge = isEnded ? ' <span style="color:var(--muted);font-weight:400">(ended)</span>' : '';
+    const locationSpan = ev.location ? '<span>📍 ' + esc(ev.location) + '</span>' : '';
+    const prizeDiv = prizePool ? '<div class="event-prize">⚡ ' + prizePool.toLocaleString() + ' sats prize pool</div>' : '';
+
     document.getElementById('eventContent').innerHTML = `
       <div class="event-hero">
-        <div class="event-hero-type">${esc(ev.event_type || ev.type || 'Event')}${isEnded ? ' <span style="color:var(--muted);font-weight:400">(ended)</span>' : ''}</div>
+        <div class="event-hero-type">${esc(ev.event_type || ev.type || 'Event')}${endedBadge}</div>
         <div class="event-hero-name">${esc(ev.name)}</div>
         <div class="event-hero-meta">
           <span>📅 ${dateStr}${ev.time ? ' · ' + esc(ev.time) : ''}</span>
-          ${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}
+          ${locationSpan}
           ${attendingBadge}
         </div>
-        ${prizePool ? `<div class="event-prize">⚡ ${prizePool.toLocaleString()} sats prize pool</div>` : ''}
+        ${prizeDiv}
         <div class="event-hero-row">
           <div class="event-hero-actions">
-            ${isEnded ? `
-              <button class="btn" onclick="navigator.clipboard.writeText(window.location.href).then(()=>{this.textContent='✓ Copied!';setTimeout(()=>this.textContent='Share',1800)}).catch(()=>{})" title="Copy event URL">Share</button>
-            ` : `
-              <button class="btn" onclick="document.getElementById('rsvpSection').style.display=document.getElementById('rsvpSection').style.display==='none'?'block':'none'">RSVP</button>
-              <button class="btn btn-primary" onclick="document.getElementById('signupSection').style.display=document.getElementById('signupSection').style.display==='none'?'block':'none'">Present at this Event</button>
-              <button class="btn" onclick="navigator.clipboard.writeText(window.location.href).then(()=>{this.textContent='✓ Copied!';setTimeout(()=>this.textContent='Share',1800)}).catch(()=>{})" title="Copy event URL">Share</button>
-              <a class="add-to-cal" id="addToCalBtn" style="display:none">📅 Add to Calendar</a>
-            `}
-            <a class="btn" id="goLiveBtn" style="display:none" href="#" target="_blank">🔴 Go Live</a>
+            ${heroActionsHtml}
           </div>
           <div class="event-hero-countdown">
             <div class="cd-unit"><div class="cd-val" id="cd-d">--</div><div class="cd-label">Days</div></div>
@@ -284,6 +302,35 @@ async function loadEvent() {
 
     startCountdown();
     loadDecksDropdown();
+
+    // Wire up action buttons (avoiding inline onclick with escaping issues)
+    const shareBtn = document.getElementById('shareBtn');
+    if (shareBtn) shareBtn.onclick = function() {
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        shareBtn.textContent = '\u2713 Copied!'; setTimeout(() => shareBtn.textContent = 'Share', 1800);
+      }).catch(() => {});
+    };
+    const rsvpToggle = document.getElementById('rsvpToggle');
+    if (rsvpToggle) rsvpToggle.onclick = () => {
+      const s = document.getElementById('rsvpSection');
+      if (s) s.style.display = s.style.display === 'none' ? 'block' : 'none';
+    };
+    const presentToggle = document.getElementById('presentToggle');
+    if (presentToggle) presentToggle.onclick = () => {
+      const s = document.getElementById('signupSection');
+      if (s) s.style.display = s.style.display === 'none' ? 'block' : 'none';
+    };
+
+    // Pre-fill RSVP from session (BUG-004)
+    try {
+      const meRes2 = await fetch('/api/me').then(r => r.json());
+      if (meRes2.user) {
+        const rn = document.getElementById('rsvpName');
+        const re = document.getElementById('rsvpEmail');
+        if (rn && !rn.value) rn.value = meRes2.user.name || '';
+        if (re && !re.value) re.value = meRes2.user.email || '';
+      }
+    } catch {}
 
     // Add to Calendar (Google Calendar link)
     if (ev.date) {
@@ -467,5 +514,6 @@ async function initAuth() {
 initAuth();
 </script>
 <a href="/build" class="fab" title="Back to Build"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Submit Project</span></a>
+<script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
 </body>
 </html>
