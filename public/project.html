@@ -28,7 +28,7 @@
   </div>
 </header>
 
-<div class="container viewer-page">
+<div class="container viewer-page project-page-shell">
   <a href="javascript:history.back()" class="viewer-back">Back</a>
 
   <div id="projectContent">
@@ -162,11 +162,15 @@ let currentProject = null;
 // ─── Tab switching ────────────────────────────────────────────────────────────
 
 function switchProjectTab(name, ev) {
-  document.querySelectorAll('.project-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.project-tab').forEach(t => {
+    const isActive = t.dataset.tab === name;
+    t.classList.toggle('active', isActive);
+    t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
   document.querySelectorAll('.project-tab-view').forEach(v => v.classList.remove('active'));
-  if (ev) ev.target.classList.add('active');
   const view = document.getElementById('ptab-' + name);
   if (view) view.classList.add('active');
+  if (ev?.currentTarget) ev.currentTarget.blur();
 }
 
 // ─── Load project ─────────────────────────────────────────────────────────────
@@ -189,64 +193,70 @@ async function loadProject() {
 
     document.getElementById('projectContent').innerHTML = `
 
-      <div style="display:flex;align-items:flex-start;gap:16px;margin:16px 0 12px">
-        <div style="position:relative;flex-shrink:0;cursor:pointer" id="projectImgWrap">
-          <img src="${esc(projectImg)}" alt="" id="projectImgEl" style="width:72px;height:72px;border-radius:var(--radius-lg);object-fit:cover;border:2px solid var(--border);background:var(--glass);display:block">
-          <div id="projImgOverlay" style="display:none;position:absolute;inset:0;border-radius:var(--radius-lg);background:rgba(0,0,0,0.5);cursor:pointer;align-items:center;justify-content:center;font-size:1.2rem">📷</div>
-          <input type="file" id="projImgInput" accept="image/*" style="display:none" onchange="uploadProjectImage(this)">
-        </div>
-        <div style="flex:1;min-width:0">
-          <h1 class="viewer-title" style="margin-bottom:4px">${esc(p.name)}</h1>
-          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:8px">by <strong style="color:var(--text)">${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.builder)}</a>` : esc(p.builder)}</strong></div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <span class="card-tag ${p.category ? 'cat-' + p.category : ''}" style="font-size:0.7rem">${esc(p.category || 'project')}</span>
-            <span class="card-tag" style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${statusMap[p.status] || p.status}</span>
-            ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" style="text-decoration:none"><span style="color:var(--btc-bright);border:1px solid rgba(242,177,52,.25);border-radius:100px;padding:2px 8px;font-size:0.75rem;background:rgba(242,177,52,.06)">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
+      <section class="project-hero">
+        <div class="project-hero-main">
+          <div class="project-hero-media" id="projectImgWrap">
+            <img src="${esc(projectImg)}" alt="" id="projectImgEl" class="project-hero-image">
+            <div id="projImgOverlay" class="project-hero-image-overlay">📷</div>
+            <input type="file" id="projImgInput" accept="image/*" style="display:none" onchange="uploadProjectImage(this)">
+          </div>
+
+          <div class="project-hero-copy">
+            <h1 class="viewer-title project-hero-title">${esc(p.name)}</h1>
+            <div class="project-hero-builder">by <strong>${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.builder)}</a>` : esc(p.builder)}</strong></div>
+            <div class="project-hero-tags">
+              <span class="card-tag ${p.category ? 'cat-' + p.category : ''}">${esc(p.category || 'project')}</span>
+              <span class="card-tag project-status-chip">${statusMap[p.status] || p.status}</span>
+              ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" class="project-bounty-chip-wrap"><span class="project-bounty-chip">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
+            </div>
           </div>
         </div>
-        <div style="display:flex;gap:6px;align-items:flex-start;flex-shrink:0">
-          <button class="btn btn-ghost btn-sm" id="editProjectBtn" style="display:none;font-size:0.7rem;color:var(--muted)" onclick="openEditProject()">✏️ Edit</button>
-          <button class="btn btn-sm" id="deleteProjectBtn" style="display:none;font-size:0.7rem;color:#a04040;border-color:transparent" onclick="deleteProject()">🗑</button>
-        </div>
-      </div>
 
-      <div class="project-tabs">
-        <button class="project-tab active" onclick="switchProjectTab('overview', event)">Overview</button>
-        <button class="project-tab" onclick="switchProjectTab('presentations', event)">Presentations</button>
-      </div>
+        <div class="project-hero-admin">
+          <button class="btn btn-ghost btn-sm" id="editProjectBtn" style="display:none" onclick="openEditProject()">✏️ Edit</button>
+          <button class="btn btn-sm" id="deleteProjectBtn" style="display:none;color:#a04040;border-color:transparent" onclick="deleteProject()">🗑 Delete</button>
+        </div>
+      </section>
+
+      <nav class="project-tabs" aria-label="Project sections">
+        <button class="project-tab active" data-tab="overview" aria-selected="true" onclick="switchProjectTab('overview', event)">Overview</button>
+        <button class="project-tab" data-tab="presentations" aria-selected="false" onclick="switchProjectTab('presentations', event)">Presentations</button>
+      </nav>
 
       <!-- Overview Tab -->
       <div class="project-tab-view active" id="ptab-overview">
         <div id="overviewDeckEmbed"></div>
         <div class="project-desc-full">${esc(p.description).replace(/\n/g, '<br>')}</div>
 
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:${(p.repo_url || p.demo_url) ? '12px' : '16px'}">
+        <div class="project-tag-list ${tags.length ? '' : 'is-empty'}">
           ${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join('')}
         </div>
 
-        ${(p.repo_url || p.demo_url) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+        ${(p.repo_url || p.demo_url) ? `<div class="project-link-list">
           ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="project-link-card">⌥ Repository <span class="project-link-domain">→ ${esc(shortUrl(p.repo_url))}</span></a>` : ''}
           ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="project-link-card">↗ Live Demo <span class="project-link-domain">→ ${esc(shortUrl(p.demo_url))}</span></a>` : ''}
         </div>` : ''}
 
-        <div style="padding:20px;margin-top:4px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--glass)">
-          <div class="project-stats-bar" style="margin-bottom:12px;padding:0">
-            <span id="statsZaps" style="font-family:var(--font-mono);font-weight:800;font-size:0.95rem;color:var(--btc-bright)">⚡ — sats</span>
+        <section class="project-card-panel">
+          <div class="project-stats-bar project-stats-bar-panel">
+            <span id="statsZaps" class="project-stat-emphasis">⚡ — sats</span>
             <span id="statsComments">💬 — comments</span>
             <span>▲ <span id="projVoteCountBtn">${p.votes || 0}</span> votes</span>
           </div>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:${(p.repo_url || p.demo_url) ? '14px' : '0'}">
-            <button class="vote-btn vote-pill" id="projVoteBtn" onclick="voteProject()" style="font-size:0.85rem;padding:8px 18px">▲ Upvote</button>
-            <button class="btn btn-zap" id="zapProjectBtn" onclick="openZapModal()" style="font-size:0.82rem;padding:7px 16px">⚡ Zap sats</button>
-          </div>
-          ${(p.repo_url || p.demo_url) ? `<div style="padding-top:14px;border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:0.78rem;color:var(--muted2)">
-            ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" style="color:var(--muted2);text-decoration:none;display:flex;align-items:center;gap:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted2)'">⌥ Repo</a>` : ''}
-            ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" style="color:var(--muted2);text-decoration:none;display:flex;align-items:center;gap:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted2)'">↗ Demo</a>` : ''}
-            <span style="margin-left:auto">🕐 Created ${daysAgo(p.created_at)}</span>
-          </div>` : `<div style="padding-top:14px;border-top:1px solid var(--border);font-size:0.78rem;color:var(--muted2);text-align:right">🕐 Created ${daysAgo(p.created_at)}</div>`}
-        </div>
 
-        <div class="comments-section" style="border:none;padding:0;margin-top:16px">
+          <div class="project-primary-actions ${(p.repo_url || p.demo_url) ? 'has-links' : ''}">
+            <button class="vote-btn vote-pill" id="projVoteBtn" onclick="voteProject()">▲ Upvote</button>
+            <button class="btn btn-zap" id="zapProjectBtn" onclick="openZapModal()">⚡ Zap sats</button>
+          </div>
+
+          ${(p.repo_url || p.demo_url) ? `<div class="project-meta-links">
+            ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" class="project-meta-link">⌥ Repo</a>` : ''}
+            ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" class="project-meta-link">↗ Demo</a>` : ''}
+            <span class="project-meta-created">🕐 Created ${daysAgo(p.created_at)}</span>
+          </div>` : `<div class="project-meta-links project-meta-links-solo"><span class="project-meta-created">🕐 Created ${daysAgo(p.created_at)}</span></div>`}
+        </section>
+
+        <div class="comments-section project-comments-section">
           <div id="commentFormArea"></div>
           <div id="commentList"></div>
         </div>
