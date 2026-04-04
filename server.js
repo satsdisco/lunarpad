@@ -541,10 +541,11 @@ app.get('/welcome', (req, res) => {
   res.sendFile(path.join(ROOT, 'public', 'welcome.html'));
 });
 
-app.get('/',         requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
+app.get('/',         requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));
+app.get('/decks',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
 app.get('/upload',   requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'upload.html')));
 app.get('/deck/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'deck.html')));
-app.get('/build',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));
+app.get('/build',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'build.html')));  // keep /build as alias
 app.get('/event/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'event.html')));
 app.get('/project/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'project.html')));
 app.get('/profile', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'profile.html')));
