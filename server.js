@@ -312,6 +312,9 @@ const MIGRATIONS = [
     'ALTER TABLE ideas ADD COLUMN views_today INTEGER DEFAULT 0',
     'ALTER TABLE ideas ADD COLUMN views_date TEXT',
   ]},
+  { name: 'v014_zap_notes', sql: [
+    'ALTER TABLE zaps ADD COLUMN note TEXT',
+  ]},
 ];
 
 // Run pending migrations
@@ -2153,6 +2156,21 @@ app.get('/api/foyer/activity', (req, res) => {
   res.json(rows);
 });
 
+// GET /api/foyer/top-zappers — top 5 zappers on ideas this week
+app.get('/api/foyer/top-zappers', (req, res) => {
+  const rows = db.prepare(`
+    SELECT z.user_id, z.user_name, u.avatar, SUM(z.amount_sats) as total_sats
+    FROM zaps z
+    LEFT JOIN users u ON z.user_id = u.id
+    WHERE z.target_type = 'idea' AND z.status = 'confirmed'
+      AND z.confirmed_at >= datetime('now', '-7 days')
+    GROUP BY z.user_id
+    ORDER BY total_sats DESC
+    LIMIT 5
+  `).all();
+  res.json(rows);
+});
+
 // ─── Ideas API ────────────────────────────────────────────────────────────────
 
 // GET /api/ideas — list ideas with sort/filter
@@ -2256,9 +2274,10 @@ app.post('/api/ideas/:id/zap', requireAuth, async (req, res) => {
     const webhookUrl = (process.env.BASE_URL || `http://localhost:${PORT}`) + '/api/webhook/lnbits';
     const lnbitsInv = await lnbitsCreateInvoice(amount_sats, `Zap: ${idea.title}`, webhookUrl);
     const zapId = crypto.randomUUID();
-    db.prepare(`INSERT INTO zaps (id, target_type, target_id, user_id, user_name, amount_sats, payment_request, payment_hash, verify_url, status, recipient_address)
-      VALUES (?, 'idea', ?, ?, ?, ?, ?, ?, NULL, 'pending', ?)`).run(
-      zapId, idea.id, req.user.id, req.user.name || req.user.email, amount_sats, lnbitsInv.payment_request, lnbitsInv.payment_hash, recipientAddress
+    const zapNote = (req.body.note || '').trim() || null;
+    db.prepare(`INSERT INTO zaps (id, target_type, target_id, user_id, user_name, amount_sats, payment_request, payment_hash, verify_url, status, recipient_address, note)
+      VALUES (?, 'idea', ?, ?, ?, ?, ?, ?, NULL, 'pending', ?, ?)`).run(
+      zapId, idea.id, req.user.id, req.user.name || req.user.email, amount_sats, lnbitsInv.payment_request, lnbitsInv.payment_hash, recipientAddress, zapNote
     );
     const qrData = 'lightning:' + lnbitsInv.payment_request.toUpperCase();
     const qr_data_url = await makeQrDataUrl(qrData);
@@ -2269,7 +2288,7 @@ app.post('/api/ideas/:id/zap', requireAuth, async (req, res) => {
 // GET /api/ideas/:id/zaps — confirmed zaps for this idea
 app.get('/api/ideas/:id/zaps', (req, res) => {
   const zaps = db.prepare(
-    `SELECT id, user_id, user_name, amount_sats, created_at FROM zaps WHERE target_type = 'idea' AND target_id = ? AND status = 'confirmed' ORDER BY created_at DESC LIMIT 20`
+    `SELECT id, user_id, user_name, amount_sats, note, created_at FROM zaps WHERE target_type = 'idea' AND target_id = ? AND status = 'confirmed' ORDER BY created_at DESC LIMIT 20`
   ).all(req.params.id);
   const row = db.prepare(
     `SELECT COALESCE(SUM(amount_sats), 0) as total FROM zaps WHERE target_type = 'idea' AND target_id = ? AND status = 'confirmed'`

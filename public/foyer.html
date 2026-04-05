@@ -28,7 +28,7 @@
   <div class="foyer-filters">
     <button class="comment-filter active" data-sort="top" onclick="sortIdeas('top',this)">Top</button>
     <button class="comment-filter" data-sort="newest" onclick="sortIdeas('newest',this)">Newest</button>
-    <button class="comment-filter" data-sort="most_zapped" onclick="sortIdeas('most_zapped',this)">Most Zapped</button>
+    <button class="comment-filter" data-sort="most_zapped" onclick="sortIdeas('most_zapped',this)">Most Backed</button>
     <button class="comment-filter" data-sort="biggest_team" onclick="sortIdeas('biggest_team',this)">Biggest Teams</button>
   </div>
 
@@ -39,6 +39,10 @@
       </div>
     </div>
     <aside class="foyer-sidebar">
+      <div id="topZappersSection" style="display:none;margin-bottom:16px">
+        <div class="sidebar-header">Top Zappers This Week</div>
+        <div id="topZappersList"></div>
+      </div>
       <div class="sidebar-header">Activity</div>
       <div class="activity-feed" id="activityFeed">
         <div class="foyer-empty" style="font-size:0.75rem">Loading activity...</div>
@@ -137,6 +141,7 @@ function renderBubbles() {
       ${converted ? '<span class="bubble-converted">✓</span>' : ''}
       <span class="bubble-title" style="font-size:${item.fontSize}rem">${esc(item.idea.title)}</span>
       ${item.idea.views_today > 0 ? `<span class="bubble-views">${item.idea.views_today} view${item.idea.views_today === 1 ? '' : 's'} today</span>` : ''}
+      ${item.idea.total_sats_received > 0 ? `<span class="bubble-sats">⚡ ${item.idea.total_sats_received}</span>` : ''}
       <button class="bubble-vote-btn ${voted ? 'voted' : ''}" onclick="event.preventDefault();event.stopPropagation();voteBubble('${esc(item.idea.id)}',this)" title="Upvote">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
         <span id="bv-${esc(item.idea.id)}">${item.votes}</span>
@@ -278,6 +283,25 @@ async function loadActivity() {
   } catch {}
 }
 
+async function loadTopZappers() {
+  try {
+    const res = await fetch('/api/foyer/top-zappers');
+    const zappers = await res.json();
+    const section = document.getElementById('topZappersSection');
+    const list = document.getElementById('topZappersList');
+    if (!zappers.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    list.innerHTML = zappers.map((z, i) => {
+      const medal = ['🥇','🥈','🥉'][i] || `${i+1}.`;
+      return `<div class="top-zapper-item">
+        <span class="top-zapper-rank">${medal}</span>
+        <span class="top-zapper-name">${esc(z.user_name || 'Anonymous')}</span>
+        <span class="top-zapper-sats">⚡ ${z.total_sats}</span>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+
 function timeAgoShort(dateStr) {
   if (!dateStr) return '';
   const now = Date.now();
@@ -291,6 +315,7 @@ function timeAgoShort(dateStr) {
 }
 
 loadIdeas('top');
+loadTopZappers();
 loadActivity();
 _activityInterval = setInterval(loadActivity, 30000);
 document.addEventListener('visibilitychange', () => {

@@ -54,6 +54,7 @@ async function loadIdea() {
     initVoteState();
     initTeamState();
     loadIdeaComments();
+    loadZapContributors();
   } catch { document.getElementById('ideaContent').innerHTML = '<div class="foyer-empty">Could not load idea.</div>'; }
 }
 
@@ -99,10 +100,11 @@ function renderIdea(idea) {
       <div id="zapPanel" style="display:none;margin-top:12px;padding:16px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)">
         <div id="zapInput">
           <label style="font-size:0.75rem;color:var(--muted);display:block;margin-bottom:6px">Amount (sats)</label>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
             <input type="number" id="zapAmount" min="1" value="100" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.85rem">
             <button class="btn btn-primary btn-sm" onclick="submitZap()">Generate Invoice</button>
           </div>
+          <input type="text" id="zapNote" placeholder="Add a note (optional)" style="width:100%;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.8rem;box-sizing:border-box">
         </div>
         <div id="zapQr" style="display:none;text-align:center;margin-top:12px">
           <img id="zapQrImg" src="" style="max-width:200px;border-radius:var(--radius)">
@@ -110,7 +112,29 @@ function renderIdea(idea) {
         </div>
       </div>
     </div>
-    ${membersHtml}`;
+    ${membersHtml}
+    <div class="foyer-detail-section" id="backedBySection" style="display:none">
+      <h3># Backed By</h3>
+      <div id="backedByList"></div>
+    </div>`;
+}
+
+async function loadZapContributors() {
+  try {
+    const res = await fetch('/api/ideas/' + ideaId + '/zaps');
+    const data = await res.json();
+    const section = document.getElementById('backedBySection');
+    const list = document.getElementById('backedByList');
+    if (!data.zaps || !data.zaps.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    list.innerHTML = data.zaps.map(z => `
+      <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.8rem">
+        <span style="color:var(--gold);font-weight:700;flex-shrink:0">⚡ ${z.amount_sats}</span>
+        <span style="color:var(--text);font-weight:500">${esc(z.user_name || 'Anonymous')}</span>
+        ${z.note ? `<span style="color:var(--text2);font-style:italic;flex:1">"${esc(z.note)}"</span>` : '<span style="flex:1"></span>'}
+        <span style="color:var(--muted2);font-size:0.65rem;font-family:var(--font-mono)">${timeAgo(z.created_at)}</span>
+      </div>`).join('');
+  } catch {}
 }
 
 let _voted = false;
@@ -154,7 +178,7 @@ async function submitZap() {
   try {
     const res = await fetch('/api/ideas/' + ideaId + '/zap', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ amount_sats: amount })
+      body: JSON.stringify({ amount_sats: amount, note: (document.getElementById('zapNote')?.value || '').trim() || undefined })
     });
     if (!res.ok) { const e = await res.json(); return alert(e.error || 'Zap failed'); }
     const data = await res.json();

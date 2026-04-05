@@ -3657,6 +3657,19 @@ body::after {
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 0 8px var(--gold-glow);
 }
+.bubble-sats {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 0.5rem; color: var(--gold); font-family: var(--font-mono);
+  background: rgba(13,15,26,0.6); padding: 1px 5px; border-radius: 100px;
+  pointer-events: none;
+}
+.top-zapper-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 0; font-size: 0.75rem;
+}
+.top-zapper-rank { flex-shrink: 0; font-size: 0.8rem; }
+.top-zapper-name { flex: 1; color: var(--text); font-weight: 500; }
+.top-zapper-sats { color: var(--gold); font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; }
 
 /* Foyer layout */
 .foyer-layout { display: flex; gap: 20px; }
