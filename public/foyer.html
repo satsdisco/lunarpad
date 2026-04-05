@@ -153,7 +153,6 @@ function renderBubbles() {
       ${item.idea.looking_for ? '<span class="bubble-looking-for">👥</span>' : ''}
       <span class="bubble-title" style="font-size:${item.fontSize}rem">${esc(item.idea.title)}</span>
       ${item.idea.member_names ? `<span class="bubble-team-names">${esc(item.idea.member_names)}${item.idea.team_size > 2 ? ' +' + (item.idea.team_size - 2) : ''}</span>` : ''}
-      ${item.idea.views_today > 0 ? `<span class="bubble-views">${item.idea.views_today} view${item.idea.views_today === 1 ? '' : 's'} today</span>` : ''}
       ${item.idea.total_sats_received > 0 ? `<span class="bubble-sats">⚡ ${item.idea.total_sats_received}</span>` : ''}
       <button class="bubble-vote-btn ${voted ? 'voted' : ''}" onclick="event.preventDefault();event.stopPropagation();voteBubble('${esc(item.idea.id)}',this)" title="Upvote">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
