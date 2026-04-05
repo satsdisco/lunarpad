@@ -420,9 +420,20 @@ a:hover { color: var(--accent); }
   align-self: flex-end; margin-bottom: 3px;
 }
 
-/* Pool funding bar (slim, only shown when funded) */
-.bc-pool-bar { height: 2px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
-.bc-pool-fill { height: 100%; background: linear-gradient(90deg, var(--btc-bright), #f5d080); border-radius: 2px; }
+/* Community pool breakdown (shown when funded_amount > 0) */
+.bc-prize-breakdown {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 5px 8px;
+  background: rgba(242,177,52,0.05);
+  border: 1px solid rgba(242,177,52,0.12);
+  border-radius: 6px;
+  width: fit-content;
+}
+.bc-bd-base { color: var(--muted); }
+.bc-bd-sep { color: var(--dim); }
+.bc-bd-pool { color: var(--btc-bright); font-weight: 700; }
 
 /* Winner badge */
 .bc-winner {

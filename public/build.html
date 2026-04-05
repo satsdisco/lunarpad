@@ -498,10 +498,10 @@ async function loadBounties() {
       const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
       const deadline = b.deadline ? `<span class="bounty-deadline">⏳ ${esc(new Date(b.deadline).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>` : '';
       const participantCount = Array.isArray(b.participants) ? b.participants.length : (b.participant_count || 0);
-      const fundedAmt = Number(b.funded_amount || 0);
-      const targetAmt = Number(b.sats_amount || 0);
-      const bonusAmt = Math.max(0, fundedAmt - targetAmt);
-      const fundedPct = targetAmt > 0 ? Math.min(100, Math.round((fundedAmt / targetAmt) * 100)) : 0;
+      const baseAmt = Number(b.sats_amount || 0);
+      const crowdAmt = Number(b.funded_amount || 0);
+      const totalAmt = baseAmt + crowdAmt;
+      const hasCrowd = crowdAmt > 0;
       const winner = b.winner_name ? `<div class="bc-winner">🏆 ${esc(b.winner_name)}</div>` : '';
       return `
         <div class="bounty-card status-${statusClass}" onclick="window.location.href='/bounty/${esc(b.id)}'" style="cursor:pointer">
@@ -512,11 +512,15 @@ async function loadBounties() {
           <div class="bc-title">${esc(b.title)}</div>
           <div class="bc-prize-hero">
             <span class="bc-prize-icon">⚡</span>
-            <span class="bc-prize-num">${targetAmt.toLocaleString()}</span>
+            <span class="bc-prize-num">${(hasCrowd ? totalAmt : baseAmt).toLocaleString()}</span>
             <span class="bc-prize-unit">sats</span>
-            ${bonusAmt > 0 ? `<span class="bc-bonus-badge">+${bonusAmt.toLocaleString()} boost</span>` : ''}
           </div>
-          ${fundedAmt > 0 && targetAmt > 0 ? `<div class="bc-pool-bar"><div class="bc-pool-fill" style="width:${Math.min(100, Math.max(fundedPct, 5))}%"></div></div>` : ''}
+          ${hasCrowd ? `
+          <div class="bc-prize-breakdown">
+            <span class="bc-bd-base">${baseAmt.toLocaleString()} base</span>
+            <span class="bc-bd-sep">+</span>
+            <span class="bc-bd-pool">⚡ ${crowdAmt.toLocaleString()} community</span>
+          </div>` : ''}
           ${winner}
           <div class="bc-footer">
             <span class="bc-builders">👥 ${participantCount}</span>
