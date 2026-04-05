@@ -284,6 +284,26 @@ const MIGRATIONS = [
     'ALTER TABLE comments ADD COLUMN parent_id TEXT',
     'CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id)',
   ]},
+  { name: 'v011_ideas', sql: [
+    `CREATE TABLE IF NOT EXISTS ideas (
+      id                  TEXT PRIMARY KEY,
+      title               TEXT NOT NULL,
+      description         TEXT,
+      user_id             TEXT,
+      slug                TEXT,
+      total_sats_received INTEGER DEFAULT 0,
+      created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS idea_members (
+      id         TEXT PRIMARY KEY,
+      idea_id    TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    'ALTER TABLE comments ADD COLUMN target_type TEXT',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_ideas_slug ON ideas(slug) WHERE slug IS NOT NULL',
+    'CREATE INDEX IF NOT EXISTS idx_idea_members_idea ON idea_members(idea_id)',
+  ]},
 ];
 
 // Run pending migrations
@@ -434,6 +454,8 @@ const stmts = {
   getRecentNotifs:    db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 30'),
   markNotifRead:      db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?'),
   markAllNotifsRead:  db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0'),
+  insertIdea:    db.prepare('INSERT INTO ideas (id, title, description, user_id, slug, total_sats_received) VALUES (?, ?, ?, ?, ?, 0)'),
+  getIdeaById:   db.prepare('SELECT * FROM ideas WHERE id = ?'),
 };
 
 function notify(userId, type, actorId, actorName, targetType, targetId, targetName) {
@@ -760,6 +782,11 @@ app.get('/p/:slug', requireAuth, (req, res) => {
   const project = db.prepare('SELECT id FROM projects WHERE slug = ?').get(req.params.slug);
   if (!project) return res.redirect('/');
   res.redirect(301, `/project/${project.id}`);
+});
+app.get('/f/:slug', requireAuth, (req, res) => {
+  const idea = db.prepare('SELECT id FROM ideas WHERE slug = ?').get(req.params.slug);
+  if (!idea) return res.redirect('/foyer');
+  res.redirect(301, `/foyer/${idea.id}`);
 });
 
 // ─── Upload ──────────────────────────────────────────────────────────────────
@@ -2053,6 +2080,82 @@ app.post('/api/projects/:id/comments', requireAuth, (req, res) => {
   res.json({ id });
 });
 
+// ─── Ideas API ────────────────────────────────────────────────────────────────
+
+// GET /api/ideas — list ideas with sort/filter
+app.get('/api/ideas', (req, res) => {
+  const { sort } = req.query;
+  const orderBy = {
+    top:          'votes DESC, i.created_at DESC',
+    newest:       'i.created_at DESC',
+    oldest:       'i.created_at ASC',
+    most_zapped:  'i.total_sats_received DESC, i.created_at DESC',
+    biggest_team: 'team_size DESC, i.created_at DESC',
+  }[sort] || 'votes DESC, i.created_at DESC';
+  const rows = db.prepare(`
+    SELECT i.*,
+      u.name as author_name, u.username as author_username, u.avatar as author_avatar,
+      COALESCE(v.vote_count, 0) as votes,
+      COALESCE(t.team_size, 0) as team_size
+    FROM ideas i
+    LEFT JOIN users u ON i.user_id = u.id
+    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'idea' GROUP BY target_id) v ON i.id = v.target_id
+    LEFT JOIN (SELECT idea_id, COUNT(*) as team_size FROM idea_members GROUP BY idea_id) t ON i.id = t.idea_id
+    ORDER BY ${orderBy}
+  `).all();
+  res.json(rows);
+});
+
+// POST /api/ideas — create idea
+app.post('/api/ideas', requireAuth, (req, res) => {
+  const { title, description } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ error: 'title required' });
+  const id = crypto.randomUUID();
+  const slug = uniqueSlug('ideas', toSlug(title.trim()));
+  stmts.insertIdea.run(id, title.trim(), description || null, req.user?.id || null, slug);
+  if (req.user?.id) cachedBadgeCheck(req.user.id);
+  res.json({ id, slug });
+});
+
+// GET /api/ideas/:id — idea detail with votes, zaps, team
+app.get('/api/ideas/:id', (req, res) => {
+  const row = db.prepare(`
+    SELECT i.*,
+      u.name as author_name, u.username as author_username, u.avatar as author_avatar,
+      COALESCE(v.vote_count, 0) as votes,
+      COALESCE(z.zap_total, 0) as zap_total,
+      COALESCE(t.team_size, 0) as team_size
+    FROM ideas i
+    LEFT JOIN users u ON i.user_id = u.id
+    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'idea' GROUP BY target_id) v ON i.id = v.target_id
+    LEFT JOIN (SELECT target_id, COALESCE(SUM(amount_sats), 0) as zap_total FROM zaps WHERE target_type = 'idea' AND status = 'confirmed' GROUP BY target_id) z ON i.id = z.target_id
+    LEFT JOIN (SELECT idea_id, COUNT(*) as team_size FROM idea_members GROUP BY idea_id) t ON i.id = t.idea_id
+    WHERE i.id = ?
+  `).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const members = db.prepare(`
+    SELECT im.id, im.user_id, im.created_at, u.name, u.username, u.avatar
+    FROM idea_members im
+    LEFT JOIN users u ON im.user_id = u.id
+    WHERE im.idea_id = ?
+    ORDER BY im.created_at ASC
+  `).all(req.params.id);
+  res.json({ ...row, members });
+});
+
+// DELETE /api/ideas/:id — delete idea (author or admin)
+app.delete('/api/ideas/:id', requireAuth, (req, res) => {
+  const idea = stmts.getIdeaById.get(req.params.id);
+  if (!idea) return res.status(404).json({ error: 'Not found' });
+  if (idea.user_id && req.user?.id !== idea.user_id && !req.user?.is_admin) {
+    return res.status(403).json({ error: 'Not your idea' });
+  }
+  db.prepare('DELETE FROM idea_members WHERE idea_id = ?').run(req.params.id);
+  stmts.deleteVotes.run('idea', req.params.id);
+  db.prepare('DELETE FROM ideas WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 // ─── Project Deck Versions API ────────────────────────────────────────────────
 
 // GET /api/projects/:id/decks — list all deck versions with deck metadata
@@ -2400,7 +2503,7 @@ app.get('/api/users/:id/activity-chart', (req, res) => {
 // POST /api/vote — body: { type: 'deck'|'speaker'|'project'|'comment', id }
 app.post('/api/vote', requireAuth, (req, res) => {
   const { type, id } = req.body;
-  if (!['deck', 'speaker', 'project', 'comment'].includes(type) || !id) {
+  if (!['deck', 'speaker', 'project', 'comment', 'idea'].includes(type) || !id) {
     return res.status(400).json({ error: 'type (deck|speaker|project|comment) and id required' });
   }
   const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
@@ -2420,6 +2523,9 @@ app.post('/api/vote', requireAuth, (req, res) => {
     } else if (type === 'comment') {
       const _c = db.prepare('SELECT user_id, content FROM comments WHERE id = ?').get(id);
       if (_c?.user_id) notify(_c.user_id, 'vote', req.user.id, actorName, 'comment', id, (_c.content || '').substring(0, 50));
+    } else if (type === 'idea') {
+      const _i = db.prepare('SELECT user_id, title FROM ideas WHERE id = ?').get(id);
+      if (_i?.user_id) notify(_i.user_id, 'vote', req.user.id, actorName, 'idea', id, _i.title);
     }
   }
   const count = stmts.getVoteCount.get(type, id).c;
@@ -2427,13 +2533,17 @@ app.post('/api/vote', requireAuth, (req, res) => {
     const proj = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(id);
     if (proj?.user_id) cachedBadgeCheck(proj.user_id);
   }
+  if (type === 'idea' && !existing) {
+    const idea = db.prepare('SELECT user_id FROM ideas WHERE id = ?').get(id);
+    if (idea?.user_id) cachedBadgeCheck(idea.user_id);
+  }
   res.json({ votes: count, voted: !existing });
 });
 
 // GET /api/vote/count?type=X&id=Y
 app.get('/api/vote/count', (req, res) => {
   const { type, id } = req.query;
-  if (!['deck', 'speaker', 'project', 'comment'].includes(type) || !id) {
+  if (!['deck', 'speaker', 'project', 'comment', 'idea'].includes(type) || !id) {
     return res.status(400).json({ error: 'type and id required' });
   }
   const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
@@ -2445,7 +2555,7 @@ app.get('/api/vote/count', (req, res) => {
 // GET /api/vote/check?type=X&ids=id1,id2,id3
 app.get('/api/vote/check', (req, res) => {
   const { type, ids } = req.query;
-  if (!['deck', 'speaker', 'project', 'comment'].includes(type) || !ids) {
+  if (!['deck', 'speaker', 'project', 'comment', 'idea'].includes(type) || !ids) {
     return res.status(400).json({ error: 'type and ids required' });
   }
   const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');

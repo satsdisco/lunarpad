@@ -137,6 +137,7 @@ function notifHref(n) {
   const hash = (n.type === 'comment' || n.type === 'reply') ? '#comments' : '';
   if (n.target_type === 'deck') return '/deck/' + n.target_id + hash;
   if (n.target_type === 'project') return '/project/' + n.target_id + hash;
+  if (n.target_type === 'idea') return '/foyer/' + n.target_id + hash;
   if (n.target_type === 'comment') return '#';
   return '#';
 }
