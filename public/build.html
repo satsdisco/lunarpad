@@ -1610,44 +1610,13 @@ document.addEventListener('click', e => {
   if (sort && sort !== _lbCurrentSort) loadLeaderboard(sort);
 });
 </script>
-<script>
-// Auth
-async function initAuth() {
-  try {
-    const res = await fetch('/api/me');
-    const data = await res.json();
-    const area = document.getElementById('userArea');
-    if (!area) return;
-    if (data.user) {
-      // Pre-fill builder name in project form
-      const builderInput = document.getElementById('projBuilder');
-      if (builderInput && !builderInput.value) builderInput.value = data.user.name || data.user.email || '';
-      // Also pre-fill speaker name
-      const spkNameInput = document.getElementById('spkName');
-      if (spkNameInput && !spkNameInput.value) spkNameInput.value = data.user.name || '';
-      area.innerHTML = `
-        <div class="user-menu">
-          <div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')">
-            <img src="${data.user.avatar || ''}" alt="" onerror="this.style.display='none'">
-            <span>${data.user.name || data.user.email}</span>
-          </div>
-          <div class="user-dropdown">
-            <a href="/profile">My Profile</a>
-            <a href="/auth/logout">Sign out</a>
-          </div>
-        </div>`;
-      document.addEventListener('click', e => {
-        if (!e.target.closest('.user-menu')) {
-          document.querySelectorAll('.user-dropdown').forEach(d => d.classList.remove('open'));
-        }
-      });
-    } else {
-      area.innerHTML = '<a href="/welcome" class="sign-in-btn">Sign in</a>';
-    }
-  } catch(e) { console.warn('Auth check failed'); }
-}
-initAuth();
-</script>
+<script src="/js/auth.js"></script>
+<script>initAuth(function(user) {
+  var bi = document.getElementById('projBuilder');
+  if (bi && !bi.value) bi.value = user.name || user.email || '';
+  var spk = document.getElementById('spkName');
+  if (spk && !spk.value) spk.value = user.name || '';
+});</script>
 <button class="fab" title="Submit Project" onclick="document.getElementById('projectModal').classList.add('open')"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Submit Project</span></button>
 <script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
 </body>

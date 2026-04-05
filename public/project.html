@@ -246,7 +246,7 @@ async function loadProject() {
           </div>` : `<div style="padding-top:14px;border-top:1px solid var(--border);font-size:0.78rem;color:var(--muted2);text-align:right">🕐 Created ${daysAgo(p.created_at)}</div>`}
         </div>
 
-        <div class="comments-section" style="border:none;padding:0;margin-top:16px">
+        <div class="comments-section" id="comments" style="border:none;padding:0;margin-top:16px">
           <div id="commentFormArea"></div>
           <div id="commentList"></div>
         </div>
@@ -313,12 +313,15 @@ async function voteProject() {
 
 // ─── Comments ─────────────────────────────────────────────────────────────────
 
+let _projCurrentUser = null;
+
 async function loadComments() {
   const formArea = document.getElementById('commentFormArea');
   const list = document.getElementById('commentList');
   try {
     const meRes = await fetch('/api/me');
     const me = await meRes.json();
+    _projCurrentUser = me.user;
     if (me.user) {
       formArea.innerHTML = `
         <div class="comment-form">
@@ -334,19 +337,92 @@ async function loadComments() {
     const res = await fetch('/api/projects/' + projectId + '/comments');
     const comments = await res.json();
     if (!comments.length) { list.innerHTML = '<p class="sign-in-prompt">No comments yet.</p>'; return; }
-    list.innerHTML = comments.map(c => `
-      <div class="comment-item">
-        <div class="comment-body">
-          <span class="comment-author">${c.user_id ? `<a href="/profile/${esc(c.user_id)}" class="profile-link" onclick="event.stopPropagation()">${esc(c.author_name)}</a>` : esc(c.author_name)}</span>
-          <span class="comment-time">${timeAgo(c.created_at)}</span>
-          <div class="comment-text">${esc(c.content)}</div>
-        </div>
-        <button class="vote-btn btn-sm ${c.voted ? 'voted' : ''}" onclick="voteComment('${esc(c.id)}', this)">
-          <span class="arrow">▲</span>
-          <span>${c.votes || 0}</span>
-        </button>
-      </div>`).join('');
+
+    // Build threaded structure
+    const byId = {};
+    const roots = [];
+    const replies = {};
+    for (const c of comments) {
+      byId[c.id] = c;
+      const effectiveParent = c.parent_id ? (byId[c.parent_id]?.parent_id || c.parent_id) : null;
+      if (!effectiveParent) {
+        roots.push(c);
+      } else {
+        (replies[effectiveParent] = replies[effectiveParent] || []).push(c);
+      }
+    }
+    roots.reverse();
+    list.innerHTML = roots.map(c => renderProjThread(c, replies[c.id] || [])).join('');
   } catch { list.innerHTML = '<p class="sign-in-prompt">Could not load comments.</p>'; }
+}
+
+function renderProjThread(root, kids) {
+  const replyBtn = _projCurrentUser && !kids.length ? `<button class="reply-btn" onclick="focusProjThreadReply('${esc(root.id)}')">Reply</button>` : '';
+  const authorHtml = root.user_id ? `<a href="/profile/${esc(root.user_id)}" class="profile-link" onclick="event.stopPropagation()">${esc(root.author_name)}</a>` : esc(root.author_name);
+  const threadReplies = kids.map(r => {
+    const rAuthor = r.user_id ? `<a href="/profile/${esc(r.user_id)}" class="profile-link" onclick="event.stopPropagation()">${esc(r.author_name)}</a>` : esc(r.author_name);
+    return `
+      <div class="thread-reply" id="comment-${esc(r.id)}">
+        <div class="thread-reply-body">
+          <span class="comment-author">${rAuthor}</span>
+          <span class="comment-time">${timeAgo(r.created_at)}</span>
+          <div class="comment-text">${esc(r.content)}</div>
+        </div>
+        <button class="vote-btn btn-sm ${r.voted ? 'voted' : ''}" onclick="voteComment('${esc(r.id)}', this)">
+          <span class="arrow">▲</span>
+          <span>${r.votes || 0}</span>
+        </button>
+      </div>`;
+  }).join('');
+  const replyCount = kids.length ? `<span class="thread-count">${kids.length} ${kids.length === 1 ? 'reply' : 'replies'}</span>` : '';
+  const quickReply = _projCurrentUser && kids.length ? `
+    <div class="thread-reply-input">
+      <input id="quickReply-${esc(root.id)}" placeholder="Add a reply..." onkeydown="if(event.key==='Enter'){postProjReply('${esc(root.id)}',true);event.preventDefault()}">
+      <button class="btn btn-primary btn-sm" onclick="postProjReply('${esc(root.id)}',true)">Reply</button>
+    </div>` : '';
+  return `
+    <div class="comment-item" id="comment-${esc(root.id)}">
+      <div class="comment-body">
+        <span class="comment-author">${authorHtml}</span>
+        <span class="comment-time">${timeAgo(root.created_at)}</span>
+        <div class="comment-text">${esc(root.content)}</div>
+        <div class="comment-actions">${replyBtn} ${replyCount}</div>
+      </div>
+      <button class="vote-btn btn-sm ${root.voted ? 'voted' : ''}" onclick="voteComment('${esc(root.id)}', this)">
+        <span class="arrow">▲</span>
+        <span>${root.votes || 0}</span>
+      </button>
+      ${kids.length ? `<div class="thread-replies">${threadReplies}${quickReply}</div>` : ''}
+      <div id="reply-form-${esc(root.id)}"></div>
+    </div>`;
+}
+
+function focusProjThreadReply(parentId) {
+  const container = document.getElementById('reply-form-' + parentId);
+  if (!container) return;
+  container.innerHTML = `
+    <div class="thread-replies" style="margin-top:8px">
+      <div class="thread-reply-input">
+        <input id="quickReply-${parentId}" placeholder="Add a reply..." onkeydown="if(event.key==='Enter'){postProjReply('${parentId}',true);event.preventDefault()}">
+        <button class="btn btn-primary btn-sm" onclick="postProjReply('${parentId}',true)">Reply</button>
+      </div>
+    </div>`;
+  document.getElementById('quickReply-' + parentId).focus();
+}
+
+async function postProjReply(parentId, useQuickInput) {
+  const input = document.getElementById(useQuickInput ? 'quickReply-' + parentId : 'replyInput-' + parentId);
+  if (!input) return;
+  const content = input.value.trim();
+  if (!content) return;
+  try {
+    const res = await fetch('/api/projects/' + projectId + '/comments', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content, parent_id: parentId })
+    });
+    if (res.ok) { loadComments(); loadCommentCount(); }
+    else { const e = await res.json(); alert(e.error || 'Failed'); }
+  } catch { alert('Failed to post reply'); }
 }
 
 async function postComment() {
@@ -828,23 +904,8 @@ async function saveCrop() {
 
 loadProject();
 </script>
-<script>
-async function initAuth() {
-  try {
-    const res = await fetch('/api/me');
-    const data = await res.json();
-    const area = document.getElementById('userArea');
-    if (!area) return;
-    if (data.user) {
-      area.innerHTML = `<div class="user-menu"><div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')"><img src="${data.user.avatar || ''}" alt="" onerror="this.style.display='none'"><span>${data.user.name || data.user.email}</span></div><div class="user-dropdown"><a href="/profile">My Profile</a><a href="/auth/logout">Sign out</a></div></div>`;
-      document.addEventListener('click', e => { if (!e.target.closest('.user-menu')) document.querySelectorAll('.user-dropdown').forEach(d => d.classList.remove('open')); });
-    } else {
-      area.innerHTML = '<a href="/welcome" class="sign-in-btn">Sign in</a>';
-    }
-  } catch {}
-}
-initAuth();
-</script>
+<script src="/js/auth.js"></script>
+<script>initAuth();</script>
 <div class="lightbox-overlay" id="lightbox" onclick="this.classList.remove('open')">
   <img id="lightboxImg" src="" alt="">
 </div>

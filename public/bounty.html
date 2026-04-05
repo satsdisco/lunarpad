@@ -776,39 +776,11 @@ async function openPayWinnerModal(bountyId, satsAmount) {
 }
 </script>
 
-<script>
-async function initAuth() {
-  try {
-    const res = await fetch('/api/me');
-    const data = await res.json();
-    const area = document.getElementById('userArea');
-    if (!area) return;
-    if (data.user) {
-      const bi = document.getElementById('projBuilder');
-      if (bi && !bi.value) bi.value = data.user.name || data.user.email || '';
-      area.innerHTML = `
-        <div class="user-menu">
-          <div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')">
-            <img src="${data.user.avatar || ''}" alt="" onerror="this.style.display='none'">
-            <span>${data.user.name || data.user.email}</span>
-          </div>
-          <div class="user-dropdown">
-            <a href="/profile">My Profile</a>
-            <a href="/auth/logout">Sign out</a>
-          </div>
-        </div>`;
-      document.addEventListener('click', e => {
-        if (!e.target.closest('.user-menu')) {
-          document.querySelectorAll('.user-dropdown').forEach(d => d.classList.remove('open'));
-        }
-      });
-    } else {
-      area.innerHTML = '<a href="/welcome" class="sign-in-btn">Sign in</a>';
-    }
-  } catch(e) { console.warn('Auth check failed'); }
-}
-initAuth();
-</script>
+<script src="/js/auth.js"></script>
+<script>initAuth(function(user) {
+  var bi = document.getElementById('projBuilder');
+  if (bi && !bi.value) bi.value = user.name || user.email || '';
+});</script>
 
 <script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
 </body>

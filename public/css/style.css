@@ -717,36 +717,114 @@ a:hover { color: var(--accent); }
 
 /* ─── Auth UI ────────────────────────────────────────────────────────────── */
 .user-pill {
-  display: flex; align-items: center; gap: 6px;
-  padding: 3px 10px 3px 3px;
-  border: 1px solid var(--border);
-  font-size: 0.75rem; color: var(--text2); cursor: pointer;
-  transition: border-color .15s;
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 14px 4px 4px; height: 32px; box-sizing: border-box;
+  background: linear-gradient(135deg, var(--glass2), var(--glass));
+  border: 1px solid var(--border2); border-radius: 100px;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--text); cursor: pointer; transition: all .2s;
 }
-.user-pill:hover { border-color: var(--accent); }
-.user-pill img { width: 22px; height: 22px; object-fit: cover; }
+.user-pill:hover {
+  border-color: var(--accent); background: linear-gradient(135deg, var(--accent-dim), var(--glass2));
+  box-shadow: 0 0 20px var(--accent-glow), inset 0 0 12px var(--accent-dim);
+}
+.user-pill img {
+  width: 22px; height: 22px; object-fit: cover; border-radius: 50%;
+  border: 1.5px solid var(--accent); flex-shrink: 0;
+}
+.user-pill span { white-space: nowrap; }
 .user-menu { position: relative; display: inline-block; }
 .user-dropdown {
-  display: none; position: absolute; right: 0; top: 100%; margin-top: 4px;
-  background: var(--surface); border: 1px solid var(--border);
-  padding: 4px; min-width: 140px; z-index: 200;
+  display: none; position: absolute; right: 0; top: calc(100% + 6px);
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--radius); padding: 4px; min-width: 160px; z-index: 200;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 .user-dropdown.open { display: block; }
 .user-dropdown a {
-  display: block; padding: 6px 10px; font-size: 0.75rem;
-  color: var(--muted); text-decoration: none;
+  display: block; padding: 8px 12px; font-size: 0.75rem;
+  color: var(--text2); text-decoration: none; border-radius: calc(var(--radius) - 2px);
+  transition: all .15s;
 }
-.user-dropdown a:hover { color: var(--accent); }
+.user-dropdown a:hover { color: var(--accent); background: var(--accent-dim); }
 .sign-in-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; font-size: 0.75rem; font-weight: 400;
-  color: var(--muted); background: transparent;
-  border: 1px solid var(--border); cursor: pointer;
-  text-decoration: none; transition: all .15s;
+  padding: 7px 14px; font-size: 0.75rem; font-weight: 500;
+  color: var(--text2); background: var(--glass);
+  border: 1px solid var(--border); border-radius: 100px; cursor: pointer;
+  text-decoration: none; transition: all .2s;
   font-family: var(--font);
 }
-.sign-in-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sign-in-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .sign-in-btn svg { width: 14px; height: 14px; }
+
+/* ─── Notifications ─────────────────────────────────────────────────────────── */
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.notif-wrapper { position: relative; display: inline-flex; align-items: center; }
+.notif-bell {
+  background: linear-gradient(135deg, var(--glass2), var(--glass));
+  border: 1px solid var(--border2); border-radius: 50%;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text2); cursor: pointer; position: relative;
+  transition: all .2s;
+}
+.notif-bell svg { width: 16px; height: 16px; }
+.notif-bell:hover {
+  color: var(--accent); border-color: var(--accent);
+  background: linear-gradient(135deg, var(--accent-dim), var(--glass2));
+  box-shadow: 0 0 20px var(--accent-glow), inset 0 0 12px var(--accent-dim);
+}
+.notif-badge {
+  position: absolute; top: -3px; right: -3px;
+  background: var(--accent); color: #fff; font-size: 0.55rem; font-weight: 700;
+  min-width: 16px; height: 16px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px; line-height: 1;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.notif-dropdown {
+  display: none; position: absolute; right: 0; top: calc(100% + 6px);
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  width: 320px; max-height: 400px; overflow-y: auto; z-index: 300;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.notif-dropdown.open { display: block; }
+.notif-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  font-size: 0.75rem; font-weight: 700; color: var(--text);
+}
+.notif-header button {
+  background: none; border: none; color: var(--accent); cursor: pointer;
+  font-size: 0.65rem; font-family: var(--font);
+}
+.notif-header button:hover { text-decoration: underline; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  font-size: 0.72rem; color: var(--text2); text-decoration: none;
+  transition: background .15s;
+}
+.notif-item:hover { background: var(--surface); color: var(--text2); }
+.notif-item.unread { background: var(--accent-dim); border-left: 3px solid var(--accent); }
+.notif-icon { font-size: 0.85rem; flex-shrink: 0; margin-top: 1px; }
+.notif-body { flex: 1; line-height: 1.4; }
+.notif-body b { color: var(--text); font-weight: 600; }
+.notif-time { display: block; font-size: 0.6rem; color: var(--muted); margin-top: 2px; }
+.notif-empty {
+  padding: 24px 12px; text-align: center;
+  font-size: 0.72rem; color: var(--muted);
+}
+
+/* ─── Dev Switcher ──────────────────────────────────────────────────────────── */
+.dev-switcher { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 2px 0; }
+.dev-switch-btn {
+  display: block; padding: 6px 10px; font-size: 0.7rem;
+  color: var(--accent); text-decoration: none; cursor: pointer;
+}
+.dev-switch-btn:hover { background: var(--surface); }
 
 /* ─── Comments ───────────────────────────────────────────────────────────────── */
 .comments-section {
@@ -797,6 +875,50 @@ a:hover { color: var(--accent); }
   border-radius: var(--radius); backdrop-filter: blur(8px);
 }
 .sign-in-prompt a { color: var(--accent); }
+
+/* ─── Threaded Replies ──────────────────────────────────────────────────────── */
+.comment-item { flex-wrap: wrap; }
+.comment-actions { margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+.reply-btn {
+  background: none; border: none; color: var(--muted2);
+  font-size: 0.7rem; cursor: pointer; padding: 2px 6px;
+  font-family: var(--font); transition: color .15s;
+}
+.reply-btn:hover { color: var(--accent); }
+.thread-count { font-size: 0.65rem; color: var(--muted); }
+.thread-replies {
+  width: 100%; margin-top: 8px; padding-top: 8px;
+  margin-left: 20px; padding-left: 12px;
+  border-left: 2px solid var(--border2);
+  border-top: 1px solid var(--border);
+}
+.thread-reply {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.thread-reply:last-child { border-bottom: none; }
+.thread-reply-input {
+  width: 100%; margin-top: 6px; display: flex; gap: 8px; align-items: center;
+}
+.thread-reply-input input {
+  flex: 1; padding: 6px 10px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 0.75rem;
+  font-family: var(--font); outline: none; transition: border-color .15s;
+}
+.thread-reply-input input:focus { border-color: var(--accent); }
+.thread-reply-input input::placeholder { color: var(--muted2); }
+.thread-reply-input button {
+  padding: 5px 10px; font-size: 0.7rem; flex-shrink: 0;
+}
+.thread-reply-body { flex: 1; min-width: 0; }
+.thread-reply .comment-author { font-size: 0.8rem; }
+.thread-reply .comment-text { font-size: 0.8rem; margin-top: 2px; }
+.thread-reply .comment-time { font-size: 0.65rem; }
+.thread-reply .vote-btn { flex-shrink: 0; }
+.inline-reply-form {
+  width: 100%; margin-top: 8px; padding: 10px; margin-bottom: 0;
+}
+.inline-reply-form textarea { min-height: 50px; }
 
 /* ─── Profile ────────────────────────────────────────────────────────────────── */
 .profile-banner-wrap {

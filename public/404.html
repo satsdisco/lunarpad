@@ -28,17 +28,7 @@
 
 <footer class="footer">LunarPad — Build. Ship. Earn sats.</footer>
 
-<script>
-async function initAuth() {
-  try {
-    const res = await fetch('/api/me'); const data = await res.json();
-    const area = document.getElementById('userArea'); if (!area) return;
-    if (data.user) {
-      area.innerHTML = `<div class="user-menu"><div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')"><img src="${data.user.avatar||''}" alt="" onerror="this.style.display='none'"><span>${data.user.name||data.user.email}</span></div><div class="user-dropdown"><a href="/profile">My Profile</a><a href="/auth/logout">Sign out</a></div></div>`;
-    } else { area.innerHTML = '<a href="/welcome" class="sign-in-btn">Sign in</a>'; }
-  } catch {}
-}
-initAuth();
-</script>
+<script src="/js/auth.js"></script>
+<script>initAuth();</script>
 </body>
 </html>

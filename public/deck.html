@@ -63,7 +63,7 @@
       <div style="font-size:0.68rem;color:var(--muted2);margin-top:6px">Great for demo day — put this on screen for the audience</div>
     </div>
 
-    <div class="comments-section">
+    <div class="comments-section" id="comments">
       <div class="comments-header" id="commentsHeader">Comments</div>
       <div id="commentFormArea"></div>
       <div class="comment-list" id="commentList"></div>
@@ -237,8 +237,10 @@
   }
 
   let currentUser = null;
+  let currentDeckId = null;
 
   async function loadComments(deckId) {
+    currentDeckId = deckId;
     const [commRes, meRes] = await Promise.all([
       fetch(`/api/decks/${deckId}/comments`),
       fetch('/api/me'),
@@ -276,21 +278,90 @@
       list.innerHTML = '<p class="sign-in-prompt">No comments yet. Be the first!</p>';
       return;
     }
-    list.innerHTML = comments.map(c => `
-      <div class="comment-item" id="comment-${esc(c.id)}">
+    // Build threaded structure
+    const byId = {};
+    const roots = [];
+    const replies = {};
+    for (const c of comments) {
+      byId[c.id] = c;
+      const effectiveParent = c.parent_id ? (byId[c.parent_id]?.parent_id || c.parent_id) : null;
+      if (!effectiveParent) {
+        roots.push(c);
+      } else {
+        (replies[effectiveParent] = replies[effectiveParent] || []).push(c);
+      }
+    }
+    roots.reverse(); // newest first
+    list.innerHTML = roots.map(c => renderThread(c, replies[c.id] || [])).join('');
+  }
+
+  function renderThread(root, kids) {
+    const replyBtn = currentUser && !kids.length ? `<button class="reply-btn" onclick="focusThreadReply('${esc(root.id)}')">Reply</button>` : '';
+    const threadReplies = kids.map(r => `
+      <div class="thread-reply" id="comment-${esc(r.id)}">
+        <div class="thread-reply-body">
+          <span class="comment-author">${esc(r.author_name)}</span>
+          <span class="comment-time">${timeAgo(r.created_at)}</span>
+          <div class="comment-text">${esc(r.content)}</div>
+        </div>
+        <button class="vote-btn btn-sm ${r.voted ? 'voted' : ''}" id="cvbtn-${esc(r.id)}"
+          onclick="toggleCommentVote('${esc(r.id)}', this)">
+          <span class="arrow">▲</span>
+          <span id="cvcount-${esc(r.id)}">${r.votes}</span>
+        </button>
+      </div>`).join('');
+    const replyCount = kids.length ? `<span class="thread-count">${kids.length} ${kids.length === 1 ? 'reply' : 'replies'}</span>` : '';
+    const quickReply = currentUser && kids.length ? `
+      <div class="thread-reply-input">
+        <input id="quickReply-${esc(root.id)}" placeholder="Add a reply..." onkeydown="if(event.key==='Enter'){postReply('${esc(root.id)}',true);event.preventDefault()}">
+        <button class="btn btn-primary btn-sm" onclick="postReply('${esc(root.id)}',true)">Reply</button>
+      </div>` : '';
+    return `
+      <div class="comment-item" id="comment-${esc(root.id)}">
         <div class="comment-body">
-          <span class="comment-author">${esc(c.author_name)}</span>
-          <span class="comment-time">${timeAgo(c.created_at)}</span>
-          <div class="comment-text">${esc(c.content)}</div>
+          <span class="comment-author">${esc(root.author_name)}</span>
+          <span class="comment-time">${timeAgo(root.created_at)}</span>
+          <div class="comment-text">${esc(root.content)}</div>
+          <div class="comment-actions">${replyBtn} ${replyCount}</div>
         </div>
         <div class="comment-vote">
-          <button class="vote-btn btn-sm ${c.voted ? 'voted' : ''}" id="cvbtn-${esc(c.id)}"
-            onclick="toggleCommentVote('${esc(c.id)}', this)">
+          <button class="vote-btn btn-sm ${root.voted ? 'voted' : ''}" id="cvbtn-${esc(root.id)}"
+            onclick="toggleCommentVote('${esc(root.id)}', this)">
             <span class="arrow">▲</span>
-            <span id="cvcount-${esc(c.id)}">${c.votes}</span>
+            <span id="cvcount-${esc(root.id)}">${root.votes}</span>
           </button>
         </div>
-      </div>`).join('');
+        ${kids.length ? `<div class="thread-replies">${threadReplies}${quickReply}</div>` : ''}
+        <div id="reply-form-${esc(root.id)}"></div>
+      </div>`;
+  }
+
+  function focusThreadReply(parentId) {
+    // For comments with no replies yet, show the inline form
+    const container = document.getElementById('reply-form-' + parentId);
+    if (!container) return;
+    container.innerHTML = `
+      <div class="thread-replies" style="margin-top:8px">
+        <div class="thread-reply-input">
+          <input id="quickReply-${parentId}" placeholder="Add a reply..." onkeydown="if(event.key==='Enter'){postReply('${parentId}',true);event.preventDefault()}">
+          <button class="btn btn-primary btn-sm" onclick="postReply('${parentId}',true)">Reply</button>
+        </div>
+      </div>`;
+    document.getElementById('quickReply-' + parentId).focus();
+  }
+
+  async function postReply(parentId, useQuickInput) {
+    const input = document.getElementById(useQuickInput ? 'quickReply-' + parentId : 'replyInput-' + parentId);
+    if (!input) return;
+    const content = input.value.trim();
+    if (!content) return;
+    const res = await fetch(`/api/decks/${currentDeckId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, parent_id: parentId }),
+    });
+    if (!res.ok) { alert('Failed to post reply'); return; }
+    loadComments(currentDeckId);
   }
 
   async function postComment(deckId) {
@@ -458,38 +529,8 @@
 
   loadDeck();
 </script>
-<script>
-// Auth
-async function initAuth() {
-  try {
-    const res = await fetch('/api/me');
-    const data = await res.json();
-    const area = document.getElementById('userArea');
-    if (!area) return;
-    if (data.user) {
-      area.innerHTML = `
-        <div class="user-menu">
-          <div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')">
-            <img src="${data.user.avatar || ''}" alt="" onerror="this.style.display='none'">
-            <span>${data.user.name || data.user.email}</span>
-          </div>
-          <div class="user-dropdown">
-            <a href="/profile">My Profile</a>
-            <a href="/auth/logout">Sign out</a>
-          </div>
-        </div>`;
-      document.addEventListener('click', e => {
-        if (!e.target.closest('.user-menu')) {
-          document.querySelectorAll('.user-dropdown').forEach(d => d.classList.remove('open'));
-        }
-      });
-    } else {
-      area.innerHTML = '<a href="/welcome" class="sign-in-btn">Sign in</a>';
-    }
-  } catch(e) { console.warn('Auth check failed'); }
-}
-initAuth();
-</script>
+<script src="/js/auth.js"></script>
+<script>initAuth();</script>
 <a href="/upload" class="fab" title="Upload Deck"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Upload Deck</span></a>
 <script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
 </body>

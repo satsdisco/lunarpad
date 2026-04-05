@@ -265,6 +265,25 @@ const MIGRATIONS = [
       updated_at TEXT DEFAULT (datetime('now'))
     )`,
   ]},
+  { name: 'v009_notifications', sql: [
+    `CREATE TABLE IF NOT EXISTS notifications (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      type        TEXT NOT NULL,
+      actor_id    TEXT,
+      actor_name  TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id   TEXT NOT NULL,
+      target_name TEXT,
+      read        INTEGER DEFAULT 0,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read, created_at)',
+  ]},
+  { name: 'v010_comment_replies', sql: [
+    'ALTER TABLE comments ADD COLUMN parent_id TEXT',
+    'CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id)',
+  ]},
 ];
 
 // Run pending migrations
@@ -410,7 +429,19 @@ const stmts = {
   getVoteCount:  db.prepare('SELECT COUNT(*) as c FROM votes WHERE target_type = ? AND target_id = ?'),
   hasVoted:      db.prepare('SELECT 1 FROM votes WHERE target_type = ? AND target_id = ? AND voter_ip = ?'),
   deleteVotes:   db.prepare('DELETE FROM votes WHERE target_type = ? AND target_id = ?'),
+  insertNotification: db.prepare('INSERT INTO notifications (id, user_id, type, actor_id, actor_name, target_type, target_id, target_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+  getUnreadCount:     db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND read = 0'),
+  getRecentNotifs:    db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 30'),
+  markNotifRead:      db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?'),
+  markAllNotifsRead:  db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0'),
 };
+
+function notify(userId, type, actorId, actorName, targetType, targetId, targetName) {
+  if (!userId || userId === actorId) return;
+  try {
+    stmts.insertNotification.run(crypto.randomUUID(), userId, type, actorId || null, actorName, targetType, targetId, targetName || null);
+  } catch (e) { console.error('[notify]', e.message); }
+}
 
 // ─── Express app ─────────────────────────────────────────────────────────────
 
@@ -466,6 +497,21 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (req.session && req.session.userId) {
     req.user = stmts.getUserById.get(req.session.userId);
+  }
+  // Auto-login as dev user in local development (no BASE_URL set)
+  if (!req.user && !process.env.BASE_URL) {
+    const which = req.session?.devUser || 'alice';
+    let devUser = db.prepare("SELECT * FROM users WHERE username = ?").get(which);
+    if (!devUser) {
+      const id = crypto.randomUUID();
+      const isAlice = which === 'alice';
+      db.prepare("INSERT INTO users (id, username, email, name, is_admin) VALUES (?, ?, ?, ?, ?)").run(
+        id, which, which + '@localhost', isAlice ? 'Alice (Dev)' : 'Bob (Dev)', isAlice ? 1 : 0
+      );
+      devUser = stmts.getUserById.get(id);
+    }
+    req.user = devUser;
+    if (req.session) req.session.userId = devUser.id;
   }
   next();
 });
@@ -618,6 +664,16 @@ app.post('/auth/login', (req, res) => {
   if (!bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Invalid credentials' });
   req.session.userId = user.id;
   res.json({ ok: true });
+});
+
+// Dev user switcher (local only)
+app.get('/dev/switch/:name', (req, res) => {
+  if (process.env.BASE_URL) return res.status(404).send('Not found');
+  const name = req.params.name;
+  if (!['alice', 'bob'].includes(name)) return res.status(400).send('Use /dev/switch/alice or /dev/switch/bob');
+  req.session.devUser = name;
+  req.session.userId = null;
+  res.redirect('/');
 });
 
 app.get('/auth/logout', (req, res) => {
@@ -1632,17 +1688,20 @@ app.get('/api/zaps/verify/:zap_id', async (req, res) => {
     }
     if (paid) {
       db.prepare(`UPDATE zaps SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(zap.id);
+      const zapperName = zap.user_name || 'Someone';
       if (zap.target_type === 'deck') {
         db.prepare(`UPDATE decks SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-        const deck = db.prepare('SELECT uploaded_by FROM decks WHERE id = ?').get(zap.target_id);
+        const deck = db.prepare('SELECT uploaded_by, title FROM decks WHERE id = ?').get(zap.target_id);
         if (deck?.uploaded_by) {
           db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, deck.uploaded_by);
+          notify(deck.uploaded_by, 'zap', zap.user_id, zapperName, 'deck', zap.target_id, deck.title);
         }
       } else {
         db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-        const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
+        const project = db.prepare('SELECT user_id, name FROM projects WHERE id = ?').get(zap.target_id);
         if (project?.user_id) {
           db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+          notify(project.user_id, 'zap', zap.user_id, zapperName, 'project', zap.target_id, project.name);
         }
       }
       if (zap.user_id) cachedBadgeCheck(zap.user_id);
@@ -1681,17 +1740,20 @@ app.post('/api/zaps/confirm/:zap_id', requireAuth, (req, res) => {
   if (zap.status === 'confirmed') return res.json({ settled: true, amount_sats: zap.amount_sats });
   if (zap.user_id !== req.user.id && !req.user.is_admin) return res.status(403).json({ error: 'Not authorized' });
   db.prepare(`UPDATE zaps SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(zap.id);
+  const zapperName = zap.user_name || 'Someone';
   if (zap.target_type === 'deck') {
     db.prepare(`UPDATE decks SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-    const deck = db.prepare('SELECT uploaded_by FROM decks WHERE id = ?').get(zap.target_id);
+    const deck = db.prepare('SELECT uploaded_by, title FROM decks WHERE id = ?').get(zap.target_id);
     if (deck?.uploaded_by) {
       db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, deck.uploaded_by);
+      notify(deck.uploaded_by, 'zap', zap.user_id, zapperName, 'deck', zap.target_id, deck.title);
     }
   } else {
     db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-    const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
+    const project = db.prepare('SELECT user_id, name FROM projects WHERE id = ?').get(zap.target_id);
     if (project?.user_id) {
       db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+      notify(project.user_id, 'zap', zap.user_id, zapperName, 'project', zap.target_id, project.name);
     }
   }
   if (zap.user_id) cachedBadgeCheck(zap.user_id);
@@ -1714,17 +1776,20 @@ app.post('/api/webhook/lnbits', async (req, res) => {
   if (zap) {
     if (zap.status !== 'confirmed') {
       db.prepare(`UPDATE zaps SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(zap.id);
+      const zapperName = zap.user_name || 'Someone';
       if (zap.target_type === 'deck') {
         db.prepare(`UPDATE decks SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-        const deck = db.prepare('SELECT uploaded_by FROM decks WHERE id = ?').get(zap.target_id);
+        const deck = db.prepare('SELECT uploaded_by, title FROM decks WHERE id = ?').get(zap.target_id);
         if (deck?.uploaded_by) {
           db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, deck.uploaded_by);
+          notify(deck.uploaded_by, 'zap', zap.user_id, zapperName, 'deck', zap.target_id, deck.title);
         }
       } else {
         db.prepare(`UPDATE projects SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, zap.target_id);
-        const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(zap.target_id);
+        const project = db.prepare('SELECT user_id, name FROM projects WHERE id = ?').get(zap.target_id);
         if (project?.user_id) {
           db.prepare(`UPDATE users SET total_sats_received = total_sats_received + ? WHERE id = ?`).run(zap.amount_sats, project.user_id);
+          notify(project.user_id, 'zap', zap.user_id, zapperName, 'project', zap.target_id, project.name);
         }
       }
       if (zap.user_id) cachedBadgeCheck(zap.user_id);
@@ -1954,20 +2019,37 @@ app.get('/api/projects/:id/comments', (req, res) => {
     LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'comment' GROUP BY target_id) v ON c.id = v.target_id
     LEFT JOIN votes uv ON uv.target_type = 'comment' AND uv.target_id = c.id AND uv.voter_ip = ?
     WHERE c.deck_id = ?
-    ORDER BY c.created_at DESC
+    ORDER BY c.created_at ASC
   `).all(voterId, req.params.id);
   res.json(rows);
 });
 
 // POST /api/projects/:id/comments
 app.post('/api/projects/:id/comments', requireAuth, (req, res) => {
-  const { content } = req.body;
+  const { content, parent_id } = req.body;
   if (!content || !content.trim()) return res.status(400).json({ error: 'Content required' });
+  if (parent_id) {
+    const parent = db.prepare('SELECT id, deck_id, parent_id FROM comments WHERE id = ?').get(parent_id);
+    if (!parent || parent.deck_id !== req.params.id) return res.status(400).json({ error: 'Invalid parent comment' });
+  }
   const id = crypto.randomUUID();
   const authorName = req.user?.name || 'Anonymous';
-  db.prepare('INSERT INTO comments (id, deck_id, user_id, author_name, content) VALUES (?, ?, ?, ?, ?)').run(
-    id, req.params.id, req.user?.id || null, authorName, content.trim()
+  db.prepare('INSERT INTO comments (id, deck_id, user_id, author_name, content, parent_id) VALUES (?, ?, ?, ?, ?, ?)').run(
+    id, req.params.id, req.user?.id || null, authorName, content.trim(), parent_id || null
   );
+  const _proj = db.prepare('SELECT user_id, name FROM projects WHERE id = ?').get(req.params.id);
+  if (parent_id) {
+    // Reply: notify item owner + thread participants
+    const rootId = db.prepare('SELECT COALESCE(parent_id, id) as root FROM comments WHERE id = ?').get(parent_id)?.root || parent_id;
+    if (_proj?.user_id) notify(_proj.user_id, 'reply', req.user.id, authorName, 'project', req.params.id, _proj.name);
+    const threadUsers = db.prepare('SELECT DISTINCT user_id FROM comments WHERE (id = ? OR parent_id = ?) AND user_id IS NOT NULL AND user_id != ?').all(rootId, rootId, req.user.id);
+    for (const u of threadUsers) {
+      if (u.user_id !== _proj?.user_id) notify(u.user_id, 'reply', req.user.id, authorName, 'project', req.params.id, _proj?.name);
+    }
+  } else {
+    // Top-level comment: notify item owner only
+    if (_proj?.user_id) notify(_proj.user_id, 'comment', req.user.id, authorName, 'project', req.params.id, _proj.name);
+  }
   res.json({ id });
 });
 
@@ -2327,6 +2409,18 @@ app.post('/api/vote', requireAuth, (req, res) => {
     stmts.removeVote.run(type, id, voter);
   } else {
     stmts.addVote.run(type, id, voter);
+    // Notify on upvote
+    const actorName = req.user.name || req.user.email || 'Someone';
+    if (type === 'deck') {
+      const _d = stmts.getById.get(id);
+      if (_d?.uploaded_by) notify(_d.uploaded_by, 'vote', req.user.id, actorName, 'deck', id, _d.title);
+    } else if (type === 'project') {
+      const _p = db.prepare('SELECT user_id, name FROM projects WHERE id = ?').get(id);
+      if (_p?.user_id) notify(_p.user_id, 'vote', req.user.id, actorName, 'project', id, _p.name);
+    } else if (type === 'comment') {
+      const _c = db.prepare('SELECT user_id, content FROM comments WHERE id = ?').get(id);
+      if (_c?.user_id) notify(_c.user_id, 'vote', req.user.id, actorName, 'comment', id, (_c.content || '').substring(0, 50));
+    }
   }
   const count = stmts.getVoteCount.get(type, id).c;
   if (type === 'project' && !existing) {
@@ -2366,6 +2460,29 @@ app.get('/api/vote/check', (req, res) => {
   res.json(result);
 });
 
+// ─── Notifications API ───────────────────────────────────────────────────────
+
+// GET /api/notifications — recent notifications + unread count
+app.get('/api/notifications', requireAuth, (req, res) => {
+  const notifications = stmts.getRecentNotifs.all(req.user.id);
+  const unread_count = stmts.getUnreadCount.get(req.user.id).c;
+  res.json({ notifications, unread_count });
+});
+
+// POST /api/notifications/read — mark one notification as read
+app.post('/api/notifications/read', requireAuth, (req, res) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'id required' });
+  stmts.markNotifRead.run(id, req.user.id);
+  res.json({ ok: true });
+});
+
+// POST /api/notifications/read-all — mark all as read
+app.post('/api/notifications/read-all', requireAuth, (req, res) => {
+  stmts.markAllNotifsRead.run(req.user.id);
+  res.json({ ok: true });
+});
+
 // ─── Comments API ─────────────────────────────────────────────────────────────
 
 // GET /api/decks/:id/comments — list comments (newest first) with vote counts
@@ -2376,7 +2493,7 @@ app.get('/api/decks/:id/comments', (req, res) => {
     FROM comments c
     LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'comment' GROUP BY target_id) v ON c.id = v.target_id
     WHERE c.deck_id = ?
-    ORDER BY c.created_at DESC
+    ORDER BY c.created_at ASC
   `).all(req.params.id);
   // Attach per-user voted status
   for (const c of comments) {
@@ -2387,15 +2504,32 @@ app.get('/api/decks/:id/comments', (req, res) => {
 
 // POST /api/decks/:id/comments — add comment (requires auth)
 app.post('/api/decks/:id/comments', requireAuth, (req, res) => {
-  const { content } = req.body;
+  const { content, parent_id } = req.body;
   if (!content || !content.trim()) return res.status(400).json({ error: 'content required' });
   const deck = stmts.getById.get(req.params.id);
   if (!deck) return res.status(404).json({ error: 'Deck not found' });
+  if (parent_id) {
+    const parent = db.prepare('SELECT id, deck_id, parent_id FROM comments WHERE id = ?').get(parent_id);
+    if (!parent || parent.deck_id !== req.params.id) return res.status(400).json({ error: 'Invalid parent comment' });
+  }
   const id = crypto.randomUUID();
-  db.prepare('INSERT INTO comments (id, deck_id, user_id, author_name, content) VALUES (?, ?, ?, ?, ?)').run(
-    id, req.params.id, req.user.id, req.user.name || req.user.email || 'Anonymous', content.trim()
+  const authorName = req.user.name || req.user.email || 'Anonymous';
+  db.prepare('INSERT INTO comments (id, deck_id, user_id, author_name, content, parent_id) VALUES (?, ?, ?, ?, ?, ?)').run(
+    id, req.params.id, req.user.id, authorName, content.trim(), parent_id || null
   );
-  res.json({ id, author_name: req.user.name || req.user.email || 'Anonymous', content: content.trim(), votes: 0, voted: false, created_at: new Date().toISOString() });
+  if (parent_id) {
+    // Reply: notify deck owner + thread participants
+    const rootId = db.prepare('SELECT COALESCE(parent_id, id) as root FROM comments WHERE id = ?').get(parent_id)?.root || parent_id;
+    if (deck.uploaded_by) notify(deck.uploaded_by, 'reply', req.user.id, authorName, 'deck', req.params.id, deck.title);
+    const threadUsers = db.prepare('SELECT DISTINCT user_id FROM comments WHERE (id = ? OR parent_id = ?) AND user_id IS NOT NULL AND user_id != ?').all(rootId, rootId, req.user.id);
+    for (const u of threadUsers) {
+      if (u.user_id !== deck.uploaded_by) notify(u.user_id, 'reply', req.user.id, authorName, 'deck', req.params.id, deck.title);
+    }
+  } else {
+    // Top-level comment: notify deck owner only
+    if (deck.uploaded_by) notify(deck.uploaded_by, 'comment', req.user.id, authorName, 'deck', req.params.id, deck.title);
+  }
+  res.json({ id, author_name: authorName, content: content.trim(), votes: 0, voted: false, created_at: new Date().toISOString(), parent_id: parent_id || null });
 });
 
 // GET /api/events/:id/bounties
