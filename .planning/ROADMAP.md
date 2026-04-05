@@ -56,3 +56,47 @@
 3. All current team members are added as project contributors on the resulting project
 4. The idea detail page shows a "Converted to project: [project name]" link and the project page links back to the origin idea
 5. The converted idea is marked as converted and the Convert button is no longer shown
+
+---
+
+## Milestone: v2.0 — The Living Foyer
+
+*Research basis: `.planning/phases/07-foyer-engagement-research/`*
+
+### Phase 7: Activity Feed and Ambient Signals
+**Goal:** Make The Foyer feel alive by showing real-time community activity, solving the empty room problem.
+**Requirements:** LIVE-01, LIVE-02, LIVE-03, LIVE-04
+**Success criteria:**
+1. Activity ticker at the top of The Foyer shows recent actions ("Alice joined Lightning Wallet team 2h ago", "Bob zapped Idea X 100 sats")
+2. "Viewed by X people today" counter appears on idea bubbles when view count > 0
+3. Recent activity section below the bubbles shows the last 10 actions across The Foyer
+4. "Builder online" indicator shows on idea detail when the author is currently on the platform
+5. Activity ticker updates without page refresh (polling or live)
+
+### Phase 8: Zap Enhancements
+**Goal:** Deepen sats engagement with zap notes, contributor visibility, and sats-weighted ranking to surface genuinely backed ideas.
+**Requirements:** ZAP-01, ZAP-02, ZAP-03, ZAP-04
+**Success criteria:**
+1. Zap flow includes an optional "note" field (message attached to the zap, stored and displayed)
+2. Idea cards and detail page show who zapped (named contributors, not just total)
+3. "Most Backed" sort option ranks ideas by total sats received, surfacing differently from vote-based ranking
+4. Weekly "Top Zappers" callout section on The Foyer highlighting the most generous contributors
+
+### Phase 9: Marketplace Signals
+**Goal:** Turn The Foyer into a two-sided marketplace by surfacing what ideas need and what builders offer.
+**Requirements:** MKT-01, MKT-02, MKT-03, MKT-04
+**Success criteria:**
+1. Idea cards support "Looking for" tags (e.g. "Need: designer", "Need: Lightning dev") set by the idea author
+2. Builder profiles include an "Available" status with skills and hours/week
+3. Idea bubbles show named team members (not just count): "Alice, Bob +2"
+4. Notification fires when someone joins your idea's team ("Bob joined your idea")
+
+### Phase 10: Event Integration and Weekly Rhythm
+**Goal:** Tie The Foyer to LunarPad's event calendar and create a weekly engagement rhythm.
+**Requirements:** EVT-01, EVT-02, EVT-03, EVT-04
+**Success criteria:**
+1. Next demo day countdown banner appears at the top of The Foyer
+2. "Pitch at Demo Day" CTA appears on idea cards when a demo day is upcoming
+3. Auto-selected "Idea of the Week" spotlight based on engagement metrics (votes + sats + team joins)
+4. Weekly themed periods tied to Lunar Rails product areas (Payments Week, Treasury Week) with visual indicator
+5. Weekly digest notification summarizing Foyer activity ("3 new ideas, 500 sats pooled, 2 teams formed")
