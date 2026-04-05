@@ -43,6 +43,7 @@ async function loadIdea() {
     document.getElementById('ideaContent').innerHTML = renderIdea(idea);
     document.getElementById('comments').style.display = '';
     initVoteState();
+    initTeamState();
   } catch { document.getElementById('ideaContent').innerHTML = '<div class="foyer-empty">Could not load idea.</div>'; }
 }
 
@@ -79,7 +80,7 @@ function renderIdea(idea) {
           <span class="arrow">▲</span> <span id="voteLabel">Upvote</span> <span id="voteCount">${idea.votes || 0}</span>
         </button>
         <button class="btn btn-sm" onclick="showZapPanel()">⚡ Zap</button>
-        <button class="btn btn-sm" disabled title="Coming soon">Join Team</button>
+        <button class="btn btn-sm" id="joinBtn" onclick="toggleTeam()">Join Team</button>
       </div>
       <div id="zapPanel" style="display:none;margin-top:12px;padding:16px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)">
         <div id="zapInput">
@@ -176,6 +177,59 @@ function startZapPoll(zapId) {
   }, 3000);
 }
 
+let _isMember = false;
+
+function initTeamState() {
+  if (!_ideaData || !_currentUser) return;
+  _isMember = (_ideaData.members || []).some(m => m.user_id === _currentUser.id);
+  const btn = document.getElementById('joinBtn');
+  if (btn) {
+    btn.textContent = _isMember ? 'Leave Team' : 'Join Team';
+    if (_isMember) btn.classList.add('voted'); else btn.classList.remove('voted');
+  }
+}
+
+async function toggleTeam() {
+  const action = _isMember ? 'leave' : 'join';
+  try {
+    const res = await fetch('/api/ideas/' + ideaId + '/' + action, { method: 'POST' });
+    if (!res.ok && res.status !== 409) { const e = await res.json(); return alert(e.error || 'Failed'); }
+    await refreshTeam();
+  } catch { alert('Failed to ' + action + ' team'); }
+}
+
+async function refreshTeam() {
+  try {
+    const res = await fetch('/api/ideas/' + ideaId);
+    if (!res.ok) return;
+    _ideaData = await res.json();
+    // Update team count in stats
+    const statsEl = document.querySelector('.foyer-detail-stats');
+    if (statsEl && statsEl.children[2]) {
+      statsEl.children[2].innerHTML = '<span class="stat-value">' + (_ideaData.team_size || 0) + '</span> builders';
+    }
+    // Update members section
+    const existingSection = document.querySelector('.foyer-detail-section h3');
+    let teamSection = null;
+    document.querySelectorAll('.foyer-detail-section h3').forEach(h => { if (h.textContent.includes('Team')) teamSection = h.parentElement; });
+    const membersHtml = _ideaData.members && _ideaData.members.length ? `
+      <h3># Team (${_ideaData.members.length})</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${_ideaData.members.map(m => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--text2);background:var(--glass);border:1px solid var(--border);border-radius:100px;padding:3px 10px 3px 3px">
+          ${m.avatar ? `<img src="${esc(m.avatar)}" style="width:18px;height:18px;border-radius:50%" onerror="this.style.display='none'">` : ''}
+          ${esc(m.name || m.username)}
+        </span>`).join('')}
+      </div>` : '';
+    if (teamSection) {
+      if (membersHtml) { teamSection.innerHTML = membersHtml; } else { teamSection.remove(); }
+    } else if (membersHtml) {
+      const card = document.querySelector('.foyer-detail-card');
+      if (card) { const div = document.createElement('div'); div.className = 'foyer-detail-section'; div.innerHTML = membersHtml; card.after(div); }
+    }
+    initTeamState();
+  } catch {}
+}
+
 function timeAgo(dateStr) {
   if (!dateStr) return '';
   const now = Date.now();
@@ -193,6 +247,6 @@ function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.
 loadIdea();
 </script>
 <script src="/js/auth.js"></script>
-<script>initAuth();</script>
+<script>initAuth(function() { initTeamState(); });</script>
 </body>
 </html>

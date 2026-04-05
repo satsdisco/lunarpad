@@ -2217,6 +2217,24 @@ app.get('/api/ideas/:id/zaps', (req, res) => {
   res.json({ zaps, total_sats: row?.total || 0 });
 });
 
+// POST /api/ideas/:id/join — join the idea team
+app.post('/api/ideas/:id/join', requireAuth, (req, res) => {
+  const idea = stmts.getIdeaById.get(req.params.id);
+  if (!idea) return res.status(404).json({ error: 'Idea not found' });
+  const existing = db.prepare('SELECT id FROM idea_members WHERE idea_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (existing) return res.status(409).json({ error: 'Already a member' });
+  const id = crypto.randomUUID();
+  db.prepare('INSERT INTO idea_members (id, idea_id, user_id) VALUES (?, ?, ?)').run(id, req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
+// POST /api/ideas/:id/leave — leave the idea team
+app.post('/api/ideas/:id/leave', requireAuth, (req, res) => {
+  const result = db.prepare('DELETE FROM idea_members WHERE idea_id = ? AND user_id = ?').run(req.params.id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'Not a member' });
+  res.json({ ok: true });
+});
+
 // ─── Project Deck Versions API ────────────────────────────────────────────────
 
 // GET /api/projects/:id/decks — list all deck versions with deck metadata
