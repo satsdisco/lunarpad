@@ -361,35 +361,113 @@ a:hover { color: var(--accent); }
 
 .section-block { margin-bottom: 16px; }
 
-/* Bounty cards */
-.bounty-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+/* ─── Bounty Cards ────────────────────────────────────────────────────────── */
+.bounty-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+
 .bounty-card {
-  background: var(--glass); border: 1px solid var(--border);
-  padding: 18px; border-radius: var(--radius-lg);
-  transition: all .2s; backdrop-filter: blur(8px);
-  display: flex; flex-direction: column;
+  background: rgba(13,15,26,0.75);
+  border: 1px solid rgba(124,92,252,0.12);
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+  backdrop-filter: blur(12px);
+  display: flex; flex-direction: column; gap: 12px;
+  position: relative; overflow: hidden;
 }
-.bounty-card .bounty-footer { margin-top: auto; padding-top: 10px; }
-.bounty-bottom { margin-top: auto; }
-.bounty-card:hover { border-color: var(--btc-bright); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(242,177,52,0.08), 0 0 0 1px rgba(242,177,52,0.08); }
-.bounty-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-.bounty-title { font-size: 0.88rem; font-weight: 700; color: var(--text); flex: 1; }
-.bounty-sats { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 700; color: var(--btc-gold); white-space: nowrap; margin-left: 12px; }
-.bounty-desc {
-  font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin-bottom: 10px;
-  background: rgba(255,255,255,.02); padding: 10px 12px; border-radius: var(--radius);
-  border: 1px solid var(--border);
+.bounty-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(242,177,52,0.28) 50%, transparent 100%);
 }
-.bounty-footer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bounty-card:hover {
+  border-color: rgba(242,177,52,0.28);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(242,177,52,0.07), 0 0 0 1px rgba(242,177,52,0.07);
+}
+
+/* Status badge + deadline row */
+.bc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Title */
+.bc-title { font-size: 0.95rem; font-weight: 700; color: var(--text); line-height: 1.35; }
+
+/* Prize hero */
+.bc-prize-hero { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+.bc-prize-icon { font-size: 1rem; color: var(--btc-bright); line-height: 1; }
+.bc-prize-num {
+  font-family: var(--font-mono);
+  font-size: 1.9rem; font-weight: 800; line-height: 1;
+  color: var(--btc-bright);
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 24px rgba(242,177,52,0.28);
+}
+.bc-prize-unit {
+  font-family: var(--font-mono);
+  font-size: 0.68rem; font-weight: 700;
+  color: var(--btc-gold);
+  text-transform: uppercase; letter-spacing: .08em;
+  align-self: flex-end; padding-bottom: 3px;
+}
+.bc-bonus-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px;
+  background: rgba(242,177,52,0.09);
+  border: 1px solid rgba(242,177,52,0.22);
+  border-radius: 100px;
+  font-family: var(--font-mono);
+  font-size: 0.67rem; font-weight: 700;
+  color: var(--btc-bright);
+  align-self: flex-end; margin-bottom: 3px;
+}
+
+/* Pool funding bar (slim, only shown when funded) */
+.bc-pool-bar { height: 2px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.bc-pool-fill { height: 100%; background: linear-gradient(90deg, var(--btc-bright), #f5d080); border-radius: 2px; }
+
+/* Winner badge */
+.bc-winner {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.73rem; font-weight: 600; color: var(--btc-bright);
+  padding: 4px 10px;
+  background: rgba(242,177,52,0.07);
+  border: 1px solid rgba(242,177,52,0.16);
+  border-radius: var(--radius);
+}
+
+/* Footer: builders + tags + boost btn */
+.bc-footer { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.bc-builders { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+.bc-tags { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+.bc-boost-btn {
+  margin-left: auto; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 5px 13px;
+  background: rgba(242,177,52,0.07);
+  border: 1px solid rgba(242,177,52,0.22);
+  border-radius: 100px;
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--btc-bright);
+  text-decoration: none;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+  white-space: nowrap;
+}
+.bc-boost-btn:hover {
+  background: rgba(242,177,52,0.14);
+  border-color: rgba(242,177,52,0.38);
+  color: var(--btc-bright);
+  box-shadow: 0 0 12px rgba(242,177,52,0.14);
+}
+
+/* Status badges */
 .bounty-status {
   font-family: var(--font-mono);
-  font-size: 0.65rem; font-weight: 700; padding: 2px 8px;
+  font-size: 0.62rem; font-weight: 700; padding: 2px 8px;
   text-transform: uppercase; letter-spacing: .05em;
-  border: 1px solid;
+  border: 1px solid; border-radius: 3px;
 }
-.bounty-status.open { border-color: var(--accent); color: var(--accent); }
-.bounty-status.claimed { border-color: var(--gold); color: var(--gold); }
-.bounty-status.completed { border-color: var(--success); color: var(--success); }
+.bounty-status.open { border-color: rgba(124,92,252,0.4); color: var(--accent); }
+.bounty-status.claimed { border-color: rgba(212,168,67,0.4); color: var(--gold); }
+.bounty-status.completed { border-color: rgba(212,168,67,0.4); color: var(--gold); }
 .bounty-deadline { font-size: 0.65rem; color: var(--dim); }
 
 /* Event cards */
@@ -2448,9 +2526,6 @@ body::after {
   border-color: rgba(124,92,252,0.28);
 }
 
-.bounty-card:hover {
-  box-shadow: 0 12px 40px rgba(242,177,52,0.10), inset 0 1px 0 rgba(255,255,255,.03);
-}
 
 .project-card:hover {
   box-shadow: 0 10px 36px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.03);
@@ -3205,21 +3280,6 @@ body::after {
 .funder-name { color: var(--text2); }
 .funder-amount { color: var(--btc-bright, #F2B134); font-weight: 600; font-family: var(--font-mono); }
 
-/* Bounty card progress bar (build.html) */
-.bounty-card-progress-wrap { margin-top: 8px; }
-.bounty-card-progress-bg {
-  height: 3px; width: 100%; background: rgba(255,255,255,0.06);
-  border-radius: 100px; overflow: hidden;
-}
-.bounty-card-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--btc-bright, #F2B134), #f5d080);
-  border-radius: 100px;
-}
-.bounty-card-progress-meta {
-  font-size: 0.68rem; color: var(--btc-gold, #d4a843);
-  margin-top: 4px; font-family: var(--font-mono);
-}
 
 /* ─── Prize Pool Breakdown ───────────────────────────────────────────────── */
 .prize-pool-breakdown {

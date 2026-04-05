@@ -502,46 +502,26 @@ async function loadBounties() {
       const targetAmt = Number(b.sats_amount || 0);
       const bonusAmt = Math.max(0, fundedAmt - targetAmt);
       const fundedPct = targetAmt > 0 ? Math.min(100, Math.round((fundedAmt / targetAmt) * 100)) : 0;
-      const fundingBar = targetAmt > 0 ? `
-        <div class="bounty-card-progress-wrap">
-          <div class="bounty-card-progress-bg"><div class="bounty-card-progress-fill" style="width:${Math.max(fundedPct, fundedAmt > 0 ? 6 : 0)}%"></div></div>
-          <div class="bounty-card-progress-meta">${fundedAmt > 0 ? `${fundedPct}% of target funded` : 'No extra sats in the pot yet'}</div>
-        </div>` : '';
-      const winner = b.winner_name ? `<div class="bounty-winner-badge">🏆 Winner: ${esc(b.winner_name)}</div>` : '';
-      const completedBadge = b.status === 'completed' ? `<div class="bounty-completed-badge">✅</div>` : '';
+      const winner = b.winner_name ? `<div class="bc-winner">🏆 ${esc(b.winner_name)}</div>` : '';
       return `
         <div class="bounty-card status-${statusClass}" onclick="window.location.href='/bounty/${esc(b.id)}'" style="cursor:pointer">
-          ${completedBadge}
-          <div class="bounty-card-inner">
-            <div class="bounty-header">
-              <div class="bounty-title-wrap">
-                <div class="bounty-title">${esc(b.title)}</div>
-                ${deadline}
-              </div>
-              <span class="bounty-status ${statusClass}">${statusLabel}</span>
-            </div>
-            <div class="bounty-money-panel">
-              <div class="bounty-money-main">
-                <div class="bounty-money-label">Base bounty</div>
-                <div class="bounty-sats-big">⚡ ${targetAmt.toLocaleString()}<span class="sats-label">sats</span></div>
-              </div>
-              <div class="bounty-money-bonus ${bonusAmt > 0 ? 'has-bonus' : ''}">
-                <div class="bounty-money-label">Prize pool boost</div>
-                <div class="bounty-bonus-amount">${bonusAmt > 0 ? `+⚡ ${bonusAmt.toLocaleString()}` : '+0'}</div>
-              </div>
-            </div>
-            ${fundingBar}
-            <div class="bounty-meta-row">
-              <div class="bounty-meta-pill">👥 ${participantCount} builder${participantCount !== 1 ? 's' : ''}</div>
-              ${fundedAmt > 0 ? `<div class="bounty-meta-pill bounty-pot-pill">⚡ ${fundedAmt.toLocaleString()} in pot</div>` : ''}
-            </div>
-            ${b.description ? `<div class="bounty-desc-clamp">${esc(b.description)}</div>` : ''}
-            ${winner}
-            ${tags ? `<div class="card-tags bounty-tags-row">${tags}</div>` : ''}
-            <div class="bounty-footer-row">
-              <div class="bounty-footer-copy">Opportunity</div>
-              <a href="/bounty/${esc(b.id)}" class="bounty-view-link" onclick="event.stopPropagation()">View Bounty →</a>
-            </div>
+          <div class="bc-top">
+            <span class="bounty-status ${statusClass}">${statusLabel}</span>
+            ${deadline}
+          </div>
+          <div class="bc-title">${esc(b.title)}</div>
+          <div class="bc-prize-hero">
+            <span class="bc-prize-icon">⚡</span>
+            <span class="bc-prize-num">${targetAmt.toLocaleString()}</span>
+            <span class="bc-prize-unit">sats</span>
+            ${bonusAmt > 0 ? `<span class="bc-bonus-badge">+${bonusAmt.toLocaleString()} boost</span>` : ''}
+          </div>
+          ${fundedAmt > 0 && targetAmt > 0 ? `<div class="bc-pool-bar"><div class="bc-pool-fill" style="width:${Math.min(100, Math.max(fundedPct, 5))}%"></div></div>` : ''}
+          ${winner}
+          <div class="bc-footer">
+            <span class="bc-builders">👥 ${participantCount}</span>
+            ${tags ? `<div class="bc-tags">${tags}</div>` : ''}
+            <a class="bc-boost-btn" href="/bounty/${esc(b.id)}" onclick="event.stopPropagation()">⚡ Boost</a>
           </div>
         </div>`;
     }).join('');
