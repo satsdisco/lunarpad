@@ -3584,31 +3584,50 @@ body::after {
   margin-bottom: 24px; flex-wrap: wrap;
 }
 .foyer-container {
-  display: flex; flex-wrap: wrap; justify-content: center;
-  align-items: center; gap: 14px; padding: 16px 0;
-  min-height: 200px;
+  position: relative; padding: 16px 0; min-height: 300px;
+}
+@keyframes bubble-glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(124,92,252,0.08); }
+  50% { box-shadow: 0 0 35px var(--accent-glow), 0 0 70px rgba(124,92,252,0.18); }
+}
+@keyframes bubble-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .idea-bubble {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   border-radius: 50%; text-align: center; cursor: pointer;
-  background: linear-gradient(135deg, var(--glass2), var(--glass));
-  border: 1px solid var(--border2);
+  background: radial-gradient(circle at 35% 35%, rgba(124,92,252,0.12), var(--glass2) 50%, var(--glass));
+  border: 1.5px solid rgba(124,92,252,0.25);
   text-decoration: none; color: var(--text);
-  transition: all .25s ease; position: relative;
-  overflow: hidden; padding: 12px;
+  transition: transform .3s ease, border-color .3s ease, background .3s ease, box-shadow .3s ease;
+  position: relative; overflow: hidden; padding: 16px;
+  box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(124,92,252,0.08);
+  animation: bubble-enter 0.6s ease backwards, bubble-glow-pulse 4s ease-in-out infinite;
+}
+.idea-bubble:nth-child(2n) { animation-delay: 0.1s, 1.2s; }
+.idea-bubble:nth-child(3n) { animation-delay: 0.2s, 0.5s; }
+.idea-bubble:nth-child(4n) { animation-delay: 0.15s, 1.8s; }
+.idea-bubble:nth-child(5n) { animation-delay: 0.25s, 2.5s; }
+.idea-bubble::before {
+  content: ''; position: absolute; top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06), transparent 60%);
+  pointer-events: none;
 }
 .idea-bubble:hover {
   border-color: var(--accent);
-  background: linear-gradient(135deg, var(--accent-dim), var(--glass2));
-  box-shadow: 0 0 30px var(--accent-glow), inset 0 0 20px var(--accent-dim);
+  background: radial-gradient(circle at 35% 35%, rgba(124,92,252,0.25), var(--accent-dim) 50%, var(--glass2));
+  box-shadow: 0 0 40px var(--accent-glow), 0 0 80px rgba(124,92,252,0.2), inset 0 0 30px var(--accent-dim);
   transform: scale(1.08);
   color: var(--text);
 }
 .bubble-title {
-  font-size: 0.7rem; font-weight: 600; line-height: 1.3;
+  font-size: 0.75rem; font-weight: 600; line-height: 1.3;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden; text-overflow: ellipsis;
-  max-width: 90%; word-break: break-word;
+  max-width: 85%; word-break: break-word;
+  text-shadow: 0 0 12px rgba(124,92,252,0.3);
 }
 .bubble-votes {
   font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700;
@@ -3637,7 +3656,7 @@ body::after {
 .foyer-detail-card {
   background: var(--glass); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 32px;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px); overflow: hidden;
 }
 .foyer-detail-card h1 {
   font-size: 1.6rem; font-weight: 800; color: var(--text);
@@ -3646,6 +3665,7 @@ body::after {
 .foyer-detail-card .description {
   font-size: 0.9rem; color: var(--text2); line-height: 1.6;
   margin-bottom: 20px; white-space: pre-wrap;
+  word-break: break-word; overflow-wrap: break-word;
 }
 .foyer-detail-author {
   display: flex; align-items: center; gap: 8px;

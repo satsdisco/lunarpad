@@ -85,21 +85,121 @@ function renderBubbles() {
     container.innerHTML = '<div class="foyer-empty">No ideas yet. Be the first to post one!</div>';
     return;
   }
-  const maxVotes = Math.max(..._ideas.map(i => i.votes || 0), 1);
-  container.innerHTML = _ideas.map(idea => {
-    const votes = idea.votes || 0;
-    const ratio = Math.log(votes + 1) / Math.log(maxVotes + 1);
-    const size = Math.round(90 + ratio * 110);
-    const fontSize = Math.max(0.55, 0.6 + ratio * 0.3);
-    const voted = _votedIds.has(idea.id);
-    return `<a href="/foyer/${esc(idea.id)}" class="idea-bubble ${voted ? 'voted' : ''}" style="width:${size}px;height:${size}px" id="bubble-${esc(idea.id)}">
-      <span class="bubble-title" style="font-size:${fontSize}rem">${esc(idea.title)}</span>
-      <button class="bubble-vote-btn ${voted ? 'voted' : ''}" onclick="event.preventDefault();event.stopPropagation();voteBubble('${esc(idea.id)}',this)" title="Upvote">
+  // Size bubbles based on active sort metric
+  const sorted = [..._ideas];
+  const metricFn = {
+    top:          i => i.votes || 0,
+    newest:       i => i.votes || 0,
+    oldest:       i => i.votes || 0,
+    most_zapped:  i => i.total_sats_received || 0,
+    biggest_team: i => i.team_size || 0,
+  }[_currentSort] || (i => i.votes || 0);
+
+  const maxMetric = Math.max(...sorted.map(i => metricFn(i)), 1);
+
+  const items = sorted.map(idea => {
+    const metric = metricFn(idea);
+    const ratio = Math.log(metric + 1) / Math.log(maxMetric + 1);
+    const size = Math.round(140 + ratio * 110);
+    const fontSize = Math.max(0.7, 0.75 + ratio * 0.35);
+    return { idea, size, fontSize, votes: idea.votes || 0 };
+  });
+
+  // Sort items by size descending for packing (largest = center top)
+  // but keep original indices to map back
+  const packOrder = items.map((item, i) => ({ item, i })).sort((a, b) => b.item.size - a.item.size);
+  const containerWidth = container.offsetWidth || 800;
+  const positions = packBubbles(packOrder.map(p => p.item), containerWidth);
+  // Map positions back to original order
+  const finalPositions = new Array(items.length);
+  packOrder.forEach((p, pi) => { finalPositions[p.i] = positions[pi]; });
+  const totalHeight = Math.max(...finalPositions.map(p => p.y + p.r)) + 20;
+
+  container.style.position = 'relative';
+  container.style.height = totalHeight + 'px';
+  container.innerHTML = finalPositions.map((pos, i) => {
+    const item = items[i];
+    const voted = _votedIds.has(item.idea.id);
+    return `<a href="/foyer/${esc(item.idea.id)}" class="idea-bubble ${voted ? 'voted' : ''}"
+      style="width:${item.size}px;height:${item.size}px;position:absolute;left:${pos.x - pos.r}px;top:${pos.y - pos.r}px"
+      id="bubble-${esc(item.idea.id)}">
+      <span class="bubble-title" style="font-size:${item.fontSize}rem">${esc(item.idea.title)}</span>
+      <button class="bubble-vote-btn ${voted ? 'voted' : ''}" onclick="event.preventDefault();event.stopPropagation();voteBubble('${esc(item.idea.id)}',this)" title="Upvote">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-        <span id="bv-${esc(idea.id)}">${votes}</span>
+        <span id="bv-${esc(item.idea.id)}">${item.votes}</span>
       </button>
     </a>`;
   }).join('');
+}
+
+function packBubbles(items, containerWidth) {
+  if (!items.length) return [];
+  const positions = [];
+  const gap = 12;
+
+  // First bubble: top center
+  const r0 = items[0].size / 2;
+  positions.push({ x: containerWidth / 2, y: r0 + 10, r: r0 });
+
+  // Place remaining bubbles as close to center-top as possible without overlapping
+  for (let i = 1; i < items.length; i++) {
+    const r = items[i].size / 2;
+    let bestX = containerWidth / 2, bestY = 9999;
+
+    // Try candidate positions around each existing bubble
+    for (const placed of positions) {
+      for (let angle = 0; angle < 360; angle += 15) {
+        const rad = angle * Math.PI / 180;
+        const dist = placed.r + r + gap;
+        const cx = placed.x + Math.cos(rad) * dist;
+        const cy = placed.y + Math.sin(rad) * dist;
+
+        // Keep within bounds
+        if (cx - r < 0 || cx + r > containerWidth || cy - r < 0) continue;
+
+        // Check no overlap with any placed bubble
+        let overlaps = false;
+        for (const p of positions) {
+          const dx = cx - p.x, dy = cy - p.y;
+          if (Math.sqrt(dx * dx + dy * dy) < p.r + r + gap) { overlaps = true; break; }
+        }
+        if (overlaps) continue;
+
+        // Prefer positions closest to top-center
+        const distToCenter = Math.abs(cx - containerWidth / 2) * 0.5 + cy;
+        if (distToCenter < bestY) { bestX = cx; bestY = distToCenter; }
+      }
+    }
+    // If bestY is still 9999, fallback
+    if (bestY === 9999) {
+      const lastY = Math.max(...positions.map(p => p.y + p.r));
+      bestX = containerWidth / 2;
+      bestY = lastY + r + gap;
+      positions.push({ x: bestX, y: bestY, r });
+    } else {
+      // Recover actual y from the scoring (re-find the best position)
+      let finalX = bestX, finalY = 0;
+      for (const placed of positions) {
+        for (let angle = 0; angle < 360; angle += 15) {
+          const rad = angle * Math.PI / 180;
+          const dist = placed.r + r + gap;
+          const cx = placed.x + Math.cos(rad) * dist;
+          const cy = placed.y + Math.sin(rad) * dist;
+          if (cx - r < 0 || cx + r > containerWidth || cy - r < 0) continue;
+          let overlaps = false;
+          for (const p of positions) {
+            const dx = cx - p.x, dy = cy - p.y;
+            if (Math.sqrt(dx * dx + dy * dy) < p.r + r + gap) { overlaps = true; break; }
+          }
+          if (overlaps) continue;
+          const score = Math.abs(cx - containerWidth / 2) * 0.5 + cy;
+          if (Math.abs(score - bestY) < 0.01) { finalX = cx; finalY = cy; }
+        }
+      }
+      positions.push({ x: finalX, y: finalY, r });
+    }
+  }
+  return positions;
 }
 
 async function voteBubble(id, btn) {
