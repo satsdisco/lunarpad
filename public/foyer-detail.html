@@ -92,14 +92,14 @@ function renderIdea(idea) {
         <span><span class="stat-value">${idea.team_size || 0}</span> builders</span>
       </div>
       <div class="foyer-detail-actions">
-        <button class="btn btn-sm vote-btn" id="voteBtn" onclick="toggleVote()">
-          <span class="arrow">▲</span> <span id="voteLabel">Upvote</span> <span id="voteCount">${idea.votes || 0}</span>
+        <button class="vote-btn vote-pill" id="voteBtn" onclick="toggleVote()" style="font-size:0.85rem;padding:8px 18px">
+          ▲ <span id="voteLabel">Upvote</span> <span id="voteCount">${idea.votes || 0}</span>
         </button>
-        <button class="btn btn-sm" onclick="showZapPanel()">⚡ Zap</button>
-        <button class="btn btn-sm" id="joinBtn" onclick="toggleTeam()">Join Team</button>
+        <button class="btn btn-zap" onclick="showZapPanel()" style="font-size:0.82rem;padding:7px 16px">⚡ Zap sats</button>
+        <button class="btn" id="joinBtn" onclick="toggleTeam()" style="font-size:0.82rem;padding:7px 16px;border-radius:20px">👥 Join Team</button>
         ${idea.converted_to_project_id
-          ? `<a href="/project/${esc(idea.converted_to_project_id)}" class="btn btn-sm btn-primary">View Project →</a>`
-          : `<button class="btn btn-sm" id="convertBtn" style="display:none" onclick="showConvertModal()">Convert to Project</button>`}
+          ? `<a href="/project/${esc(idea.converted_to_project_id)}" class="btn btn-primary" style="font-size:0.82rem;padding:7px 16px;border-radius:20px">View Project →</a>`
+          : `<button class="btn" id="convertBtn" style="display:none;font-size:0.82rem;padding:7px 16px;border-radius:20px" onclick="showConvertModal()">🚀 Convert to Project</button>`}
       </div>
       ${idea.converted_to_project_id ? `<div style="margin-top:10px;font-size:0.8rem;color:var(--accent)">✓ This idea has been converted to a project</div>` : ''}
       <div id="zapPanel" style="display:none;margin-top:12px;padding:16px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)">
