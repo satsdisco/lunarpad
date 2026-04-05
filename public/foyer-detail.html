@@ -25,8 +25,17 @@
   </div>
 
   <div class="foyer-detail-section" id="comments" style="display:none">
-    <h3># Comments</h3>
-    <p style="font-size:0.8rem;color:var(--muted)">Comments coming soon.</p>
+    <div class="comments-header">
+      <span id="ideaCommentsHeader">Comments</span>
+      <div class="comment-filters" id="ideaCommentFilters" style="display:none">
+        <button class="comment-filter active" data-sort="top" onclick="sortIdeaComments('top',this)">Top</button>
+        <button class="comment-filter" data-sort="newest" onclick="sortIdeaComments('newest',this)">Newest</button>
+        <button class="comment-filter" data-sort="oldest" onclick="sortIdeaComments('oldest',this)">Oldest</button>
+        <button class="comment-filter" data-sort="threads" onclick="sortIdeaComments('threads',this)">Biggest threads</button>
+      </div>
+    </div>
+    <div id="ideaCommentFormArea"></div>
+    <div id="ideaCommentList"></div>
   </div>
 </main>
 
@@ -44,6 +53,7 @@ async function loadIdea() {
     document.getElementById('comments').style.display = '';
     initVoteState();
     initTeamState();
+    loadIdeaComments();
   } catch { document.getElementById('ideaContent').innerHTML = '<div class="foyer-empty">Could not load idea.</div>'; }
 }
 
@@ -177,6 +187,152 @@ function startZapPoll(zapId) {
   }, 3000);
 }
 
+// ─── Comments ─────────────────────────────────────────────────────────────────
+let _ideaRoots = [];
+let _ideaReplies = {};
+
+async function loadIdeaComments() {
+  const formArea = document.getElementById('ideaCommentFormArea');
+  const list = document.getElementById('ideaCommentList');
+  try {
+    if (_currentUser) {
+      formArea.innerHTML = `
+        <div class="comment-form">
+          <textarea id="ideaCommentText" placeholder="Add a comment..." onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter')postIdeaComment()"></textarea>
+          <div class="comment-form-actions">
+            <button class="btn btn-primary btn-sm" onclick="postIdeaComment()">Comment</button>
+          </div>
+        </div>`;
+    } else {
+      formArea.innerHTML = '<p class="sign-in-prompt"><a href="/welcome">Sign in</a> to comment</p>';
+    }
+    const res = await fetch('/api/ideas/' + ideaId + '/comments');
+    const comments = await res.json();
+    const header = document.getElementById('ideaCommentsHeader');
+    if (header) header.textContent = 'Comments (' + comments.length + ')';
+    if (!comments.length) { list.innerHTML = '<p class="sign-in-prompt">No comments yet.</p>'; return; }
+    buildIdeaThreadData(comments);
+    sortIdeaComments('top');
+  } catch { list.innerHTML = '<p class="sign-in-prompt">Could not load comments.</p>'; }
+}
+
+function buildIdeaThreadData(comments) {
+  const byId = {};
+  _ideaRoots = [];
+  _ideaReplies = {};
+  for (const c of comments) {
+    byId[c.id] = c;
+    const effectiveParent = c.parent_id ? (byId[c.parent_id]?.parent_id || c.parent_id) : null;
+    if (!effectiveParent) { _ideaRoots.push(c); }
+    else { (_ideaReplies[effectiveParent] = _ideaReplies[effectiveParent] || []).push(c); }
+  }
+  const filters = document.getElementById('ideaCommentFilters');
+  if (filters) filters.style.display = _ideaRoots.length > 1 ? '' : 'none';
+}
+
+function sortIdeaComments(mode, btn) {
+  if (btn) {
+    document.querySelectorAll('#ideaCommentFilters .comment-filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const sorted = [..._ideaRoots];
+  if (mode === 'top') sorted.sort((a, b) => (b.votes || 0) - (a.votes || 0));
+  else if (mode === 'newest') sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  else if (mode === 'oldest') sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  else if (mode === 'threads') sorted.sort((a, b) => (_ideaReplies[b.id]?.length || 0) - (_ideaReplies[a.id]?.length || 0));
+  const list = document.getElementById('ideaCommentList');
+  if (!sorted.length) { list.innerHTML = '<p class="sign-in-prompt">No comments yet.</p>'; return; }
+  list.innerHTML = sorted.map(c => renderIdeaThread(c, _ideaReplies[c.id] || [])).join('');
+}
+
+function renderIdeaThread(root, kids) {
+  const replyBtn = _currentUser && !kids.length ? `<button class="reply-btn" onclick="focusIdeaReply('${esc(root.id)}')">Reply</button>` : '';
+  const threadReplies = kids.map(r => `
+    <div class="thread-reply" id="comment-${esc(r.id)}">
+      <div class="thread-reply-body">
+        <span class="comment-author">${esc(r.author_name)}</span>
+        <span class="comment-time">${timeAgo(r.created_at)}</span>
+        <div class="comment-text">${esc(r.content)}</div>
+      </div>
+      <button class="vote-btn btn-sm ${r.voted ? 'voted' : ''}" onclick="voteIdeaComment('${esc(r.id)}', this)">
+        <span class="arrow">▲</span>
+        <span>${r.votes || 0}</span>
+      </button>
+    </div>`).join('');
+  const replyCount = kids.length ? `<span class="thread-count">${kids.length} ${kids.length === 1 ? 'reply' : 'replies'}</span>` : '';
+  const quickReply = _currentUser && kids.length ? `
+    <div class="thread-reply-input">
+      <input id="quickReply-${esc(root.id)}" placeholder="Add a reply..." onkeydown="if(event.key==='Enter'){postIdeaReply('${esc(root.id)}');event.preventDefault()}">
+      <button class="btn btn-primary btn-sm" onclick="postIdeaReply('${esc(root.id)}')">Reply</button>
+    </div>` : '';
+  return `
+    <div class="comment-item" id="comment-${esc(root.id)}">
+      <div class="comment-body">
+        <span class="comment-author">${esc(root.author_name)}</span>
+        <span class="comment-time">${timeAgo(root.created_at)}</span>
+        <div class="comment-text">${esc(root.content)}</div>
+        <div class="comment-actions">${replyBtn} ${replyCount}</div>
+      </div>
+      <button class="vote-btn btn-sm ${root.voted ? 'voted' : ''}" onclick="voteIdeaComment('${esc(root.id)}', this)">
+        <span class="arrow">▲</span>
+        <span>${root.votes || 0}</span>
+      </button>
+      ${kids.length ? `<div class="thread-replies">${threadReplies}${quickReply}</div>` : ''}
+      <div id="reply-form-${esc(root.id)}"></div>
+    </div>`;
+}
+
+function focusIdeaReply(parentId) {
+  const container = document.getElementById('reply-form-' + parentId);
+  if (!container) return;
+  container.innerHTML = `
+    <div class="thread-replies" style="margin-top:8px">
+      <div class="thread-reply-input">
+        <input id="quickReply-${parentId}" placeholder="Add a reply..." onkeydown="if(event.key==='Enter'){postIdeaReply('${parentId}');event.preventDefault()}">
+        <button class="btn btn-primary btn-sm" onclick="postIdeaReply('${parentId}')">Reply</button>
+      </div>
+    </div>`;
+  document.getElementById('quickReply-' + parentId).focus();
+}
+
+async function postIdeaComment() {
+  const text = document.getElementById('ideaCommentText').value.trim();
+  if (!text) return;
+  try {
+    const res = await fetch('/api/ideas/' + ideaId + '/comments', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: text })
+    });
+    if (res.ok) { document.getElementById('ideaCommentText').value = ''; loadIdeaComments(); }
+    else { const e = await res.json(); alert(e.error || 'Failed'); }
+  } catch { alert('Failed to post comment'); }
+}
+
+async function postIdeaReply(parentId) {
+  const input = document.getElementById('quickReply-' + parentId);
+  if (!input) return;
+  const content = input.value.trim();
+  if (!content) return;
+  try {
+    const res = await fetch('/api/ideas/' + ideaId + '/comments', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content, parent_id: parentId })
+    });
+    if (res.ok) { loadIdeaComments(); }
+    else { const e = await res.json(); alert(e.error || 'Failed'); }
+  } catch { alert('Failed to post reply'); }
+}
+
+async function voteIdeaComment(id, btn) {
+  try {
+    const res = await fetch('/api/vote', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'comment',id}) });
+    const data = await res.json();
+    btn.classList.toggle('voted', data.voted);
+    btn.querySelector('span:last-child').textContent = data.votes;
+  } catch {}
+}
+
+// ─── Team ─────────────────────────────────────────────────────────────────────
 let _isMember = false;
 
 function initTeamState() {

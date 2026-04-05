@@ -2235,6 +2235,48 @@ app.post('/api/ideas/:id/leave', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/ideas/:id/comments
+app.get('/api/ideas/:id/comments', (req, res) => {
+  const voterId = req.user?.id || (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  const rows = db.prepare(`
+    SELECT c.*, COALESCE(v.vote_count, 0) as votes,
+      CASE WHEN uv.voter_ip IS NOT NULL THEN 1 ELSE 0 END as voted
+    FROM comments c
+    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'comment' GROUP BY target_id) v ON c.id = v.target_id
+    LEFT JOIN votes uv ON uv.target_type = 'comment' AND uv.target_id = c.id AND uv.voter_ip = ?
+    WHERE c.deck_id = ?
+    ORDER BY c.created_at ASC
+  `).all(voterId, req.params.id);
+  res.json(rows);
+});
+
+// POST /api/ideas/:id/comments
+app.post('/api/ideas/:id/comments', requireAuth, (req, res) => {
+  const { content, parent_id } = req.body;
+  if (!content || !content.trim()) return res.status(400).json({ error: 'Content required' });
+  if (parent_id) {
+    const parent = db.prepare('SELECT id, deck_id, parent_id FROM comments WHERE id = ?').get(parent_id);
+    if (!parent || parent.deck_id !== req.params.id) return res.status(400).json({ error: 'Invalid parent comment' });
+  }
+  const id = crypto.randomUUID();
+  const authorName = req.user?.name || 'Anonymous';
+  db.prepare('INSERT INTO comments (id, deck_id, user_id, author_name, content, parent_id) VALUES (?, ?, ?, ?, ?, ?)').run(
+    id, req.params.id, req.user?.id || null, authorName, content.trim(), parent_id || null
+  );
+  const _idea = db.prepare('SELECT user_id, title FROM ideas WHERE id = ?').get(req.params.id);
+  if (parent_id) {
+    const rootId = db.prepare('SELECT COALESCE(parent_id, id) as root FROM comments WHERE id = ?').get(parent_id)?.root || parent_id;
+    if (_idea?.user_id) notify(_idea.user_id, 'reply', req.user.id, authorName, 'idea', req.params.id, _idea.title);
+    const threadUsers = db.prepare('SELECT DISTINCT user_id FROM comments WHERE (id = ? OR parent_id = ?) AND user_id IS NOT NULL AND user_id != ?').all(rootId, rootId, req.user.id);
+    for (const u of threadUsers) {
+      if (u.user_id !== _idea?.user_id) notify(u.user_id, 'reply', req.user.id, authorName, 'idea', req.params.id, _idea?.title);
+    }
+  } else {
+    if (_idea?.user_id) notify(_idea.user_id, 'comment', req.user.id, authorName, 'idea', req.params.id, _idea.title);
+  }
+  res.json({ id });
+});
+
 // ─── Project Deck Versions API ────────────────────────────────────────────────
 
 // GET /api/projects/:id/decks — list all deck versions with deck metadata
