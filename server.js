@@ -315,6 +315,11 @@ const MIGRATIONS = [
   { name: 'v014_zap_notes', sql: [
     'ALTER TABLE zaps ADD COLUMN note TEXT',
   ]},
+  { name: 'v015_marketplace', sql: [
+    'ALTER TABLE ideas ADD COLUMN looking_for TEXT',
+    'ALTER TABLE users ADD COLUMN skills TEXT',
+    'ALTER TABLE users ADD COLUMN available_hours INTEGER',
+  ]},
 ];
 
 // Run pending migrations
@@ -720,10 +725,19 @@ app.get('/auth/logout', (req, res) => {
 
 app.get('/api/me', (req, res) => {
   if (req.user) {
-    res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name, avatar: req.user.avatar, is_admin: !!req.user.is_admin, lightning_address: req.user.lightning_address || null, bio: req.user.bio || null, website_url: req.user.website_url || null, github_url: req.user.github_url || null, has_google: !!req.user.google_id } });
+    res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name, avatar: req.user.avatar, is_admin: !!req.user.is_admin, lightning_address: req.user.lightning_address || null, bio: req.user.bio || null, website_url: req.user.website_url || null, github_url: req.user.github_url || null, has_google: !!req.user.google_id, skills: req.user.skills || null, available_hours: req.user.available_hours || null } });
   } else {
     res.json({ user: null });
   }
+});
+
+// PUT /api/me/availability — update skills and availability
+app.put('/api/me/availability', requireAuth, (req, res) => {
+  const { skills, available_hours } = req.body;
+  const skillsStr = Array.isArray(skills) ? skills.join(',') : (skills || null);
+  const hours = available_hours ? parseInt(available_hours) : null;
+  db.prepare('UPDATE users SET skills = ?, available_hours = ? WHERE id = ?').run(skillsStr, hours, req.user.id);
+  res.json({ ok: true });
 });
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
@@ -2194,16 +2208,26 @@ app.get('/api/ideas', (req, res) => {
     LEFT JOIN (SELECT idea_id, COUNT(*) as team_size FROM idea_members GROUP BY idea_id) t ON i.id = t.idea_id
     ORDER BY ${orderBy}
   `).all();
+  // Attach first 2 member names per idea
+  for (const row of rows) {
+    const names = db.prepare(
+      `SELECT u.name FROM idea_members im JOIN users u ON im.user_id = u.id WHERE im.idea_id = ? ORDER BY im.created_at ASC LIMIT 2`
+    ).all(row.id);
+    row.member_names = names.map(n => n.name).join(', ') || null;
+  }
   res.json(rows);
 });
 
 // POST /api/ideas — create idea
 app.post('/api/ideas', requireAuth, (req, res) => {
-  const { title, description } = req.body;
+  const { title, description, looking_for } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: 'title required' });
   const id = crypto.randomUUID();
   const slug = uniqueSlug('ideas', toSlug(title.trim()));
-  stmts.insertIdea.run(id, title.trim(), description || null, req.user?.id || null, slug);
+  const lookingFor = Array.isArray(looking_for) ? looking_for.join(',') : (looking_for || null);
+  db.prepare('INSERT INTO ideas (id, title, description, user_id, slug, total_sats_received, looking_for) VALUES (?, ?, ?, ?, ?, 0, ?)').run(
+    id, title.trim(), description || null, req.user?.id || null, slug, lookingFor
+  );
   if (req.user?.id) cachedBadgeCheck(req.user.id);
   res.json({ id, slug });
 });
@@ -2304,6 +2328,8 @@ app.post('/api/ideas/:id/join', requireAuth, (req, res) => {
   if (existing) return res.status(409).json({ error: 'Already a member' });
   const id = crypto.randomUUID();
   db.prepare('INSERT INTO idea_members (id, idea_id, user_id) VALUES (?, ?, ?)').run(id, req.params.id, req.user.id);
+  // Notify idea author
+  if (idea.user_id) notify(idea.user_id, 'team_join', req.user.id, req.user.name || 'Someone', 'idea', req.params.id, idea.title);
   res.json({ ok: true });
 });
 

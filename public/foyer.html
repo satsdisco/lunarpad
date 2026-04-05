@@ -63,6 +63,17 @@
       <label>Description</label>
       <textarea id="ideaDesc" placeholder="Describe the idea, the problem it solves, or why it matters..." rows="4"></textarea>
     </div>
+    <div class="form-group">
+      <label>Looking for (optional)</label>
+      <div class="role-chip-picker" id="roleChips">
+        <button type="button" class="role-chip" data-role="Designer" onclick="this.classList.toggle('active')">Designer</button>
+        <button type="button" class="role-chip" data-role="Frontend Dev" onclick="this.classList.toggle('active')">Frontend Dev</button>
+        <button type="button" class="role-chip" data-role="Backend Dev" onclick="this.classList.toggle('active')">Backend Dev</button>
+        <button type="button" class="role-chip" data-role="Lightning Dev" onclick="this.classList.toggle('active')">Lightning Dev</button>
+        <button type="button" class="role-chip" data-role="Marketing" onclick="this.classList.toggle('active')">Marketing</button>
+        <button type="button" class="role-chip" data-role="Tester" onclick="this.classList.toggle('active')">Tester</button>
+      </div>
+    </div>
     <div class="form-actions">
       <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
       <button class="btn btn-primary" onclick="postIdea()">Post Idea</button>
@@ -139,7 +150,9 @@ function renderBubbles() {
       style="width:${item.size}px;height:${item.size}px;position:absolute;left:${pos.x - pos.r}px;top:${pos.y - pos.r}px"
       id="bubble-${esc(item.idea.id)}">
       ${converted ? '<span class="bubble-converted">✓</span>' : ''}
+      ${item.idea.looking_for ? '<span class="bubble-looking-for">👥</span>' : ''}
       <span class="bubble-title" style="font-size:${item.fontSize}rem">${esc(item.idea.title)}</span>
+      ${item.idea.member_names ? `<span class="bubble-team-names">${esc(item.idea.member_names)}${item.idea.team_size > 2 ? ' +' + (item.idea.team_size - 2) : ''}</span>` : ''}
       ${item.idea.views_today > 0 ? `<span class="bubble-views">${item.idea.views_today} view${item.idea.views_today === 1 ? '' : 's'} today</span>` : ''}
       ${item.idea.total_sats_received > 0 ? `<span class="bubble-sats">⚡ ${item.idea.total_sats_received}</span>` : ''}
       <button class="bubble-vote-btn ${voted ? 'voted' : ''}" onclick="event.preventDefault();event.stopPropagation();voteBubble('${esc(item.idea.id)}',this)" title="Upvote">
@@ -245,14 +258,16 @@ async function postIdea() {
   const title = document.getElementById('ideaTitle').value.trim();
   const description = document.getElementById('ideaDesc').value.trim();
   if (!title) return alert('Title is required');
+  const looking_for = [...document.querySelectorAll('#roleChips .role-chip.active')].map(c => c.dataset.role);
   try {
     const res = await fetch('/api/ideas', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ title, description })
+      body: JSON.stringify({ title, description, looking_for })
     });
     if (!res.ok) { const e = await res.json(); return alert(e.error || 'Failed'); }
     document.getElementById('ideaTitle').value = '';
     document.getElementById('ideaDesc').value = '';
+    document.querySelectorAll('#roleChips .role-chip.active').forEach(c => c.classList.remove('active'));
     document.getElementById('ideaModal').classList.remove('open');
     sortIdeas('newest');
   } catch { alert('Failed to post idea'); }

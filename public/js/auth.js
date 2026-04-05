@@ -113,7 +113,7 @@ async function pollNotifications() {
     list.innerHTML = data.notifications.map(n => {
       const href = notifHref(n);
       const time = timeAgo(n.created_at);
-      const icon = n.type === 'comment' ? '💬' : n.type === 'reply' ? '↩️' : n.type === 'vote' ? '👍' : '⚡';
+      const icon = n.type === 'comment' ? '💬' : n.type === 'reply' ? '↩️' : n.type === 'vote' ? '👍' : n.type === 'team_join' ? '👥' : '⚡';
       const text = notifText(n);
       return `<a class="notif-item${n.read ? '' : ' unread'}" href="${href}" onclick="markRead('${n.id}')" title="${time}">
         <span class="notif-icon">${icon}</span>
@@ -130,6 +130,7 @@ function notifText(n) {
   if (n.type === 'reply') return `<b>${name}</b> replied in a thread on ${target}`;
   if (n.type === 'vote') return `<b>${name}</b> upvoted ${target}`;
   if (n.type === 'zap') return `<b>${name}</b> zapped ${target}`;
+  if (n.type === 'team_join') return `<b>${name}</b> joined your team on ${target}`;
   return `<b>${name}</b> interacted with ${target}`;
 }
 

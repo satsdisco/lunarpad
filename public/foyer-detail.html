@@ -81,6 +81,7 @@ function renderIdea(idea) {
         <span style="margin-left:auto">${timeAgo(idea.created_at)}</span>
       </div>
       <div class="description">${esc(idea.description || '')}</div>
+      ${idea.looking_for ? `<div class="looking-for-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">${idea.looking_for.split(',').map(r => `<span class="looking-for-badge">${esc(r.trim())}</span>`).join('')}</div>` : ''}
       <div class="foyer-detail-stats">
         <span><span class="stat-value">${idea.votes || 0}</span> votes</span>
         <span><span class="stat-value">${idea.total_sats_received || 0}</span> sats</span>

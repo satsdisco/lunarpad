@@ -3670,6 +3670,31 @@ body::after {
 .top-zapper-rank { flex-shrink: 0; font-size: 0.8rem; }
 .top-zapper-name { flex: 1; color: var(--text); font-weight: 500; }
 .top-zapper-sats { color: var(--gold); font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; }
+.role-chip-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.role-chip {
+  background: var(--glass); border: 1px solid var(--border); border-radius: 100px;
+  padding: 4px 12px; font-size: 0.7rem; font-weight: 500;
+  color: var(--muted); cursor: pointer; font-family: var(--font);
+  transition: all .15s;
+}
+.role-chip:hover { border-color: var(--accent); color: var(--text2); }
+.role-chip.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.looking-for-badge {
+  display: inline-block; padding: 3px 10px; font-size: 0.65rem; font-weight: 600;
+  background: var(--accent-dim); border: 1px solid rgba(124,92,252,0.3);
+  border-radius: 100px; color: var(--accent);
+}
+.bubble-looking-for {
+  position: absolute; top: 8px; left: 8px;
+  font-size: 0.6rem; pointer-events: none;
+}
+.bubble-team-names {
+  font-size: 0.5rem; color: var(--muted); margin-top: 2px;
+  max-width: 85%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* Foyer layout */
 .foyer-layout { display: flex; gap: 20px; }

@@ -273,6 +273,15 @@ function cancelLinksEdit() {
   if (gi) gi.value = d.github_url || '';
 }
 
+async function saveAvailability() {
+  const skills = [...document.querySelectorAll('#skillChips .role-chip.active')].map(c => c.dataset.role);
+  const available_hours = parseInt(document.getElementById('availHours')?.value) || null;
+  try {
+    const res = await fetch('/api/me/availability', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ skills, available_hours }) });
+    if (res.ok) { const btn = document.querySelector('#skillChips + div .btn'); if (btn) { btn.textContent = 'Saved!'; setTimeout(() => btn.textContent = 'Save', 1500); } }
+  } catch {}
+}
+
 async function saveLinks() {
   const w = document.getElementById('websiteInput')?.value.trim() ?? '';
   const g = document.getElementById('githubInput')?.value.trim() ?? '';
@@ -575,6 +584,28 @@ async function loadProfile() {
       </div>
 
       ${statsBar}
+
+      ${isOwn ? `
+      <div class="profile-section">
+        <div class="profile-section-title">Availability</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="skillChips">
+          ${['Designer','Frontend Dev','Backend Dev','Lightning Dev','Marketing','Tester'].map(r =>
+            `<button type="button" class="role-chip ${(user.skills || '').split(',').map(s=>s.trim()).includes(r) ? 'active' : ''}" data-role="${r}" onclick="this.classList.toggle('active')">${r}</button>`
+          ).join('')}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <label style="font-size:0.75rem;color:var(--muted)">Hours/week:</label>
+          <input type="number" id="availHours" min="0" max="80" value="${user.available_hours || ''}" placeholder="0" style="width:60px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.8rem">
+          <button class="btn btn-sm" onclick="saveAvailability()">Save</button>
+        </div>
+      </div>` : (user.skills ? `
+      <div class="profile-section">
+        <div class="profile-section-title">Skills</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${user.skills.split(',').map(s => `<span class="looking-for-badge">${esc(s.trim())}</span>`).join('')}
+        </div>
+        ${user.available_hours ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:8px">${user.available_hours}h/week available</div>` : ''}
+      </div>` : '')}
 
       ${activityChart}
 
