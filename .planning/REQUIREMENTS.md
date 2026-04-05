@@ -75,26 +75,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| IDEA-01 | — | Pending |
-| IDEA-02 | — | Pending |
-| IDEA-03 | — | Pending |
-| IDEA-04 | — | Pending |
-| IDEA-05 | — | Pending |
-| TEAM-01 | — | Pending |
-| TEAM-02 | — | Pending |
-| TEAM-03 | — | Pending |
-| CMNT-01 | — | Pending |
-| CMNT-02 | — | Pending |
-| CONV-01 | — | Pending |
-| CONV-02 | — | Pending |
-| CONV-03 | — | Pending |
-| CONV-04 | — | Pending |
-| NAV-01 | — | Pending |
+| IDEA-01 | Phase 1 (API), Phase 2 (UI) | Pending |
+| IDEA-02 | Phase 1 (API), Phase 2 (UI) | Pending |
+| IDEA-03 | Phase 3 | Pending |
+| IDEA-04 | Phase 3 | Pending |
+| IDEA-05 | Phase 1 (API), Phase 2 (UI) | Pending |
+| TEAM-01 | Phase 4 | Pending |
+| TEAM-02 | Phase 4 | Pending |
+| TEAM-03 | Phase 4 | Pending |
+| CMNT-01 | Phase 5 | Pending |
+| CMNT-02 | Phase 5 | Pending |
+| CONV-01 | Phase 6 | Pending |
+| CONV-02 | Phase 6 | Pending |
+| CONV-03 | Phase 6 | Pending |
+| CONV-04 | Phase 6 | Pending |
+| NAV-01 | Phase 2 | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15
+- Mapped to phases: 15
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
