@@ -59,11 +59,13 @@ jobs:
 
           DOMAIN="gui/$(id -u)"
           cd "$REPO"
+          FETCH_URL="https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
           echo "==> Repo: $REPO"
           echo "==> Branch: $BRANCH"
-          git fetch origin
+          echo "==> Fetch URL host: github.com/${GITHUB_REPOSITORY}.git"
+          git fetch "$FETCH_URL" "$BRANCH"
           git checkout "$BRANCH"
-          git reset --hard "origin/$BRANCH"
+          git reset --hard FETCH_HEAD
           launchctl kickstart -k "$DOMAIN/$LABEL"
           sleep 3
           git rev-parse HEAD
