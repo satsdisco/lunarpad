@@ -30,31 +30,51 @@ async function initAuth(onUser) {
           </div>
         </div>
         <div class="user-menu">
-          <div class="user-pill" onclick="this.parentElement.querySelector('.user-dropdown').classList.toggle('open')">
+          <button class="user-pill" id="userMenuToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Open account menu">
             <img src="${data.user.avatar || ''}" alt="" onerror="this.style.display='none'">
             <span>${data.user.name || data.user.email}</span>
-          </div>
-          <div class="user-dropdown">
-            <a href="/profile">My Profile</a>
+            <span class="user-pill-chevron" aria-hidden="true">∨</span>
+          </button>
+          <div class="user-dropdown" id="userDropdown" role="menu">
+            <a href="/profile" role="menuitem">My Profile</a>
             <div class="dev-switcher" id="devSwitcher" style="display:none">
               <div style="padding:4px 10px;font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Switch user</div>
               <a href="/dev/switch/alice" class="dev-switch-btn">Alice (Dev)</a>
               <a href="/dev/switch/bob" class="dev-switch-btn">Bob (Dev)</a>
             </div>
-            <a href="/auth/logout">Sign out</a>
+            <a href="/auth/logout" role="menuitem">Sign out</a>
           </div>
         </div>`;
+
+      const userMenuToggle = document.getElementById('userMenuToggle');
+      const userDropdown = document.getElementById('userDropdown');
+      const syncUserMenuState = (isOpen) => {
+        if (!userDropdown || !userMenuToggle) return;
+        userDropdown.classList.toggle('open', isOpen);
+        userMenuToggle.classList.toggle('open', isOpen);
+        userMenuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      };
 
       // Close dropdowns on outside click
       document.addEventListener('click', e => {
         if (!e.target.closest('.user-menu')) {
-          document.querySelectorAll('.user-dropdown').forEach(d => d.classList.remove('open'));
+          syncUserMenuState(false);
         }
         if (!e.target.closest('.notif-wrapper')) {
           const dd = document.getElementById('notifDropdown');
           if (dd) dd.classList.remove('open');
         }
       });
+
+      if (userMenuToggle) {
+        userMenuToggle.addEventListener('click', e => {
+          e.stopPropagation();
+          syncUserMenuState(!userDropdown.classList.contains('open'));
+        });
+        userMenuToggle.addEventListener('keydown', e => {
+          if (e.key === 'Escape') syncUserMenuState(false);
+        });
+      }
 
       // Bell click
       document.getElementById('notifBell').addEventListener('click', e => {

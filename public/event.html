@@ -158,10 +158,11 @@ function timeAgo(ds) { const m = Math.floor((Date.now()-new Date(ds).getTime())/
 
 async function loadEvent() {
   try {
-    const [evRes, bRes, rsvpRes] = await Promise.all([
+    const [evRes, bRes, rsvpRes, meRes] = await Promise.all([
       fetch('/api/events/' + eventId).then(r => r.json()),
       fetch('/api/events/' + eventId + '/bounties').then(r => r.json()).catch(() => []),
-      fetch('/api/events/' + eventId + '/rsvps').then(r => r.json()).catch(() => null)
+      fetch('/api/events/' + eventId + '/rsvps').then(r => r.json()).catch(() => null),
+      fetch('/api/me').then(r => r.json()).catch(() => ({}))
     ]);
     eventData = evRes;
     if (evRes.error || !evRes.id) {
@@ -184,6 +185,8 @@ async function loadEvent() {
 
     const dateStr = ev.date ? new Date(ev.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' }) : 'TBD';
     const speakers = (ev.speakers || []).sort((a,b) => (b.votes||0) - (a.votes||0));
+    const currentUser = meRes?.user || null;
+    const userPresenting = !!(currentUser && speakers.some((sp) => sp.user_id && sp.user_id === currentUser.id));
 
     const attendingBadge = rsvpCount > 0 ? `<span>👥 ${rsvpCount} attending</span>` : '';
 
@@ -198,9 +201,11 @@ async function loadEvent() {
       heroActionsHtml = '<button class="btn" id="shareBtn" ' + btnStyle + '>Share</button>';
     } else {
       heroActionsHtml = userRsvp
-        ? '<button class="btn btn-primary" id="rsvpToggle" ' + btnStyle + ' onclick="cancelRsvp()">✓ Going</button>'
-        : '<button class="btn" id="rsvpToggle" ' + btnStyle + ' onclick="doRsvp()">👥 RSVP</button>';
-      heroActionsHtml += '<button class="btn btn-primary" id="presentToggle" ' + btnStyle + '>🎤 Present</button>';
+        ? '<button class="btn btn-confirmed" id="rsvpToggle" ' + btnStyle + ' onclick="cancelRsvp()" aria-pressed="true">✓ Going</button>'
+        : '<button class="btn" id="rsvpToggle" ' + btnStyle + ' onclick="doRsvp()" aria-pressed="false">👥 RSVP</button>';
+      heroActionsHtml += userPresenting
+        ? '<button class="btn btn-confirmed" id="presentToggle" ' + btnStyle + ' aria-pressed="true">🎤 Presenting</button>'
+        : '<button class="btn btn-primary" id="presentToggle" ' + btnStyle + ' aria-pressed="false">🎤 Present</button>';
       heroActionsHtml += '<button class="btn" id="shareBtn" ' + btnStyle + '>Share</button>';
       heroActionsHtml += '<a class="btn" id="addToCalBtn" ' + btnStyle + ' style="display:none;font-size:0.82rem;padding:7px 16px;border-radius:20px">📅 Calendar</a>';
     }
@@ -422,14 +427,15 @@ function renderBounty(b) {
   const sc = {open:'open',claimed:'claimed',completed:'completed'}[b.status]||'open';
   const statusLabel = {open:'Open',claimed:'Claimed',completed:'Completed'}[b.status]||b.status;
   return `
-    <div class="bounty-card" onclick="window.location='/bounty/${esc(b.id)}'" style="cursor:pointer">
+    <a class="bounty-card bounty-card-link" href="/bounty/${esc(b.id)}">
       <div class="bounty-header">
         <div class="bounty-title">${esc(b.title)}</div>
         <span class="bounty-status ${sc}">${statusLabel}</span>
       </div>
       <div class="bounty-sats">⚡ ${(b.sats_amount||0).toLocaleString()} sats</div>
       ${b.description ? `<div class="bounty-desc">${esc(b.description)}</div>` : ''}
-    </div>`;
+      <div class="bounty-card-cta">View Bounty <span aria-hidden="true">→</span></div>
+    </a>`;
 }
 
 function switchTab(name) {
