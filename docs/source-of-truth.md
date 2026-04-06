@@ -94,13 +94,16 @@ Do **not** leave random `node --watch` garbage running against ports `3100` or `
 
 ## 5. Current verified state
 
-As of verification:
+As of the latest verification:
 
 - workspace repo is synced and usable
 - staging runtime is healthy on `3102`
 - production runtime is healthy on `3100`
 - both public URLs responded successfully
-- `origin/main` and `origin/staging` were both at commit `7b42b4c` when checked
+- push-triggered GitHub Actions deploys are now working on the Mac mini for both `staging` and `main`
+- verified current refs:
+  - `origin/staging` = `ac58393`
+  - `origin/main` = `3cb100d`
 
 ---
 
@@ -210,20 +213,26 @@ Then verify:
 
 ## 9. Important caveats
 
-### Staging auto-poller
+### Auto-deploy path
 
-There is an old staging poller setup in launchd history, but it has been flaky/untrustworthy.
+The active auto-deploy path is now:
+- GitHub push
+- GitHub Actions workflow: `.github/workflows/deploy-mac-mini.yml`
+- self-hosted runner on the Mac mini: `lunarpad-macmini`
+- runner-safe deploy commands that fetch into the runtime checkout and restart the matching `launchd` service
 
-**Do not rely on “push to staging and it will probably auto-roll out.”**
-Use the explicit staging deploy flow.
+There is an older staging poller idea in launchd history, but that is not the thing we trust anymore.
+
+**The workflow-backed GitHub Actions deploy is now the intended path.**
 
 ### Branch protection / CI
 
-Still missing:
+Still missing if we want this to be harder to screw up:
 - branch protection on `main`
+- optional branch protection on `staging`
 - CI checks / smoke checks before release
 
-So the workflow is safer now, but not yet bulletproof enough to survive maximum chaos.
+So the workflow is working now, but it is not yet maximally idiot-resistant.
 
 ### Staging env parity
 
