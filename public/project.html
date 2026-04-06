@@ -102,9 +102,6 @@
 
 <div id="zapOverlay" class="zap-overlay">⚡</div>
 
-<!-- Hidden banner file input -->
-<input type="file" id="bannerFileInput" accept="image/*" style="display:none" onchange="handleBannerUpload(this)">
-
 <footer class="footer">LunarPad — Build. Ship. Earn sats.</footer>
 
 <script>
@@ -704,29 +701,7 @@ async function saveProject() {
   else { const e = await r.json().catch(()=>({})); alert(e.error || 'Save failed'); }
 }
 
-// ─── Banner upload ────────────────────────────────────────────────────────────
-
-async function handleBannerUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const fd = new FormData();
-  fd.append('banner', file);
-  try {
-    const r = await fetch('/api/projects/' + projectId + '/banner', { method: 'POST', body: fd });
-    if (!r.ok) { alert('Banner upload failed'); return; }
-    const data = await r.json();
-    // Replace banner area
-    const wrap = document.getElementById('bannerWrap');
-    if (wrap && data.banner_url) {
-      wrap.innerHTML = `<img src="${esc(data.banner_url)}" class="project-banner" alt="">
-        <div class="project-banner-upload-overlay" onclick="document.getElementById('bannerFileInput').click()">
-          <span style="font-size:1.4rem">📷</span>
-          <span style="font-size:0.75rem;margin-top:4px">Change Banner</span>
-        </div>`;
-    }
-  } catch { alert('Banner upload failed'); }
-  input.value = '';
-}
+// ─── Banner upload moved to build.html ───────────────────────────────────────
 
 // ─── Deck Versions ────────────────────────────────────────────────────────────
 
@@ -887,32 +862,34 @@ function uploadProjectImage(input) {
   if (!input.files[0]) return;
   const reader = new FileReader();
   reader.onload = (e) => {
-    openCropModal(e.target.result, 'project');
+    openCropModal(e.target.result);
   };
   reader.readAsDataURL(input.files[0]);
 }
 
 let _cropper = null;
-let _cropTarget = null;
 
-function openCropModal(imageSrc, target) {
-  _cropTarget = target;
+function openCropModal(imageSrc) {
   const img = document.getElementById('cropImage');
   img.src = imageSrc;
   document.getElementById('cropModal').classList.add('open');
   if (_cropper) { _cropper.destroy(); _cropper = null; }
   img.onload = () => {
     _cropper = new Cropper(img, {
-      aspectRatio: NaN, // free crop — CSS handles display (square icon on page, wide banner on cards)
-      viewMode: 1,
+      aspectRatio: 1,
+      viewMode: 0,
       dragMode: 'move',
       cropBoxResizable: true,
       cropBoxMovable: true,
-      background: false,
+      background: true,
       guides: false,
       center: true,
       highlight: false,
       autoCropArea: 0.8,
+      minContainerWidth: 200,
+      minContainerHeight: 150,
+      zoomable: true,
+      zoomOnWheel: true,
     });
   };
 }
@@ -926,16 +903,16 @@ async function saveCrop() {
   if (!_cropper) return;
   const btn = document.getElementById('cropSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving...';
-  const canvas = _cropper.getCroppedCanvas({ maxWidth: 800, maxHeight: 800 });
+  const canvas = _cropper.getCroppedCanvas({ maxWidth: 400, maxHeight: 400, fillColor: '#fff' });
   canvas.toBlob(async (blob) => {
     const fd = new FormData();
-    fd.append('banner', blob, 'project.jpg');
+    fd.append('thumbnail', blob, 'project.jpg');
     try {
-      const r = await fetch('/api/projects/' + projectId + '/banner', { method: 'POST', body: fd });
+      const r = await fetch('/api/projects/' + projectId + '/thumbnail', { method: 'POST', body: fd });
       if (r.ok) {
         const data = await r.json();
         const img = document.getElementById('projectImgEl');
-        if (img) img.src = data.banner_url + '?t=' + Date.now();
+        if (img) img.src = data.thumbnail_url + '?t=' + Date.now();
       } else { alert('Upload failed'); }
     } catch { alert('Upload failed'); }
     btn.disabled = false; btn.textContent = 'Save';
@@ -960,13 +937,20 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.g
 <div class='modal-overlay' id='cropModal'>
   <div class='modal-content' style='max-width:500px'>
     <button class='modal-close' onclick='closeCropModal()'>&times;</button>
-    <div class='modal-title'>Crop Image</div>
+    <div class='modal-title'>Crop Profile Picture</div>
     <div style='width:100%;max-height:400px;overflow:hidden;background:#000;border-radius:8px'>
       <img id='cropImage' src='' style='max-width:100%;display:block'>
     </div>
-    <div style='display:flex;gap:8px;justify-content:flex-end;margin-top:16px'>
-      <button class='btn' onclick='closeCropModal()'>Cancel</button>
-      <button class='btn btn-primary' id='cropSaveBtn' onclick='saveCrop()'>Save</button>
+    <div style='display:flex;align-items:center;justify-content:space-between;margin-top:16px'>
+      <div style='display:flex;gap:6px;align-items:center'>
+        <button class='btn' onclick='if(_cropper)_cropper.zoom(-0.1)' title='Zoom out' style='padding:6px 10px;font-size:1.1rem'>−</button>
+        <button class='btn' onclick='if(_cropper)_cropper.zoom(0.1)' title='Zoom in' style='padding:6px 10px;font-size:1.1rem'>+</button>
+        <button class='btn' onclick='if(_cropper)_cropper.reset()' title='Reset' style='padding:6px 10px;font-size:.8rem'>Reset</button>
+      </div>
+      <div style='display:flex;gap:8px'>
+        <button class='btn' onclick='closeCropModal()'>Cancel</button>
+        <button class='btn btn-primary' id='cropSaveBtn' onclick='saveCrop()'>Save</button>
+      </div>
     </div>
   </div>
 </div>

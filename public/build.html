@@ -5,7 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Build in Public — LunarPad</title>
 <link rel="stylesheet" href="/css/style.css">
+<link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css'>
+<script src='https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js'></script>
 <style>
+.proj-banner-edit-btn {
+  position: absolute; top: 6px; right: 6px;
+  background: rgba(0,0,0,0.6); border: none; border-radius: 6px;
+  color: #fff; font-size: 0.75rem; padding: 4px 8px; cursor: pointer;
+  opacity: 0; transition: opacity 0.2s;
+}
+.project-card:hover .proj-banner-edit-btn { opacity: 1; }
+.cropper-modal { background: rgba(0,0,0,0.7) !important; }
+.cropper-view-box { outline: 2px solid var(--accent) !important; outline-color: rgba(124,92,252,0.75) !important; }
+.cropper-line { background-color: var(--accent) !important; }
+.cropper-point { background-color: var(--accent) !important; width: 8px !important; height: 8px !important; }
+.cropper-dashed { border-color: rgba(255,255,255,0.2) !important; }
 .event-hero-banner {
   border-radius: var(--radius-lg);
   padding: 32px 36px;
@@ -507,6 +521,7 @@ function switchToView(viewName) {
   const view = document.getElementById('view-' + viewName);
   if (link) link.classList.add('active');
   if (view) view.classList.add('active');
+  history.replaceState(null, '', '#' + viewName);
 }
 
 document.querySelectorAll('.sidebar-link').forEach(link => {
@@ -1113,10 +1128,15 @@ function renderProjectCards(projects) {
     const satsLabel = p.total_sats_received > 0
       ? `<span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--btc-bright);opacity:.85">⚡${Number(p.total_sats_received).toLocaleString()}</span>`
       : '';
-    const visualSrc = p.thumbnail_url || p.banner_url || projectVisual(p.name, p.category, 400, 120);
+    const visualSrc = p.banner_url || p.thumbnail_url || projectVisual(p.name, p.category, 400, 120);
+    const isOwner = _currentUser && (p.user_id === _currentUser.id || _currentUser.is_admin);
+    const editBannerBtn = isOwner ? `<button class="proj-banner-edit-btn" onclick="event.stopPropagation(); triggerBannerUpload('${esc(p.id)}')" title="${p.banner_url ? 'Change banner' : 'Add banner'}">📷</button>` : '';
     return `
-      <div class="project-card" id="proj-${esc(p.id)}" onclick="if(!event.target.closest('.project-upvote')&&!event.target.closest('.spk-link')&&!event.target.closest('.proj-zap-btn'))window.location='/project/'+this.id.replace('proj-','')" style="cursor:pointer">
-        <img class="project-card-visual" src="${visualSrc}" alt="">
+      <div class="project-card" id="proj-${esc(p.id)}" onclick="if(!event.target.closest('.project-upvote')&&!event.target.closest('.spk-link')&&!event.target.closest('.proj-zap-btn')&&!event.target.closest('.proj-banner-edit-btn'))window.location='/project/'+this.id.replace('proj-','')" style="cursor:pointer">
+        <div style="position:relative">
+          <img class="project-card-visual" src="${visualSrc}" alt="">
+          ${editBannerBtn}
+        </div>
         <div class="project-card-body">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
             <div class="project-name">${esc(p.name)}</div>
@@ -1588,6 +1608,7 @@ async function loadLeaderboard(sort) {
       <div class="lb-name-col" style="flex:1">Builder</div>
       <div class="lb-bar-wrap"></div>
       <div class="lb-stat lb-sats">${primaryLabel}</div>
+      ${sort === 'earners' ? '<div class="lb-stat lb-meta">Zaps Sent</div>' : ''}
       ${sort !== 'projects' ? '<div class="lb-stat lb-meta">Projects</div>' : ''}
       <div class="lb-stat lb-meta">Bounties</div>
     </div>`;
@@ -1612,7 +1633,7 @@ async function loadLeaderboard(sort) {
           </div>
           <div class="lb-bar-wrap"><div class="lb-bar-fill" style="width:${barPct}%"></div></div>
           <div class="lb-stat lb-sats">${primaryStat(u)}</div>
-          ${sort === 'earners' && u.zaps_received > 0 ? `<div class="lb-stat lb-meta" title="Zaps received">🤙 ${Number(u.zaps_received).toLocaleString()}</div>` : ''}
+          ${sort === 'earners' ? `<div class="lb-stat lb-meta" title="Zaps sent">🤙 ${Number(u.zaps_sent || 0).toLocaleString()}</div>` : ''}
           ${sort !== 'projects' ? `<div class="lb-stat lb-meta">📦 ${u.projects_count}</div>` : ''}
           <div class="lb-stat lb-meta">🏆 ${u.bounties_won} won</div>
         </div>`;
@@ -1648,6 +1669,12 @@ document.addEventListener('click', e => {
   const sort = tab.dataset.sort;
   if (sort && sort !== _lbCurrentSort) loadLeaderboard(sort);
 });
+
+// Deep-link: auto-load leaderboard if hash is set
+if (window.location.hash === '#leaderboard' && !_lbLoaded) {
+  _lbLoaded = true;
+  loadLeaderboard('earners');
+}
 </script>
 <script src="/js/auth.js"></script>
 <script>initAuth(function(user) {
@@ -1658,5 +1685,95 @@ document.addEventListener('click', e => {
 });</script>
 <button class="fab" title="Submit Project" onclick="document.getElementById('projectModal').classList.add('open')"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Submit Project</span></button>
 <script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
+<input type="file" id="bannerFileInput" accept="image/*" style="display:none">
+<div class='modal-overlay' id='bannerCropModal'>
+  <div class='modal-content' style='max-width:500px'>
+    <button class='modal-close' onclick='closeBannerCrop()'>&times;</button>
+    <div class='modal-title'>Crop Banner (16:9)</div>
+    <div style='width:100%;max-height:400px;overflow:hidden;background:#000;border-radius:8px'>
+      <img id='bannerCropImage' src='' style='max-width:100%;display:block'>
+    </div>
+    <div style='display:flex;align-items:center;justify-content:space-between;margin-top:16px'>
+      <div style='display:flex;gap:6px;align-items:center'>
+        <button class='btn' onclick='if(_bnCropper)_bnCropper.zoom(-0.1)' title='Zoom out' style='padding:6px 10px;font-size:1.1rem'>−</button>
+        <button class='btn' onclick='if(_bnCropper)_bnCropper.zoom(0.1)' title='Zoom in' style='padding:6px 10px;font-size:1.1rem'>+</button>
+        <button class='btn' onclick='if(_bnCropper)_bnCropper.reset()' title='Reset' style='padding:6px 10px;font-size:.8rem'>Reset</button>
+      </div>
+      <div style='display:flex;gap:8px'>
+        <button class='btn' onclick='closeBannerCrop()'>Cancel</button>
+        <button class='btn btn-primary' id='bannerCropSaveBtn' onclick='saveBannerCrop()'>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+let _bnCropper = null;
+let _bnProjectId = null;
+
+function triggerBannerUpload(projectId) {
+  _bnProjectId = projectId;
+  const input = document.getElementById('bannerFileInput');
+  input.value = '';
+  input.onchange = function() {
+    if (!this.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = document.getElementById('bannerCropImage');
+      img.src = e.target.result;
+      document.getElementById('bannerCropModal').classList.add('open');
+      if (_bnCropper) { _bnCropper.destroy(); _bnCropper = null; }
+      img.onload = () => {
+        _bnCropper = new Cropper(img, {
+          aspectRatio: 16/9,
+          viewMode: 0,
+          dragMode: 'move',
+          cropBoxResizable: true,
+          cropBoxMovable: true,
+          background: true,
+          guides: false,
+          center: true,
+          highlight: false,
+          autoCropArea: 0.8,
+          zoomable: true,
+          zoomOnWheel: true,
+        });
+      };
+    };
+    reader.readAsDataURL(this.files[0]);
+  };
+  input.click();
+}
+
+function closeBannerCrop() {
+  document.getElementById('bannerCropModal').classList.remove('open');
+  if (_bnCropper) { _bnCropper.destroy(); _bnCropper = null; }
+}
+
+async function saveBannerCrop() {
+  if (!_bnCropper || !_bnProjectId) return;
+  const btn = document.getElementById('bannerCropSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const canvas = _bnCropper.getCroppedCanvas({ maxWidth: 800, maxHeight: 450, fillColor: '#fff' });
+  canvas.toBlob(async (blob) => {
+    const fd = new FormData();
+    fd.append('banner', blob, 'banner.jpg');
+    try {
+      const r = await fetch('/api/projects/' + _bnProjectId + '/banner', { method: 'POST', body: fd });
+      if (r.ok) {
+        const data = await r.json();
+        const card = document.getElementById('proj-' + _bnProjectId);
+        if (card) {
+          const img = card.querySelector('.project-card-visual');
+          if (img) img.src = data.banner_url + '?t=' + Date.now();
+        }
+      } else { alert('Upload failed'); }
+    } catch { alert('Upload failed'); }
+    btn.disabled = false; btn.textContent = 'Save';
+    closeBannerCrop();
+  }, 'image/jpeg', 0.9);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBannerCrop(); });
+</script>
 </body>
 </html>

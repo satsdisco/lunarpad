@@ -1481,6 +1481,8 @@ a:hover { color: var(--accent); }
   font-size: 0.78rem;
   white-space: nowrap;
   flex-shrink: 0;
+  min-width: 80px;
+  text-align: right;
 }
 
 .lb-sats {
