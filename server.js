@@ -485,7 +485,9 @@ const stmts = {
   deleteVotes:   db.prepare('DELETE FROM votes WHERE target_type = ? AND target_id = ?'),
   insertNotification: db.prepare('INSERT INTO notifications (id, user_id, type, actor_id, actor_name, target_type, target_id, target_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
   getUnreadCount:     db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND read = 0'),
+  getNotificationsCount: db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ?'),
   getRecentNotifs:    db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 30'),
+  getNotificationsPage: db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'),
   markNotifRead:      db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?'),
   markAllNotifsRead:  db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0'),
   insertIdea:    db.prepare('INSERT INTO ideas (id, title, description, user_id, slug, total_sats_received) VALUES (?, ?, ?, ?, ?, 0)'),
@@ -811,6 +813,7 @@ app.get('/event/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'pub
 app.get('/project/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'project.html')));
 app.get('/profile', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'profile.html')));
 app.get('/profile/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'profile.html')));
+app.get('/notifications', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'notifications.html')));
 app.get('/vote',     requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'vote.html')));
 app.get('/admin',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
 app.get('/bounty/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'bounty.html')));
@@ -2927,9 +2930,12 @@ app.get('/api/vote/check', (req, res) => {
 
 // GET /api/notifications — recent notifications + unread count
 app.get('/api/notifications', requireAuth, (req, res) => {
-  const notifications = stmts.getRecentNotifs.all(req.user.id);
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 30, 1), 100);
+  const offset = Math.max(Number.parseInt(req.query.offset, 10) || 0, 0);
+  const notifications = stmts.getNotificationsPage.all(req.user.id, limit, offset);
   const unread_count = stmts.getUnreadCount.get(req.user.id).c;
-  res.json({ notifications, unread_count });
+  const total_count = stmts.getNotificationsCount.get(req.user.id).c;
+  res.json({ notifications, unread_count, total_count, limit, offset, has_more: offset + notifications.length < total_count });
 });
 
 // POST /api/notifications/read — mark one notification as read

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notifications — LunarPad</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.notifications-shell {
+  max-width: 880px;
+  margin: 32px auto 72px;
+}
+.notifications-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(124,92,252,0.04));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  overflow: hidden;
+}
+.notifications-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 24px 24px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.notifications-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 8px;
+}
+.notifications-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+.notifications-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.notifications-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.notifications-count {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+.notifications-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.notifications-list .notif-item {
+  padding: 14px 20px;
+}
+.notifications-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--muted);
+}
+.notifications-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 24px 24px;
+}
+.notifications-pager-status {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+@media (max-width: 720px) {
+  .notifications-shell { margin-top: 20px; }
+  .notifications-head,
+  .notifications-pager {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+  .notifications-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .notifications-meta {
+    justify-content: flex-start;
+  }
+}
+</style>
+</head>
+<body>
+<header class="header">
+  <a href="/" class="logo">Lunar <span class="logo-slash"> \ </span><span class="logo-accent">Pad</span></a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab">Build in Public</a>
+    <a href="/decks" class="nav-tab">Decks</a>
+    <a href="/foyer" class="nav-tab">The Foyer</a>
+  </nav>
+  <div class="header-actions" id="authArea"><div id="userArea"></div></div>
+</header>
+
+<main class="container notifications-shell">
+  <section class="notifications-card">
+    <div class="notifications-head">
+      <div>
+        <div class="notifications-eyebrow">Notifications Inbox</div>
+        <h1 class="notifications-title">Notifications</h1>
+        <p class="notifications-subtitle">Everything you missed, without the dropdown cutoff.</p>
+      </div>
+      <div class="notifications-meta">
+        <div class="notifications-count" id="notificationsCount">0 total</div>
+        <div class="notifications-count" id="notificationsUnreadCount">0 unread</div>
+        <div class="notifications-actions">
+          <button class="btn" id="markAllReadPageBtn" type="button">Mark all read</button>
+          <a href="/build#events" class="btn">Back to Build</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="notif-list notifications-list" id="notificationsHistory">
+      <div class="notif-empty notifications-empty">Loading notifications…</div>
+    </div>
+
+    <div class="notifications-pager">
+      <button class="btn" id="notificationsPrevBtn" type="button">← Newer</button>
+      <div class="notifications-pager-status" id="notificationsPageStatus">Page 1</div>
+      <button class="btn" id="notificationsNextBtn" type="button">Older →</button>
+    </div>
+  </section>
+</main>
+
+<script src="/js/auth.js"></script>
+<script>
+const pageSize = 20;
+let notificationsOffset = 0;
+let notificationsTotal = 0;
+
+async function loadNotificationHistory() {
+  const list = document.getElementById('notificationsHistory');
+  const count = document.getElementById('notificationsCount');
+  const unread = document.getElementById('notificationsUnreadCount');
+  const pageStatus = document.getElementById('notificationsPageStatus');
+  const prevBtn = document.getElementById('notificationsPrevBtn');
+  const nextBtn = document.getElementById('notificationsNextBtn');
+
+  list.innerHTML = '<div class="notif-empty notifications-empty">Loading notifications…</div>';
+
+  try {
+    const res = await fetch(`/api/notifications?limit=${pageSize}&offset=${notificationsOffset}`);
+    const data = await res.json();
+    notificationsTotal = data.total_count || 0;
+    const page = Math.floor(notificationsOffset / pageSize) + 1;
+    const pageCount = Math.max(1, Math.ceil(Math.max(notificationsTotal, 1) / pageSize));
+
+    count.textContent = `${notificationsTotal} total`;
+    unread.textContent = `${data.unread_count || 0} unread`;
+    pageStatus.textContent = `Page ${page} of ${pageCount}`;
+    prevBtn.disabled = notificationsOffset === 0;
+    nextBtn.disabled = !data.has_more;
+
+    if (!data.notifications || data.notifications.length === 0) {
+      list.innerHTML = '<div class="notif-empty notifications-empty">No notifications yet.</div>';
+      return;
+    }
+
+    list.innerHTML = data.notifications.map(renderNotificationItem).join('');
+  } catch (err) {
+    console.warn('Failed to load notifications history', err);
+    list.innerHTML = '<div class="notif-empty notifications-empty">Could not load notifications right now.</div>';
+  }
+}
+
+document.getElementById('notificationsPrevBtn').addEventListener('click', () => {
+  notificationsOffset = Math.max(0, notificationsOffset - pageSize);
+  loadNotificationHistory();
+});
+
+document.getElementById('notificationsNextBtn').addEventListener('click', () => {
+  notificationsOffset += pageSize;
+  loadNotificationHistory();
+});
+
+document.getElementById('markAllReadPageBtn').addEventListener('click', async () => {
+  await markAllRead();
+  loadNotificationHistory();
+});
+
+initAuth(() => loadNotificationHistory());
+</script>
+</body>
+</html>

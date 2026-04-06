@@ -27,6 +27,9 @@ async function initAuth(onUser) {
             <div class="notif-list" id="notifList">
               <div class="notif-empty">No notifications yet</div>
             </div>
+            <div class="notif-footer">
+              <a href="/notifications" class="notif-view-all">View all notifications</a>
+            </div>
           </div>
         </div>
         <div class="user-menu">
@@ -112,10 +115,12 @@ async function initAuth(onUser) {
 
 async function pollNotifications() {
   try {
-    const res = await fetch('/api/notifications');
+    const res = await fetch('/api/notifications?limit=7');
     const data = await res.json();
     const badge = document.getElementById('notifBadge');
     const list = document.getElementById('notifList');
+    const footer = document.querySelector('.notif-footer');
+    const footerLink = document.querySelector('.notif-view-all');
     if (!badge || !list) return;
 
     if (data.unread_count > 0) {
@@ -125,21 +130,17 @@ async function pollNotifications() {
       badge.style.display = 'none';
     }
 
+    if (footer) footer.style.display = data.total_count > 0 ? '' : 'none';
+    if (footerLink && Number.isFinite(data.total_count)) {
+      footerLink.textContent = data.total_count > 7 ? `View all notifications (${data.total_count})` : 'View all notifications';
+    }
+
     if (!data.notifications || data.notifications.length === 0) {
       list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
       return;
     }
 
-    list.innerHTML = data.notifications.map(n => {
-      const href = notifHref(n);
-      const time = timeAgo(n.created_at);
-      const icon = n.type === 'comment' ? '💬' : n.type === 'reply' ? '↩️' : n.type === 'vote' ? '👍' : n.type === 'team_join' ? '👥' : '⚡';
-      const text = notifText(n);
-      return `<a class="notif-item${n.read ? '' : ' unread'}" href="${href}" onclick="markRead('${n.id}')" title="${time}">
-        <span class="notif-icon">${icon}</span>
-        <span class="notif-body">${text}<span class="notif-time">${time}</span></span>
-      </a>`;
-    }).join('');
+    list.innerHTML = data.notifications.map(renderNotificationItem).join('');
   } catch(e) { console.warn('Notification poll failed'); }
 }
 
@@ -152,6 +153,25 @@ function notifText(n) {
   if (n.type === 'zap') return `<b>${name}</b> zapped ${target}`;
   if (n.type === 'team_join') return `<b>${name}</b> joined your team on ${target}`;
   return `<b>${name}</b> interacted with ${target}`;
+}
+
+function notifIcon(n) {
+  return n.type === 'comment' ? '💬'
+    : n.type === 'reply' ? '↩️'
+    : n.type === 'vote' ? '👍'
+    : n.type === 'team_join' ? '👥'
+    : '⚡';
+}
+
+function renderNotificationItem(n) {
+  const href = notifHref(n);
+  const time = timeAgo(n.created_at);
+  const icon = notifIcon(n);
+  const text = notifText(n);
+  return `<a class="notif-item${n.read ? '' : ' unread'}" href="${href}" onclick="markRead('${n.id}')" title="${time}">
+    <span class="notif-icon">${icon}</span>
+    <span class="notif-body">${text}<span class="notif-time">${time}</span></span>
+  </a>`;
 }
 
 function notifHref(n) {

@@ -174,12 +174,28 @@
 
     <!-- Sidebar -->
     <aside class="build-sidebar">
-      <nav class="sidebar-nav">
-        <button class="sidebar-link active" data-view="events">Events</button>
-        <button class="sidebar-link" data-view="projects">Projects</button>
-        <button class="sidebar-link" data-view="bounties">Bounties</button>
-        <button class="sidebar-link" data-view="leaderboard">Leaderboard</button>
-      </nav>
+      <div class="build-sidebar-shell">
+        <div class="sidebar-title">Build in Public</div>
+        <p class="sidebar-intro">Follow the weekly shipping loop — events, projects, bounties, and who is actually moving.</p>
+        <nav class="sidebar-nav">
+          <button class="sidebar-link active" data-view="events">
+            <span class="sidebar-link-kicker">Now</span>
+            <span class="sidebar-link-label">Events</span>
+          </button>
+          <button class="sidebar-link" data-view="projects">
+            <span class="sidebar-link-kicker">Ship</span>
+            <span class="sidebar-link-label">Projects</span>
+          </button>
+          <button class="sidebar-link" data-view="bounties">
+            <span class="sidebar-link-kicker">Earn</span>
+            <span class="sidebar-link-label">Bounties</span>
+          </button>
+          <button class="sidebar-link" data-view="leaderboard">
+            <span class="sidebar-link-kicker">Rank</span>
+            <span class="sidebar-link-label">Leaderboard</span>
+          </button>
+        </nav>
+      </div>
     </aside>
 
     <!-- Content -->
@@ -522,26 +538,72 @@ let heroEventData = null;
 let heroRsvpState = { userRsvp: false, loading: false };
 let showAllPastEvents = false;
 let countdownTimers = {};
+let currentView = 'events';
+let projectSubmissionContext = { bountyId: '', bountyTitle: '' };
 
 // ─── Sidebar Navigation ───────────────────────────────────────────────────
-function switchToView(viewName) {
+function clearProjectSubmissionContext() {
+  projectSubmissionContext = { bountyId: '', bountyTitle: '' };
+  const bountyIdField = document.getElementById('projBountyId');
+  const bountyLabel = document.getElementById('projBountyLabel');
+  if (bountyIdField) bountyIdField.value = '';
+  if (bountyLabel) {
+    bountyLabel.textContent = '';
+    bountyLabel.style.display = 'none';
+  }
+}
+
+function getFabConfigForView(viewName) {
+  if (viewName === 'projects') {
+    if (projectSubmissionContext.bountyId) {
+      return { visible: true, title: 'Submit to Bounty', label: 'Submit to Bounty', action: 'project' };
+    }
+    return { visible: true, title: 'Submit Project', label: 'Submit Project', action: 'project' };
+  }
+  if (viewName === 'events') {
+    return { visible: true, title: 'Present Project', label: 'Present Project', action: 'present' };
+  }
+  return { visible: false, title: '', label: '', action: '' };
+}
+
+function renderContextualFab() {
+  const fab = document.getElementById('contextualFab');
+  if (!fab) return;
+  const config = getFabConfigForView(currentView);
+  fab.style.display = config.visible ? '' : 'none';
+  fab.setAttribute('title', config.title || '');
+  fab.dataset.action = config.action || '';
+  const label = fab.querySelector('.fab-label');
+  if (label) label.textContent = config.label || '';
+}
+
+function switchToView(viewName, options = {}) {
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
   document.querySelectorAll('.build-view').forEach(v => v.classList.remove('active'));
   const link = document.querySelector('.sidebar-link[data-view="' + viewName + '"]');
   const view = document.getElementById('view-' + viewName);
+  if (options.projectContext) {
+    projectSubmissionContext = options.projectContext;
+  } else if (options.resetProjectContext !== false) {
+    clearProjectSubmissionContext();
+  }
+  currentView = viewName;
   if (link) link.classList.add('active');
   if (view) view.classList.add('active');
+  renderContextualFab();
   history.replaceState(null, '', '#' + viewName);
 }
 
 document.querySelectorAll('.sidebar-link').forEach(link => {
-  link.addEventListener('click', () => switchToView(link.dataset.view));
+  link.addEventListener('click', () => switchToView(link.dataset.view, { resetProjectContext: true }));
 });
 
 // Deep-link: switch to tab based on URL hash
 const hashView = window.location.hash.replace('#', '');
 if (hashView && document.getElementById('view-' + hashView)) {
-  switchToView(hashView);
+  switchToView(hashView, { resetProjectContext: true });
+} else {
+  renderContextualFab();
 }
 
 // ─── Bounties ─────────────────────────────────────────────────────────────
@@ -1538,6 +1600,7 @@ function openProjectForBounty(bountyId, bountyTitle) {
   document.getElementById('projBountyId').value = bountyId;
   document.getElementById('projBountyLabel').textContent = 'For bounty: ' + bountyTitle;
   document.getElementById('projBountyLabel').style.display = 'block';
+  switchToView('projects', { projectContext: { bountyId, bountyTitle } });
   document.getElementById('projectModal').classList.add('open');
 }
 
@@ -1791,8 +1854,22 @@ if (window.location.hash === '#leaderboard' && !_lbLoaded) {
   var spk = document.getElementById('spkName');
   if (spk && !spk.value) spk.value = user.name || '';
 });</script>
-<button class="fab" title="Submit Project" onclick="document.getElementById('projectModal').classList.add('open')"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Submit Project</span></button>
-<script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
+<button class="fab" id="contextualFab" title="Present Project" data-action="present"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Present Project</span></button>
+<script>
+const contextualFab = document.getElementById('contextualFab');
+if (contextualFab) {
+  contextualFab.addEventListener('click', () => {
+    if (contextualFab.dataset.action === 'project') {
+      document.getElementById('projectModal').classList.add('open');
+      return;
+    }
+    if (contextualFab.dataset.action === 'present') {
+      document.getElementById('speakerModal').classList.add('open');
+    }
+  });
+}
+document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});
+</script>
 <input type="file" id="bannerFileInput" accept="image/*" style="display:none">
 <div class='modal-overlay' id='bannerCropModal'>
   <div class='modal-content' style='max-width:500px'>
