@@ -34,16 +34,39 @@ jobs:
 
       - name: Deploy on Mac mini
         run: |
+          set -x
           unset BASH_ENV
           case "${GITHUB_REPOSITORY}:${DEPLOY_BRANCH}" in
             satsdisco/lunarpad:staging)
-              /Users/savetherobot/.github-runners/deploy/lunarpad-deploy-staging.sh
+              REPO="/Volumes/External/openclaw-workspace-v2/lunarpad-staging"
+              LABEL="com.lunarpad.staging"
+              BRANCH="staging"
+              PORT="3102"
+              URL="https://decks.satsdisco.com"
               ;;
             satsdisco/lunarpad:main)
-              /Users/savetherobot/.github-runners/deploy/lunarpad-deploy-prod.sh
+              REPO="/Volumes/External/openclaw-workspace-v2/deckpad"
+              LABEL="com.deckpad.server"
+              BRANCH="main"
+              PORT="3100"
+              URL="https://lunarpad.dev"
               ;;
             *)
               echo "No deploy mapping for ${GITHUB_REPOSITORY}:${DEPLOY_BRANCH}" >&2
               exit 1
               ;;
           esac
+
+          DOMAIN="gui/$(id -u)"
+          cd "$REPO"
+          echo "==> Repo: $REPO"
+          echo "==> Branch: $BRANCH"
+          git fetch origin
+          git checkout "$BRANCH"
+          git reset --hard "origin/$BRANCH"
+          launchctl kickstart -k "$DOMAIN/$LABEL"
+          sleep 3
+          git rev-parse HEAD
+          launchctl print "$DOMAIN/$LABEL" | sed -n '1,40p'
+          lsof -nP -iTCP:${PORT} -sTCP:LISTEN || true
+          curl -I -s "$URL" | sed -n '1,12p'
