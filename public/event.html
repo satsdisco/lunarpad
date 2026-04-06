@@ -191,42 +191,55 @@ async function loadEvent() {
     const isEnded = eventDate ? (Date.now() - eventDate.getTime() > 86400000) : false;
 
     // Build action buttons outside template to avoid nested backtick issues
+    const btnStyle = 'style="font-size:0.82rem;padding:7px 16px;border-radius:20px"';
     let heroActionsHtml = '';
     if (isEnded) {
-      heroActionsHtml = '<button class="btn" id="shareBtn">Share</button>';
+      heroActionsHtml = '<button class="btn" id="shareBtn" ' + btnStyle + '>Share</button>';
     } else {
-      heroActionsHtml = '<button class="btn" id="rsvpToggle">RSVP</button>';
-      heroActionsHtml += '<button class="btn btn-primary" id="presentToggle">Present at this Event</button>';
-      heroActionsHtml += '<button class="btn" id="shareBtn">Share</button>';
-      heroActionsHtml += '<a class="add-to-cal" id="addToCalBtn" style="display:none">📅 Add to Calendar</a>';
+      heroActionsHtml = '<button class="btn" id="rsvpToggle" ' + btnStyle + '>👥 RSVP</button>';
+      heroActionsHtml += '<button class="btn btn-primary" id="presentToggle" ' + btnStyle + '>🎤 Present</button>';
+      heroActionsHtml += '<button class="btn" id="shareBtn" ' + btnStyle + '>Share</button>';
+      heroActionsHtml += '<a class="btn" id="addToCalBtn" ' + btnStyle + ' style="display:none;font-size:0.82rem;padding:7px 16px;border-radius:20px">📅 Calendar</a>';
     }
-    heroActionsHtml += '<a class="btn" id="goLiveBtn" style="display:none" href="#" target="_blank">🔴 Go Live</a>';
+    heroActionsHtml += '<a class="btn" id="goLiveBtn" style="display:none;font-size:0.82rem;padding:7px 16px;border-radius:20px" href="#" target="_blank">🔴 Go Live</a>';
 
     const endedBadge = isEnded ? ' <span style="color:var(--muted);font-weight:400">(ended)</span>' : '';
     const locationSpan = ev.location ? '<span>📍 ' + esc(ev.location) + '</span>' : '';
     const prizeDiv = prizePool ? '<div class="event-prize">⚡ ' + prizePool.toLocaleString() + ' sats prize pool</div>' : '';
 
+    const evDate = ev.date ? new Date(ev.date) : null;
+    const calDay = evDate ? evDate.getDate() : '?';
+    const calMonth = evDate ? evDate.toLocaleDateString('en', { month: 'short' }).toUpperCase() : '';
+    const calWeekday = evDate ? evDate.toLocaleDateString('en', { weekday: 'short' }) : '';
+    const evTypeRaw = ev.event_type || ev.type || 'Event';
+    const heroTypeColors = { 'demo-day': '#7c5cfc', 'hackathon': '#39d98a', 'bounty': '#d4a843', 'workshop': '#3CCBDA', 'meetup': '#f472b6' };
+    const heroColor = heroTypeColors[evTypeRaw] || '#7c5cfc';
+
     document.getElementById('eventContent').innerHTML = `
-      <div class="event-hero">
-        <div class="event-hero-type">${esc(ev.event_type || ev.type || 'Event')}${endedBadge}</div>
-        <div class="event-hero-name">${esc(ev.name)}</div>
-        <div class="event-hero-meta">
-          <span>📅 ${dateStr}${ev.time ? ' · ' + esc(ev.time) : ''}</span>
-          ${locationSpan}
-          ${attendingBadge}
-        </div>
-        ${prizeDiv}
-        <div class="event-hero-row">
-          <div class="event-hero-actions">
-            ${heroActionsHtml}
+      <div class="event-hero" style="display:flex;align-items:flex-start;gap:24px">
+        <div style="flex:1;min-width:0">
+          <div class="event-hero-type">${esc(evTypeRaw)}${endedBadge}</div>
+          <div class="event-hero-name">${esc(ev.name)}</div>
+          <div class="event-hero-meta">
+            ${locationSpan}
+            ${attendingBadge}
           </div>
-          <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px" id="countdownLabel">Event starts in</div>
+          ${prizeDiv}
+          <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px" id="countdownLabel">Event starts in</div>
           <div class="event-hero-countdown">
             <div class="cd-unit"><div class="cd-val" id="cd-d">--</div><div class="cd-label">Days</div></div>
             <div class="cd-unit"><div class="cd-val" id="cd-h">--</div><div class="cd-label">Hrs</div></div>
             <div class="cd-unit"><div class="cd-val" id="cd-m">--</div><div class="cd-label">Min</div></div>
             <div class="cd-unit"><div class="cd-val" id="cd-s">--</div><div class="cd-label">Sec</div></div>
           </div>
+          <div class="event-hero-actions" style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px">
+            ${heroActionsHtml}
+          </div>
+        </div>
+        <div style="flex-shrink:0;width:130px;height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--glass2);border:2px solid ${heroColor};border-radius:16px;text-align:center;box-shadow:0 0 25px ${heroColor}33">
+          <div style="font-family:var(--font-mono);font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:${heroColor}">${calMonth}</div>
+          <div style="font-family:var(--font-mono);font-size:3.5rem;font-weight:800;color:#fff;line-height:1;text-shadow:0 0 20px ${heroColor}55">${calDay}</div>
+          <div style="font-family:var(--font-mono);font-size:0.7rem;font-weight:500;color:var(--muted);margin-top:4px">${calWeekday}</div>
         </div>
       </div>
 
