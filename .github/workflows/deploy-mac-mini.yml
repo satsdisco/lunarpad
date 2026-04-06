@@ -34,4 +34,4 @@ jobs:
 
       - name: Deploy on Mac mini
         run: |
-          /opt/homebrew/bin/python3 /Volumes/External/openclaw-workspace-v2/scripts/github-auto-deploy.py "${GITHUB_REPOSITORY}" "${DEPLOY_BRANCH}"
+          /Volumes/External/openclaw-workspace-v2/scripts/github-auto-deploy.sh "${GITHUB_REPOSITORY}" "${DEPLOY_BRANCH}"
