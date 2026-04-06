@@ -272,7 +272,7 @@ async function loadEvent() {
 
       <!-- Tabs -->
       <div class="event-tabs">
-        <button class="event-tab active" onclick="switchTab('lineup')">Lineup (${speakers.length})</button>
+        <button class="event-tab active" onclick="switchTab('lineup')">Lineup (${speakers.length} participants)</button>
         <button class="event-tab" onclick="switchTab('bounties')">Bounties (${bounties.length})</button>
       </div>
 
@@ -287,7 +287,7 @@ async function loadEvent() {
                  </div>`
               : `<div class="empty-cta">
                   <div class="empty-cta-icon">🎤</div>
-                  <h3>No speakers yet — be the first to present!</h3>
+                  <h3>No participants yet — be the first to present!</h3>
                   <p>Share your project, demo something you built, or talk about what you're learning.</p>
                   <button class="btn btn-primary" onclick="document.getElementById('signupSection').style.display='block';document.getElementById('signupSection').scrollIntoView({behavior:'smooth'})">Sign Up to Present</button>
                  </div>`)}

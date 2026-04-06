@@ -957,7 +957,7 @@ async function loadSpeakers() {
 function renderSpeakerList() {
   const list = document.getElementById('speakerList');
   if (!speakersData.length) {
-    list.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No speakers yet — be the first to sign up!</p>';
+    list.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No participants yet — be the first to sign up!</p>';
     return;
   }
   list.innerHTML = speakersData.map(sp => {
