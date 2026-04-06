@@ -320,6 +320,9 @@ const MIGRATIONS = [
     'ALTER TABLE users ADD COLUMN skills TEXT',
     'ALTER TABLE users ADD COLUMN available_hours INTEGER',
   ]},
+  { name: 'v016_rsvp_user_id', sql: [
+    'ALTER TABLE rsvps ADD COLUMN user_id TEXT',
+  ]},
 ];
 
 // Run pending migrations
@@ -1976,20 +1979,28 @@ app.get('/api/events/:id/speakers', (req, res) => {
 // ─── RSVPs API ────────────────────────────────────────────────────────────────
 
 app.post('/api/events/:id/rsvp', requireAuth, (req, res) => {
-  const { name, email } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
+  const existing = db.prepare('SELECT id FROM rsvps WHERE event_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (existing) return res.status(409).json({ error: 'Already RSVP\'d' });
   const id = crypto.randomUUID();
-  db.prepare('INSERT INTO rsvps (id, event_id, name, email) VALUES (?, ?, ?, ?)').run(
-    id, req.params.id, name.trim(), email || null
+  const name = req.user.name || req.user.email || 'Anonymous';
+  db.prepare('INSERT INTO rsvps (id, event_id, name, email, user_id) VALUES (?, ?, ?, ?, ?)').run(
+    id, req.params.id, name, req.user.email || null, req.user.id
   );
   res.json({ id });
 });
 
+app.delete('/api/events/:id/rsvp', requireAuth, (req, res) => {
+  const result = db.prepare('DELETE FROM rsvps WHERE event_id = ? AND user_id = ?').run(req.params.id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'Not RSVP\'d' });
+  res.json({ ok: true });
+});
+
 app.get('/api/events/:id/rsvps', (req, res) => {
   const rows = db.prepare('SELECT * FROM rsvps WHERE event_id = ? ORDER BY created_at ASC').all(req.params.id);
-  res.json(rows);
+  const user_rsvp = req.user ? !!db.prepare('SELECT 1 FROM rsvps WHERE event_id = ? AND user_id = ?').get(req.params.id, req.user.id) : false;
+  res.json({ rsvps: rows, count: rows.length, user_rsvp });
 });
 
 // ─── Projects API ─────────────────────────────────────────────────────────────

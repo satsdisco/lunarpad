@@ -176,7 +176,8 @@ async function loadEvent() {
     }
     const ev = eventData;
     const bounties = bRes;
-    const rsvpCount = rsvpRes ? (typeof rsvpRes.count === 'number' ? rsvpRes.count : (Array.isArray(rsvpRes) ? rsvpRes.length : 0)) : 0;
+    const rsvpCount = rsvpRes ? (rsvpRes.count || (Array.isArray(rsvpRes) ? rsvpRes.length : 0)) : 0;
+    const userRsvp = rsvpRes?.user_rsvp || false;
     const prizePool = bounties.reduce((s, b) => s + (b.sats_amount || 0), 0);
 
     document.title = ev.name + ' — LunarPad';
@@ -196,7 +197,9 @@ async function loadEvent() {
     if (isEnded) {
       heroActionsHtml = '<button class="btn" id="shareBtn" ' + btnStyle + '>Share</button>';
     } else {
-      heroActionsHtml = '<button class="btn" id="rsvpToggle" ' + btnStyle + '>👥 RSVP</button>';
+      heroActionsHtml = userRsvp
+        ? '<button class="btn btn-primary" id="rsvpToggle" ' + btnStyle + ' onclick="cancelRsvp()">✓ Going</button>'
+        : '<button class="btn" id="rsvpToggle" ' + btnStyle + ' onclick="doRsvp()">👥 RSVP</button>';
       heroActionsHtml += '<button class="btn btn-primary" id="presentToggle" ' + btnStyle + '>🎤 Present</button>';
       heroActionsHtml += '<button class="btn" id="shareBtn" ' + btnStyle + '>Share</button>';
       heroActionsHtml += '<a class="btn" id="addToCalBtn" ' + btnStyle + ' style="display:none;font-size:0.82rem;padding:7px 16px;border-radius:20px">📅 Calendar</a>';
@@ -250,19 +253,7 @@ async function loadEvent() {
         <div class="event-about-body">${esc(ev.description)}</div>
       </div>` : ''}
 
-      <!-- RSVP (hidden by default) -->
-      <div id="rsvpSection" style="display:none;margin-bottom:24px">
-        <div class="rsvp-card">
-          <h3>RSVP for ${esc(ev.name)}</h3>
-          <div class="form-group"><label>Name</label><input type="text" id="rsvpName" placeholder="Your name"></div>
-          <div class="form-group"><label>Email</label><input type="email" id="rsvpEmail" placeholder="you@example.com"></div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="btn btn-primary btn-sm" onclick="submitRsvp()">Confirm RSVP</button>
-            <button class="btn btn-sm" onclick="document.getElementById('rsvpSection').style.display='none'">Cancel</button>
-          </div>
-          <div class="rsvp-success" id="rsvpSuccess">✓ You're RSVP'd!</div>
-        </div>
-      </div>
+      <!-- RSVP handled via toggle button in hero actions -->
 
       <!-- Speaker Signup (hidden by default) -->
       <div id="signupSection" style="display:none;margin-bottom:24px">
@@ -335,11 +326,7 @@ async function loadEvent() {
         }).catch(() => {});
       }
     };
-    const rsvpToggle = document.getElementById('rsvpToggle');
-    if (rsvpToggle) rsvpToggle.onclick = () => {
-      const s = document.getElementById('rsvpSection');
-      if (s) s.style.display = s.style.display === 'none' ? 'block' : 'none';
-    };
+    // RSVP toggle handled via inline onclick (doRsvp/cancelRsvp)
     const presentToggle = document.getElementById('presentToggle');
     if (presentToggle) presentToggle.onclick = () => {
       const s = document.getElementById('signupSection');
@@ -480,13 +467,20 @@ function startCountdown() {
 }
 
 // RSVP
-async function submitRsvp() {
-  const name = document.getElementById('rsvpName').value.trim();
-  const email = document.getElementById('rsvpEmail').value.trim();
-  if (!name||!email) return alert('Fill in name and email');
-  await fetch('/api/events/'+eventId+'/rsvp', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email})});
-  document.getElementById('rsvpSuccess').style.display = 'block';
-  setTimeout(()=>document.getElementById('rsvpSection').style.display='none', 1500);
+async function doRsvp() {
+  try {
+    const res = await fetch('/api/events/'+eventId+'/rsvp', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    if (res.ok || res.status === 409) loadEvent();
+    else { const e = await res.json(); alert(e.error || 'RSVP failed'); }
+  } catch { alert('RSVP failed'); }
+}
+
+async function cancelRsvp() {
+  try {
+    const res = await fetch('/api/events/'+eventId+'/rsvp', {method:'DELETE'});
+    if (res.ok) loadEvent();
+    else { const e = await res.json(); alert(e.error || 'Failed'); }
+  } catch { alert('Failed to cancel RSVP'); }
 }
 
 // Speaker signup
