@@ -62,9 +62,9 @@ jobs:
           echo "==> Repo: $REPO"
           echo "==> Branch: $BRANCH"
           echo "==> Fetch URL host: github.com/${GITHUB_REPOSITORY}.git"
-          git -C "$REPO" fetch "$FETCH_URL" "$BRANCH"
-          git -C "$REPO" checkout "$BRANCH"
-          git -C "$REPO" reset --hard FETCH_HEAD
+          /opt/homebrew/bin/git -C "$REPO" fetch "$FETCH_URL" "$BRANCH"
+          /opt/homebrew/bin/git -C "$REPO" checkout "$BRANCH"
+          /opt/homebrew/bin/git -C "$REPO" reset --hard FETCH_HEAD
           launchctl kickstart -k "$DOMAIN/$LABEL"
           sleep 3
           git -C "$REPO" rev-parse HEAD
