@@ -34,4 +34,15 @@ jobs:
 
       - name: Deploy on Mac mini
         run: |
-          /Volumes/External/openclaw-workspace-v2/scripts/github-auto-deploy.sh "${GITHUB_REPOSITORY}" "${DEPLOY_BRANCH}"
+          case "${GITHUB_REPOSITORY}:${DEPLOY_BRANCH}" in
+            satsdisco/lunarpad:staging)
+              /Volumes/External/openclaw-workspace-v2/scripts/lunarpad-deploy-staging.sh
+              ;;
+            satsdisco/lunarpad:main)
+              /Volumes/External/openclaw-workspace-v2/scripts/lunarpad-deploy-prod.sh
+              ;;
+            *)
+              echo "No deploy mapping for ${GITHUB_REPOSITORY}:${DEPLOY_BRANCH}" >&2
+              exit 1
+              ;;
+          esac
