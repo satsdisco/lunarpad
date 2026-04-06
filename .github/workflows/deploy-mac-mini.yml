@@ -58,17 +58,16 @@ jobs:
           esac
 
           DOMAIN="gui/$(id -u)"
-          cd "$REPO"
           FETCH_URL="https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
           echo "==> Repo: $REPO"
           echo "==> Branch: $BRANCH"
           echo "==> Fetch URL host: github.com/${GITHUB_REPOSITORY}.git"
-          git fetch "$FETCH_URL" "$BRANCH"
-          git checkout "$BRANCH"
-          git reset --hard FETCH_HEAD
+          git -C "$REPO" fetch "$FETCH_URL" "$BRANCH"
+          git -C "$REPO" checkout "$BRANCH"
+          git -C "$REPO" reset --hard FETCH_HEAD
           launchctl kickstart -k "$DOMAIN/$LABEL"
           sleep 3
-          git rev-parse HEAD
+          git -C "$REPO" rev-parse HEAD
           launchctl print "$DOMAIN/$LABEL" | sed -n '1,40p'
           lsof -nP -iTCP:${PORT} -sTCP:LISTEN || true
           curl -I -s "$URL" | sed -n '1,12p'
