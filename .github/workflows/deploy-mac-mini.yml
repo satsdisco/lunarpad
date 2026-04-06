@@ -34,6 +34,7 @@ jobs:
 
       - name: Deploy on Mac mini
         run: |
+          unset BASH_ENV
           case "${GITHUB_REPOSITORY}:${DEPLOY_BRANCH}" in
             satsdisco/lunarpad:staging)
               /Volumes/External/openclaw-workspace-v2/scripts/lunarpad-deploy-staging.sh
