@@ -1,0 +1,37 @@
+name: Deploy to Mac mini
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  workflow_dispatch:
+    inputs:
+      deploy_branch:
+        description: Branch to deploy (main or staging)
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - main
+
+concurrency:
+  group: deploy-${{ inputs.deploy_branch || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, macOS, lunarpad-macmini]
+    env:
+      DEPLOY_BRANCH: ${{ inputs.deploy_branch || github.ref_name }}
+    steps:
+      - name: Show deploy target
+        run: |
+          echo "repo=${GITHUB_REPOSITORY}"
+          echo "branch=${DEPLOY_BRANCH}"
+          echo "sha=${GITHUB_SHA}"
+
+      - name: Deploy on Mac mini
+        run: |
+          /opt/homebrew/bin/python3 /Volumes/External/openclaw-workspace-v2/scripts/github-auto-deploy.py "${GITHUB_REPOSITORY}" "${DEPLOY_BRANCH}"
