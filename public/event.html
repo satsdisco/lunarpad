@@ -119,9 +119,42 @@
 @media (max-width: 768px) {
   .event-hero { padding: 20px; }
   .event-hero-name { font-size: 1.2rem; }
-  .event-hero-row { flex-direction: column; align-items: flex-start; }
-  .event-tabs { overflow-x: auto; }
+  .event-hero-row { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .event-hero-meta { margin-bottom: 16px; gap: 10px; }
+  .event-hero-countdown {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .event-hero-countdown .cd-unit {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+  }
+  .event-hero-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .event-hero-actions .btn,
+  .event-hero-actions button {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .event-tabs { overflow-x: auto; margin-bottom: 18px; }
   .event-tab { white-space: nowrap; padding: 10px 14px; }
+  .empty-cta { padding: 28px 18px; }
+}
+
+@media (max-width: 480px) {
+  .event-hero { padding: 18px; }
+  .event-hero[style*='display:flex'] {
+    flex-direction: column;
+    gap: 16px !important;
+  }
+  .event-hero[style*='display:flex'] > div:last-child {
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+  }
 }
 </style>
 </head>

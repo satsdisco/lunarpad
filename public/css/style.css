@@ -1711,7 +1711,26 @@ a:hover { color: var(--accent); }
   /* Layout */
   .container { padding: 0 1rem; }
   .gallery { grid-template-columns: 1fr; gap: 12px; }
-  .toolbar { flex-direction: column; }
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .search-box,
+  .sort-select { width: 100%; }
+  .tag-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin: 4px 0 2px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tag-bar::-webkit-scrollbar { display: none; }
+  .tag-chip {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
   .bounty-grid, .event-grid, .project-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .rsvp-form { flex-direction: column; }
@@ -1747,8 +1766,40 @@ a:hover { color: var(--accent); }
   .vote-btn { padding: 10px 14px; min-height: 44px; }
 
   /* Viewer */
+  .viewer-page { padding-bottom: 64px; }
+  .viewer-back {
+    padding: 18px 0 14px;
+    font-size: 0.72rem;
+  }
   .viewer-frame-wrap { aspect-ratio: 4/3; }
-  .viewer-actions { gap: 6px; }
+  .viewer-fullscreen {
+    opacity: 1;
+    padding: 6px 10px;
+    font-size: 0.65rem;
+  }
+  .viewer-info { padding: 18px 0 0; }
+  .viewer-meta {
+    gap: 8px 12px;
+    margin-bottom: 12px;
+  }
+  .viewer-tags { margin-bottom: 18px; }
+  .viewer-actions {
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .viewer-actions-group {
+    width: 100%;
+    align-items: stretch;
+  }
+  .viewer-actions-group-primary,
+  .viewer-actions-group-links {
+    flex: 1 1 auto;
+  }
+  .viewer-actions .btn,
+  .viewer-actions .vote-btn {
+    min-height: 44px;
+  }
   .viewer-title { font-size: 1rem; }
 
   /* Section headers */
@@ -1778,10 +1829,38 @@ a:hover { color: var(--accent); }
     width: 48px;
     height: 48px;
     border-radius: 24px;
+    display: none !important;
   }
   #contextualFab { display: none !important; }
   .fab svg { width: 18px; height: 18px; }
   .fab-label { display: none; }
+
+  /* Comment forms */
+  .comment-form { padding: 14px; }
+  .comment-form textarea { min-height: 92px; }
+  .comment-form-actions {
+    justify-content: stretch;
+    margin-top: 12px;
+  }
+  .comment-form-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Footer */
+  .footer {
+    padding: 20px 16px calc(28px + env(safe-area-inset-bottom, 0px));
+    gap: 14px;
+  }
+  .footer-links {
+    width: 100%;
+    gap: 8px 10px;
+  }
+  .footer-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+  }
 
   /* Modals */
   .modal-overlay { padding: 24px 12px; }
@@ -1806,6 +1885,36 @@ a:hover { color: var(--accent); }
     font-size: 0.72rem;
   }
   .header-actions { gap: 6px; }
+  .sort-select { min-height: 40px; }
+  .foyer-header {
+    margin-bottom: 18px;
+    text-align: left;
+  }
+  .foyer-header h1 { font-size: 1.45rem; }
+  .foyer-guidance {
+    display: block;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    font-size: 0.78rem;
+  }
+  .foyer-filters {
+    justify-content: flex-start;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .foyer-container {
+    min-height: 120px;
+    padding: 8px 0 0;
+  }
+  .foyer-empty {
+    padding: 28px 12px;
+    font-size: 0.82rem;
+  }
+  .foyer-sidebar {
+    margin-top: 8px;
+    padding: 14px;
+  }
   .user-pill {
     max-width: none;
     height: 32px;
@@ -2986,10 +3095,20 @@ a:hover { color: var(--accent); }
 /* Bounty page responsive */
 @media (max-width: 640px) {
   .bounty-page { padding: 16px 1rem 64px; }
+  .bounty-back { padding: 16px 0 12px; }
   .bounty-hero { padding: 16px; }
   .bounty-hero-title { font-size: 1.2rem; }
   .bounty-hero-sats { font-size: 1.6rem; }
-  .bounty-timeline { gap: 0; }
+  .bounty-hero-meta {
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .bounty-hero-meta-right {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .bounty-timeline { gap: 0; margin-bottom: 18px; }
   .timeline-label { font-size: 0.55rem; }
   .submission-grid { grid-template-columns: 1fr; }
   .claim-card-amount { font-size: 1.4rem; }
