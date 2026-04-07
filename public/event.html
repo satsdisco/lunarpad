@@ -105,6 +105,18 @@
   font-family: var(--font-mono); font-size: 0.62rem; font-weight: 700; padding: 3px 8px;
   border: 1px solid var(--border); border-radius: 100px; color: var(--muted2);
 }
+.speaker-status-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 0.62rem; font-weight: 700;
+  padding: 3px 8px; border-radius: 100px;
+  border: 1px solid rgba(124,92,252,0.26); color: #cbbcff;
+  background: rgba(124,92,252,0.10);
+}
+.speaker-status-pill.presented {
+  border-color: rgba(57,217,138,0.28);
+  color: #8df0bf;
+  background: rgba(57,217,138,0.10);
+}
 .spk-card-right { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
 
 /* Empty CTA state */
@@ -433,6 +445,10 @@ function renderSpeaker(sp, rank) {
   const avatarBg = speakerAvatarColor(sp.name);
   const projectTitle = sp.project || sp.project_title || '';
   const profileLink = sp.user_id ? `/profile/${esc(sp.user_id)}` : null;
+  const isPresented = !!sp.presented_at || sp.status === 'presented';
+  const speakerStatusHtml = isPresented
+    ? '<span class="speaker-status-pill presented">Presented ✓</span>'
+    : '<span class="speaker-status-pill">Scheduled</span>';
   const nameEl = profileLink
     ? `<a href="${profileLink}" class="spk-card-name" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()">${esc(sp.name)}</a>`
     : `<div class="spk-card-name">${esc(sp.name)}</div>`;
@@ -445,6 +461,7 @@ function renderSpeaker(sp, rank) {
         ${sp.description ? `<div class="spk-card-desc">${esc(sp.description)}</div>` : ''}
         <div class="spk-card-meta">
           <span class="duration-pill">${sp.duration} min</span>
+          ${speakerStatusHtml}
           ${sp.github_url ? `<a href="${esc(sp.github_url)}" target="_blank" class="spk-link" onclick="event.stopPropagation()">⌥ GitHub</a>` : ''}
           ${sp.demo_url ? `<a href="${esc(sp.demo_url)}" target="_blank" class="spk-link" onclick="event.stopPropagation()">↗ Demo</a>` : ''}
           ${sp.deck_id ? `<a href="/deck/${esc(sp.deck_id)}" class="spk-link" onclick="event.stopPropagation()">📽 Deck</a>` : ''}
@@ -455,7 +472,8 @@ function renderSpeaker(sp, rank) {
         <button class="vote-btn" onclick="event.stopPropagation();voteSpeaker('${esc(sp.id)}',this)">
           <span class="arrow">▲</span><span class="vc">${sp.votes||0}</span>
         </button>
-        ${sp.user_id && _currentUser && (sp.user_id === _currentUser.id || _currentUser.is_admin) ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:3px 8px;border-radius:12px;color:var(--danger);border-color:var(--danger);margin-top:6px" onclick="event.stopPropagation();withdrawSpeaker('${esc(sp.id)}')">Withdraw</button>` : ''}
+        ${_currentUser && _currentUser.is_admin && !isPresented ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:3px 8px;border-radius:12px;margin-top:6px" onclick="event.stopPropagation();markSpeakerPresented('${esc(sp.id)}')">Mark Presented</button>` : ''}
+        ${sp.user_id && _currentUser && (sp.user_id === _currentUser.id || _currentUser.is_admin) && !isPresented ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:3px 8px;border-radius:12px;color:var(--danger);border-color:var(--danger);margin-top:6px" onclick="event.stopPropagation();withdrawSpeaker('${esc(sp.id)}')">Withdraw</button>` : ''}
       </div>
     </div>`;
 }
@@ -559,6 +577,15 @@ async function withdrawSpeaker(id) {
     if (res.ok) { loadEvent(); }
     else { const e = await res.json(); alert(e.error || 'Failed'); }
   } catch { alert('Failed to withdraw'); }
+}
+
+async function markSpeakerPresented(id) {
+  if (!confirm('Mark this speaker as having actually presented?')) return;
+  try {
+    const res = await fetch('/api/speakers/' + id + '/presented', { method: 'POST' });
+    if (res.ok) { loadEvent(); }
+    else { const e = await res.json(); alert(e.error || 'Failed'); }
+  } catch { alert('Failed to mark presenter'); }
 }
 
 // Load decks for dropdown

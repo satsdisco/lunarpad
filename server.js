@@ -141,6 +141,9 @@ db.exec(`
     github_url    TEXT,
     demo_url      TEXT,
     deck_id       TEXT,
+    scheduled_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+    status        TEXT DEFAULT 'scheduled',
+    presented_at  TEXT,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES events(id)
   );
@@ -338,6 +341,14 @@ const MIGRATIONS = [
   { name: 'v018_user_banner_preset', sql: [
     'ALTER TABLE users ADD COLUMN banner_preset TEXT',
   ]},
+  { name: 'v019_speaker_presented_state', sql: [
+    'ALTER TABLE speakers ADD COLUMN scheduled_at TEXT DEFAULT CURRENT_TIMESTAMP',
+    "ALTER TABLE speakers ADD COLUMN status TEXT DEFAULT 'scheduled'",
+    'ALTER TABLE speakers ADD COLUMN presented_at TEXT',
+    "UPDATE speakers SET scheduled_at = COALESCE(scheduled_at, created_at, datetime('now'))",
+    "UPDATE speakers SET status = CASE WHEN presented_at IS NOT NULL THEN 'presented' ELSE COALESCE(status, 'scheduled') END",
+    'CREATE INDEX IF NOT EXISTS idx_speakers_user_status ON speakers(user_id, status, presented_at)',
+  ]},
 ];
 
 // Run pending migrations
@@ -429,7 +440,7 @@ function checkAndAwardBadges(userId) {
     }
   }
   if (!has('presenter')) {
-    const pres = db.prepare('SELECT id FROM speakers WHERE name = ?').get(user.name);
+    const pres = db.prepare('SELECT s.id FROM speakers s WHERE s.user_id = ? AND s.presented_at IS NOT NULL LIMIT 1').get(userId);
     if (pres) badges.push('presenter');
   }
   if (!has('bounty_hunter')) {
@@ -447,6 +458,19 @@ function cachedBadgeCheck(userId) {
   if (now - last < 60000) return;
   badgeCheckCache.set(userId, now);
   checkAndAwardBadges(userId);
+}
+
+function getUpcomingPresenterState(userId) {
+  if (!userId) return false;
+  const upcoming = db.prepare(`
+    SELECT s.id
+    FROM speakers s
+    WHERE s.user_id = ?
+      AND COALESCE(s.status, 'scheduled') = 'scheduled'
+      AND s.presented_at IS NULL
+    LIMIT 1
+  `).get(userId);
+  return !!upcoming;
 }
 
 // ─── Slug helpers ────────────────────────────────────────────────────────────
@@ -1997,14 +2021,26 @@ app.post('/api/speakers', requireAuth, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(eid);
   if (!event) return res.status(404).json({ error: 'Event not found' });
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url, deck_id, user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url, deck_id, user_id, scheduled_at, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 'scheduled')`).run(
     id, eid, name.trim(), ptitle.trim(),
     description || null, parseInt(duration) || 10,
     github_url || null, demo_url || null, deck_id || null, req.user?.id || null
   );
-  if (req.user?.id) cachedBadgeCheck(req.user.id);
   res.json({ id });
+});
+
+app.post('/api/speakers/:id/presented', requireAuth, requireAdmin, (req, res) => {
+  const speaker = db.prepare('SELECT * FROM speakers WHERE id = ?').get(req.params.id);
+  if (!speaker) return res.status(404).json({ error: 'Speaker not found' });
+  db.prepare(`
+    UPDATE speakers
+    SET presented_at = COALESCE(presented_at, datetime('now')),
+        status = 'presented'
+    WHERE id = ?
+  `).run(req.params.id);
+  if (speaker.user_id) checkAndAwardBadges(speaker.user_id);
+  res.json({ ok: true });
 });
 
 app.get('/api/events/:id/speakers', (req, res) => {
@@ -2739,9 +2775,10 @@ app.get('/api/users/:id', (req, res) => {
   const zapsSent = db.prepare("SELECT COALESCE(SUM(amount_sats), 0) as s FROM zaps WHERE user_id = ? AND status = 'confirmed'").get(req.params.id)?.s || 0;
   const bountyFunded = db.prepare("SELECT COALESCE(SUM(amount_sats), 0) as s FROM bounty_payments WHERE user_id = ? AND payment_type = 'fund' AND status = 'confirmed'").get(req.params.id)?.s || 0;
   const totalZapsSent = Number(zapsSent) + Number(bountyFunded);
+  const upcomingPresenter = getUpcomingPresenterState(req.params.id);
   let badges = [];
   try { badges = JSON.parse(user.badges || '[]'); } catch {}
-  res.json({ ...user, badges, deck_count: deckCount, project_count: projectCount, total_sats_earned: totalSats, bounty_sats: Number(bountySats), zaps_received: Number(zapsReceived), bounties_won: bountiesWon, total_zaps_sent: totalZapsSent });
+  res.json({ ...user, badges, upcoming_presenter: upcomingPresenter, deck_count: deckCount, project_count: projectCount, total_sats_earned: totalSats, bounty_sats: Number(bountySats), zaps_received: Number(zapsReceived), bounties_won: bountiesWon, total_zaps_sent: totalZapsSent });
 });
 
 app.get('/api/users/:id/decks', (req, res) => {

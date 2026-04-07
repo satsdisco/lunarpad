@@ -3657,6 +3657,12 @@ body::after {
   box-shadow: 0 0 8px rgba(124,92,252,0.18);
 }
 
+.profile-scheduled-badge-pill {
+  background: rgba(124,92,252,0.08);
+  border-color: rgba(124,92,252,0.22);
+  color: #cbbcff;
+}
+
 /* ─── Member since text ──────────────────────────────────────────────────── */
 
 .profile-member-since {
