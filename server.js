@@ -3318,9 +3318,10 @@ app.post('/api/live/:eventId/speaker', requireAuth, requireAdmin, (req, res) => 
   const activeSession = getActiveLiveSessionOrNull(req.params.eventId);
   if (!activeSession) return res.status(409).json({ error: 'Live session is not active' });
   if (speaker_id) {
-    const speaker = db.prepare('SELECT id FROM speakers WHERE id = ? AND event_id = ?').get(speaker_id, req.params.eventId);
+    const speaker = db.prepare('SELECT id, status FROM speakers WHERE id = ? AND event_id = ?').get(speaker_id, req.params.eventId);
     if (!speaker) return res.status(404).json({ error: 'Speaker not found in this event' });
     resetSpeakerStatusesForSession(req.params.eventId, speaker_id);
+    db.prepare("UPDATE speakers SET status = 'live' WHERE id = ?").run(speaker_id);
   }
   db.prepare("UPDATE live_sessions SET current_speaker_id = ?, current_started_at = datetime('now'), status = 'live', voting_open = 0, updated_at = datetime('now') WHERE event_id = ?").run(speaker_id || null, req.params.eventId);
   const payload = getLiveSessionPayload(req.params.eventId);

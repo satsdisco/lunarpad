@@ -798,10 +798,10 @@ function renderLineupGroups(data) {
   const finalVotingOpen = data?.session?.status === 'voting' && !data?.speaker;
   const renderSpeaker = (s, roleLabel = '') => {
     const initials = s.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    const isClickable = isAdmin && !['presented', 'skipped', 'winner'].includes(s.status);
+    const isReplayable = isAdmin && s.status !== 'skipped' && s.status !== 'winner';
     const statusTag = roleLabel ? `<span class="live-speaker-status-tag">${roleLabel}</span>` : (['presented', 'skipped', 'winner'].includes(s.status) ? `<span class="live-speaker-status-tag">${esc(s.status)}</span>` : '');
     return `
-      <div class="live-speaker-item${roleLabel === 'UP NEXT' ? ' status-up-next' : ''}${roleLabel === 'NOW' ? ' active' : ''}${['presented','skipped','winner'].includes(s.status) ? ' status-complete' : ''}" ${isClickable ? `onclick="setSpeaker('${esc(s.id)}')"` : ''}>
+      <div class="live-speaker-item${roleLabel === 'UP NEXT' ? ' status-up-next' : ''}${roleLabel === 'NOW' ? ' active' : ''}${['presented','skipped','winner'].includes(s.status) ? ' status-complete' : ''}" ${isReplayable ? `onclick="setSpeaker('${esc(s.id)}')"` : ''}>
         <div class="live-speaker-avatar">${esc(initials)}</div>
         <div class="live-speaker-info">
           <div class="live-speaker-name">${esc(s.name)}</div>
