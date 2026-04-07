@@ -34,7 +34,7 @@ test('pass 1 gates live speaker voting to host-open windows only', () => {
 test('pass 1 live page exposes real host controls and session status rendering', () => {
   const html = read('public', 'live.html');
 
-  assert.match(html, /id="sessionStatePill"/);
+  assert.match(html, /id="viewerRoleChip"/);
   assert.match(html, /id="openVotingBtn"/);
   assert.match(html, /id="closeVotingBtn"/);
   assert.match(html, /id="advanceBtn"/);

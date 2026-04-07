@@ -24,8 +24,8 @@ test('pass 3 live flow supports end-of-event-only voting states and live speaker
 test('pass 3 live page adds bitcoin-native zap support and deeper scoreboard treatment', () => {
   const html = read('public', 'live.html');
 
-  assert.match(html, /id="liveStatusDetail"/);
-  assert.match(html, /function formatToolbarDetail/);
+  assert.match(html, /id="viewerRoleChip"/);
+  assert.match(html, /function setStatus/);
   assert.match(html, /id="finalVotingPanel"/);
   assert.match(html, /id="finalVotingGrid"/);
   assert.match(html, /function renderFinalVoting/);

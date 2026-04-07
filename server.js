@@ -3271,7 +3271,7 @@ function getActiveLiveSessionOrNull(eventId) {
   return db.prepare('SELECT * FROM live_sessions WHERE event_id = ? AND is_active = 1').get(eventId) || null;
 }
 
-function getLiveSessionPayload(eventId) {
+function getLiveSessionPayload(eventId, viewer = null) {
   const event = db.prepare('SELECT id, name, description, event_type as type, virtual_link FROM events WHERE id = ?').get(eventId);
   if (!event) return null;
 
@@ -3381,6 +3381,10 @@ function getLiveSessionPayload(eventId) {
     confirmed: 'Payout confirmed',
     sent: 'Payout sent',
   }[session?.payout_status || 'pending'] || 'Payout pending';
+  const viewer_role = viewer?.is_admin
+    ? 'host'
+    : (current?.user_id && viewer?.id && current.user_id === viewer.id ? 'presenter' : 'audience');
+  const can_control_slides = !!(current?.user_id && viewer?.id && current.user_id === viewer.id);
 
   const results = db.prepare('SELECT id, created_at FROM event_results WHERE event_id = ?').get(eventId);
 
@@ -3396,6 +3400,8 @@ function getLiveSessionPayload(eventId) {
     winner,
     winner_recommendation,
     payout_status_label,
+    viewer_role,
+    can_control_slides,
     stage_status_label,
     time_remaining_seconds,
     time_remaining_label,
@@ -3406,7 +3412,7 @@ function getLiveSessionPayload(eventId) {
 
 // GET /api/live/:eventId — get current live state (public, no auth for polling)
 app.get('/api/live/:eventId', (req, res) => {
-  const payload = getLiveSessionPayload(req.params.eventId);
+  const payload = getLiveSessionPayload(req.params.eventId, req.user || null);
   if (!payload) return res.status(404).json({ error: 'Event not found' });
   if (!payload.active) return res.json({ ...payload, active: false, speaker: null });
   res.json(payload);

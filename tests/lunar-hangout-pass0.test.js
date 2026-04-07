@@ -23,7 +23,7 @@ test('pass 0 extracts a coherent live session payload helper with queue and scor
   const server = read('server.js');
 
   assert.match(server, /function getOrderedEventSpeakers\(eventId\)/);
-  assert.match(server, /function getLiveSessionPayload\(eventId\)/);
+  assert.match(server, /function getLiveSessionPayload\(eventId, viewer = null\)/);
   assert.match(server, /next_speaker/);
   assert.match(server, /scoreboard/);
   assert.match(server, /meet_url/);

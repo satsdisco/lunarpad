@@ -70,46 +70,30 @@ body { background: #080a14; overflow: hidden; }
   align-items: center;
   gap: 10px;
 }
-.live-toolbar-status {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.live-status-detail {
-  font-size: 0.72rem;
-  color: var(--muted2);
-  max-width: 320px;
-  text-align: right;
-}
-.live-state-pill {
+.live-role-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  padding: 6px 12px;
-  border: 1px solid rgba(124,92,252,0.22);
-  background: rgba(124,92,252,0.14);
-  color: #d9d0ff;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--muted2);
   font-family: var(--font-mono);
-  font-size: 0.64rem;
-  font-weight: 800;
+  font-size: 0.58rem;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.live-state-pill.voting {
-  background: rgba(67, 201, 120, 0.14);
-  border-color: rgba(67, 201, 120, 0.28);
+.live-role-chip.presenter {
   color: #9bf2bc;
+  border-color: rgba(67, 201, 120, 0.24);
+  background: rgba(67, 201, 120, 0.1);
 }
-.live-state-pill.pending {
-  background: rgba(255, 179, 71, 0.14);
-  border-color: rgba(255, 179, 71, 0.28);
+.live-role-chip.host {
   color: #ffd48a;
-}
-.live-state-pill.offline {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.12);
-  color: var(--muted2);
+  border-color: rgba(255, 179, 71, 0.24);
+  background: rgba(255, 179, 71, 0.1);
 }
 .live-toolbar-strip {
   display: none;
@@ -604,6 +588,28 @@ body { background: #080a14; overflow: hidden; }
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+.live-presenter-controls {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 20px;
+  background: rgba(13,15,26,0.92);
+  border-top: 1px solid rgba(124,92,252,0.12);
+  flex-shrink: 0;
+}
+.live-presenter-controls.visible {
+  display: flex;
+}
+.live-presenter-controls-copy {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.live-presenter-controls-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .live-final-voting-copy h3 {
   font-family: var(--font-mono);
   font-size: 0.95rem;
@@ -799,11 +805,8 @@ body { background: #080a14; overflow: hidden; }
       <span id="liveStatus">Connecting...</span>
     </div>
     <div class="live-top-meta">
-      <div class="live-toolbar-status">
-        <div class="live-state-pill offline" id="sessionStatePill">Connecting</div>
-        <div class="live-status-detail" id="liveStatusDetail">Checking the stage…</div>
-      </div>
       <div class="live-event-name" id="liveEventName">—</div>
+      <div class="live-role-chip" id="viewerRoleChip">Audience</div>
     </div>
   </div>
 
@@ -895,6 +898,14 @@ body { background: #080a14; overflow: hidden; }
     </div>
   </div>
 
+  <div class="live-presenter-controls" id="presenterControls" style="display:none">
+    <div class="live-presenter-controls-copy">Current presenter can control their own deck only.</div>
+    <div class="live-presenter-controls-actions">
+      <button class="btn-live-admin" onclick="sendSlideCommand('prev')">Previous Slide</button>
+      <button class="btn-live-admin primary" onclick="sendSlideCommand('next')">Next Slide</button>
+    </div>
+  </div>
+
   <div class="live-zap-modal" id="zapModal" style="display:none">
     <div class="live-zap-modal-card">
       <button class="live-zap-close" onclick="closeZapModal()" aria-label="Close zap modal">×</button>
@@ -946,6 +957,7 @@ const eventId = pathParts[1];
 let pollInterval = null;
 let currentSpeakerId = null;
 let isAdmin = false;
+let currentUser = null;
 let speakers = [];
 let latestPayload = null;
 let finalVoteState = {};
@@ -966,25 +978,16 @@ function formatSessionState(data) {
   return { label: 'Live Now', tone: 'live' };
 }
 
-function formatToolbarDetail(data) {
-  if (!data?.active) return 'The stage opens when the host starts the session.';
-  if (data?.session?.status === 'voting' && !data?.speaker) return 'Voting is now open for the full event.';
-  if (data?.session?.status === 'presentations_complete') return 'All presenters are done. Final voting is next.';
-  if (!data?.speaker) return data?.next_speaker ? `Waiting for next presenter · ${data.next_speaker.name} is up next.` : 'Waiting for next presenter';
-  return data?.session?.voting_open ? 'Audience voting is open for the current speaker.' : 'Presentation is live on stage.';
-}
-
 function setStatus(active, data = null) {
   const dot = document.getElementById('liveDot');
   const status = document.getElementById('liveStatus');
-  const pill = document.getElementById('sessionStatePill');
-  const detail = document.getElementById('liveStatusDetail');
+  const roleChip = document.getElementById('viewerRoleChip');
   const state = formatSessionState(data || { active });
   dot.style.background = active ? '#ff4d4d' : '#666';
   status.textContent = active ? state.label : 'Offline';
-  pill.textContent = state.label;
-  pill.className = `live-state-pill ${state.tone}`;
-  detail.textContent = formatToolbarDetail(data || { active });
+  const viewerRole = data?.viewer_role || 'audience';
+  roleChip.textContent = viewerRole === 'host' ? 'Host' : (viewerRole === 'presenter' ? 'Presenter' : 'Audience');
+  roleChip.className = `live-role-chip ${viewerRole}`;
 }
 
 function renderTimer(data) {
@@ -1107,7 +1110,8 @@ function renderWinnerPanel(data) {
   const winner = data?.winner;
   const recommended = data?.winner_recommendation;
   const status = data?.session?.status || 'idle';
-  const shouldShow = !!winner || !!recommended || ['voting', 'presentations_complete', 'winner_pending', 'completed'].includes(status);
+  const isHostView = data?.viewer_role === 'host';
+  const shouldShow = isHostView || !!winner;
   if (!shouldShow) {
     panel.classList.remove('visible');
     return;
@@ -1122,6 +1126,20 @@ function renderWinnerPanel(data) {
       : 'No recommendation yet.');
   payout.textContent = data?.payout_status_label || 'Payout pending';
   panel.classList.add('visible');
+}
+
+function renderPresenterControls(data) {
+  const controls = document.getElementById('presenterControls');
+  const copy = controls.querySelector('.live-presenter-controls-copy');
+  const canControl = !!data?.can_control_slides;
+  if (!canControl || !data?.speaker) {
+    controls.classList.remove('visible');
+    controls.style.display = 'none';
+    return;
+  }
+  copy.textContent = `You are live as ${data.speaker.name}. You can move only your own deck.`;
+  controls.style.display = 'flex';
+  controls.classList.add('visible');
 }
 
 function renderAdminControls(data) {
@@ -1153,6 +1171,7 @@ function renderAdminControls(data) {
 async function init() {
   try {
     const me = await fetch('/api/me').then(r => r.json());
+    currentUser = me.user || null;
     if (me.user?.is_admin) {
       isAdmin = true;
       document.getElementById('adminBar').classList.add('visible');
@@ -1180,6 +1199,7 @@ function render(data) {
   latestPayload = data;
   renderStageMeta(data);
   renderWinnerPanel(data);
+  renderPresenterControls(data);
   renderAdminControls(data);
   renderFinalVoting(data);
 
@@ -1487,6 +1507,26 @@ async function undoSkipped() {
   if (!skippedSpeaker) return;
   const res = await fetch(`/api/speakers/${skippedSpeaker.id}/skip`, { method: 'DELETE' });
   if (res.ok) await poll();
+}
+
+function sendSlideCommand(direction) {
+  if (!latestPayload?.can_control_slides) return;
+  const frame = document.getElementById('liveFrame');
+  const win = frame?.contentWindow;
+  if (!win) return;
+  const key = direction === 'prev' ? 'ArrowLeft' : 'ArrowRight';
+  try {
+    win.focus();
+    const keydown = new win.KeyboardEvent('keydown', { key, code: key, keyCode: direction === 'prev' ? 37 : 39, which: direction === 'prev' ? 37 : 39, bubbles: true });
+    const keyup = new win.KeyboardEvent('keyup', { key, code: key, keyCode: direction === 'prev' ? 37 : 39, which: direction === 'prev' ? 37 : 39, bubbles: true });
+    win.dispatchEvent(keydown);
+    win.document?.dispatchEvent?.(keydown);
+    win.document?.activeElement?.dispatchEvent?.(keydown);
+    win.dispatchEvent(keyup);
+    win.document?.dispatchEvent?.(keyup);
+    win.document?.activeElement?.dispatchEvent?.(keyup);
+    win.postMessage({ type: 'lunarpad-slide-control', direction }, '*');
+  } catch {}
 }
 
 async function skipSpeaker() {
