@@ -895,10 +895,22 @@ function renderHeroBanner(ev) {
     </div>`;
 }
 
+function formatSecondaryEventDateLabel(ev) {
+  if (!ev?.date) return 'Date TBD';
+  const eventDate = new Date(ev.date + (ev.time ? 'T' + ev.time : 'T00:00'));
+  const dateLabel = eventDate.toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' });
+  const now = new Date();
+  const statusLabel = eventDate.getTime() < now.getTime()
+    ? 'Ended'
+    : (ev.location || ev.virtual_link ? (ev.location || 'Virtual') : 'Upcoming');
+  return `${dateLabel} · ${statusLabel}`;
+}
+
 function renderEventCard(ev) {
   const dateStr = ev.date
     ? new Date(ev.date).toLocaleDateString('en', { weekday:'short', month:'short', day:'numeric', year:'numeric' })
     : 'TBD';
+  const secondaryDateLabel = formatSecondaryEventDateLabel(ev);
   const evType = ev.event_type || ev.type || 'Event';
   const speakerCount = (ev.speakers || []).length;
   const typeColors = { 'demo-day': '#7c5cfc', 'hackathon': '#39d98a', 'bounty': '#d4a843', 'workshop': '#3CCBDA', 'meetup': '#f472b6' };
@@ -926,12 +938,7 @@ function renderEventCard(ev) {
         <div style="display:flex;gap:12px;margin-top:10px;font-size:0.78rem;color:var(--muted)">
           <span>👥 ${speakerCount} speaker${speakerCount !== 1 ? 's' : ''}</span>
         </div>
-        <div class="event-countdown" id="countdown-${esc(ev.id)}" style="margin-top:12px">
-          <div class="countdown-chip"><div class="countdown-chip-val" id="cd-d-${esc(ev.id)}">--</div><div class="countdown-chip-label">Days</div></div>
-          <div class="countdown-chip"><div class="countdown-chip-val" id="cd-h-${esc(ev.id)}">--</div><div class="countdown-chip-label">Hrs</div></div>
-          <div class="countdown-chip"><div class="countdown-chip-val" id="cd-m-${esc(ev.id)}">--</div><div class="countdown-chip-label">Min</div></div>
-          <div class="countdown-chip"><div class="countdown-chip-val" id="cd-s-${esc(ev.id)}">--</div><div class="countdown-chip-label">Sec</div></div>
-        </div>
+        <div class="event-secondary-date">${esc(secondaryDateLabel)}</div>
       </div>
     </a>`;
 }
@@ -976,28 +983,8 @@ function updateCountdowns() {
     }
   }
 
-  eventsData.forEach(ev => {
-    if (!ev.date) return;
-    const eventDate = new Date(ev.date + (ev.time ? 'T' + ev.time : 'T00:00'));
-    const diff = eventDate.getTime() - now;
-    const id = ev.id;
-    const container = document.getElementById('countdown-' + id);
-    if (!container) return;
-
-    if (diff > 0) {
-      const days = Math.floor(diff / 86400000);
-      const hrs  = Math.floor((diff % 86400000) / 3600000);
-      const mins = Math.floor((diff % 3600000) / 60000);
-      const secs = Math.floor((diff % 60000) / 1000);
-      const set = (u, v) => { const el = document.getElementById('cd-' + u + '-' + id); if (el) el.textContent = String(v).padStart(2,'0'); };
-      set('d', days); set('h', hrs); set('m', mins); set('s', secs);
-    } else if (diff > -86400000) {
-      container.innerHTML = '<div class="event-status-live"><span class="live-dot"></span> LIVE NOW</div>';
-    } else {
-      container.innerHTML = '<div class="event-status-ended">Event Ended</div>';
-    }
-  });
 }
+
 
 function startCountdowns() {
   updateCountdowns();

@@ -42,29 +42,15 @@ function safeUrl(u) { try { const p = new URL(u).protocol; return (p==='http:'||
 
 let allEvents = [];
 
-// ─── Countdown helpers ────────────────────────────────────────────────────
-function getCountdownParts(targetDate) {
-  const diff = new Date(targetDate).getTime() - Date.now();
-  if (diff <= 0) return { days: 0, hrs: 0, mins: 0, secs: 0, expired: true };
-  return {
-    days: Math.floor(diff / 86400000),
-    hrs:  Math.floor((diff % 86400000) / 3600000),
-    mins: Math.floor((diff % 3600000) / 60000),
-    secs: Math.floor((diff % 60000) / 1000),
-    expired: false
-  };
-}
-
-function updateAllCountdowns() {
-  allEvents.forEach(ev => {
-    if (!ev.date) return;
-    const p = getCountdownParts(ev.date);
-    const set = (u, v) => {
-      const el = document.getElementById('vcd-' + u + '-' + ev.id);
-      if (el) el.textContent = p.expired ? '0' : String(v).padStart(2, '0');
-    };
-    set('d', p.days); set('h', p.hrs); set('m', p.mins); set('s', p.secs);
-  });
+function formatStaticEventDate(ev) {
+  if (!ev?.date) return 'Date TBD';
+  const eventDate = new Date(ev.date + (ev.time ? 'T' + ev.time : 'T00:00'));
+  const dateLabel = eventDate.toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' });
+  const now = new Date();
+  const statusLabel = eventDate.getTime() < now.getTime()
+    ? 'Ended'
+    : (ev.location || 'Upcoming');
+  return `${dateLabel} · ${statusLabel}`;
 }
 
 // ─── Load and render ──────────────────────────────────────────────────────
@@ -103,9 +89,6 @@ async function loadVotePage() {
         You can vote once per speaker.
       </div>`;
 
-    setInterval(updateAllCountdowns, 1000);
-    updateAllCountdowns();
-
   } catch (e) {
     content.innerHTML = '<div class="error-state"><span>⚠️</span><p>Failed to load vote page.</p><button onclick="loadVotePage()">Retry</button></div>';
   }
@@ -115,6 +98,7 @@ function renderEventSection(ev, bounties) {
   const dateStr = ev.date
     ? new Date(ev.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' })
     : 'Date TBD';
+  const staticDateLabel = formatStaticEventDate(ev);
 
   const speakers = [...(ev.speakers || [])].sort((a, b) => (b.votes || 0) - (a.votes || 0));
 
@@ -142,12 +126,7 @@ function renderEventSection(ev, bounties) {
           <div class="event-section-date">🗓 ${dateStr}${ev.location ? ' · 📍 ' + esc(ev.location) : ''}</div>
           ${prizeHtml}
         </div>
-        <div class="event-countdown">
-          <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-d-${esc(ev.id)}">--</div><div class="countdown-chip-label">Days</div></div>
-          <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-h-${esc(ev.id)}">--</div><div class="countdown-chip-label">Hrs</div></div>
-          <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-m-${esc(ev.id)}">--</div><div class="countdown-chip-label">Min</div></div>
-          <div class="countdown-chip"><div class="countdown-chip-val" id="vcd-s-${esc(ev.id)}">--</div><div class="countdown-chip-label">Sec</div></div>
-        </div>
+        <div class="event-secondary-date">${esc(staticDateLabel)}</div>
       </div>
       <div class="speaker-rows" id="speakers-${esc(ev.id)}">
         ${speakersHtml}

@@ -607,6 +607,15 @@ a:hover { color: var(--accent); }
 .event-name { font-size: 0.88rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
 .event-meta { font-size: 0.7rem; color: var(--muted2); margin-bottom: 6px; display: flex; gap: 10px; }
 .event-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
+.event-secondary-date {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 .event-countdown { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; color: var(--accent); }
 .event-type {
   font-family: var(--font-mono);
