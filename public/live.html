@@ -20,8 +20,10 @@ body { background: #080a14; overflow: hidden; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
-  background: rgba(13,15,26,0.85);
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 20px 14px;
+  background: rgba(13,15,26,0.88);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(124,92,252,0.15);
   position: relative;
@@ -109,17 +111,22 @@ body { background: #080a14; overflow: hidden; }
   border-color: rgba(255,255,255,0.12);
   color: var(--muted2);
 }
-.live-stage-meta {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  right: 20px;
-  z-index: 4;
+.live-toolbar-strip {
+  width: 100%;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  pointer-events: none;
+  align-items: stretch;
+  gap: 14px;
+}
+.live-stage-meta {
+  position: static;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 14px;
+  width: 100%;
+  pointer-events: auto;
 }
 .live-stage-summary,
 .live-stage-scoreboard {
@@ -579,9 +586,8 @@ body { background: #080a14; overflow: hidden; }
 /* ── Responsive: hide sidebar on small screens ── */
 @media (max-width: 860px) {
   .live-sidebar { display: none; }
+  .live-toolbar-strip,
   .live-stage-meta {
-    position: static;
-    padding: 16px 16px 0;
     flex-direction: column;
   }
   .live-stage-summary,
@@ -612,13 +618,7 @@ body { background: #080a14; overflow: hidden; }
       </div>
       <div class="live-event-name" id="liveEventName">—</div>
     </div>
-  </div>
-
-  <!-- Main content -->
-  <div class="live-content">
-
-    <!-- Deck iframe -->
-    <div class="live-frame-wrap" id="frameWrap">
+    <div class="live-toolbar-strip" id="liveToolbarStrip">
       <div class="live-stage-meta">
         <div class="live-stage-summary">
           <div class="live-stage-kicker">Demo Day Live</div>
@@ -645,6 +645,14 @@ body { background: #080a14; overflow: hidden; }
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="live-content">
+
+    <!-- Deck iframe -->
+    <div class="live-frame-wrap" id="frameWrap">
 
       <!-- Offline screen -->
       <div class="live-offline" id="offlineScreen" style="display:none">

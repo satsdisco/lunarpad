@@ -20,6 +20,7 @@ test('pass 2 live payload exposes timer and audience-stage guidance fields', () 
 test('pass 2 live page renders timer and grouped lineup affordances', () => {
   const html = read('public', 'live.html');
 
+  assert.match(html, /id="liveToolbarStrip"/);
   assert.match(html, /id="stageTimerValue"/);
   assert.match(html, /id="stageTimerMeta"/);
   assert.match(html, /id="lineupCurrent"/);
@@ -29,6 +30,7 @@ test('pass 2 live page renders timer and grouped lineup affordances', () => {
   assert.match(html, /function renderLineupGroups/);
   assert.match(html, /function renderTimer/);
   assert.match(html, /setSpeaker\('/);
+  assert.match(html, /\.live-toolbar-strip/);
 });
 
 test('pass 2 timer messaging covers live countdown and overtime/ended states', () => {
