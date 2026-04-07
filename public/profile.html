@@ -276,11 +276,27 @@ function cancelLinksEdit() {
 
 async function saveAvailability() {
   const skills = [...document.querySelectorAll('#skillChips .role-chip.active')].map(c => c.dataset.role);
-  const available_hours = parseInt(document.getElementById('availHours')?.value) || null;
+  const hoursInput = document.getElementById('availHours');
+  const hoursValue = hoursInput ? String(hoursInput.value || '').trim() : '';
+  const available_hours = hoursValue === '' ? null : parseInt(hoursValue, 10);
   try {
     const res = await fetch('/api/me/availability', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ skills, available_hours }) });
-    if (res.ok) { const btn = document.querySelector('#skillChips + div .btn'); if (btn) { btn.textContent = 'Saved!'; setTimeout(() => btn.textContent = 'Save', 1500); } }
+    if (res.ok) {
+      window.location.reload();
+      return;
+    }
   } catch {}
+}
+
+function toggleAvailabilityEditor(forceOpen) {
+  const editor = document.getElementById('availabilityEditor');
+  const summary = document.getElementById('availabilitySummary');
+  const toggle = document.getElementById('availabilityToggle');
+  if (!editor) return;
+  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : editor.style.display === 'none';
+  editor.style.display = shouldOpen ? 'block' : 'none';
+  if (summary) summary.style.display = shouldOpen ? 'none' : '';
+  if (toggle) toggle.textContent = shouldOpen ? 'Cancel' : (toggle.dataset.defaultLabel || 'Edit');
 }
 
 async function saveLinks() {
@@ -600,24 +616,34 @@ async function loadProfile() {
 
       ${isOwn ? `
       <div class="profile-section">
-        <div class="profile-section-title">Availability</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="skillChips">
-          ${['Designer','Frontend Dev','Backend Dev','Lightning Dev','Marketing','Tester'].map(r =>
-            `<button type="button" class="role-chip ${(user.skills || '').split(',').map(s=>s.trim()).includes(r) ? 'active' : ''}" data-role="${r}" onclick="this.classList.toggle('active')">${r}</button>`
-          ).join('')}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+          <div class="profile-section-title" style="margin-bottom:0">Availability</div>
+          <button class="btn btn-sm" type="button" id="availabilityToggle" data-default-label="${(user.skills || user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '') ? 'Edit' : 'Set availability'}" onclick="toggleAvailabilityEditor()">${(user.skills || user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '') ? 'Edit' : 'Set availability'}</button>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <label style="font-size:0.75rem;color:var(--muted)">Hours/week:</label>
-          <input type="number" id="availHours" min="0" max="80" value="${window.LunarUiRules ? window.LunarUiRules.getAvailabilityInputValue(user.available_hours) : (user.available_hours ?? '')}" placeholder="Set hours" style="width:84px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.8rem">
-          <button class="btn btn-sm" onclick="saveAvailability()">Save</button>
+        <div id="availabilitySummary">
+          ${(user.skills || user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '') ? `
+            ${(user.skills || '').trim() ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '' ? '10px' : '0'}">${user.skills.split(',').map(s => `<span class="looking-for-badge">${esc(s.trim())}</span>`).join('')}</div>` : ''}
+            ${user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '' ? `<div style="font-size:0.78rem;color:var(--muted)">${esc(String(user.available_hours))}h/week available</div>` : ''}
+          ` : `<div style="font-size:0.78rem;color:var(--muted);line-height:1.55">Hide this until you want it public. Add roles and weekly capacity when you actually want collaborators to know your availability.</div>`}
         </div>
-      </div>` : (user.skills ? `
+        <div id="availabilityEditor" style="display:none;margin-top:12px">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="skillChips">
+            ${['Designer','Frontend Dev','Backend Dev','Lightning Dev','Marketing','Tester'].map(r =>
+              `<button type="button" class="role-chip ${(user.skills || '').split(',').map(s=>s.trim()).includes(r) ? 'active' : ''}" data-role="${r}" onclick="this.classList.toggle('active')">${r}</button>`
+            ).join('')}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label style="font-size:0.75rem;color:var(--muted)" for="availHours">Hours/week</label>
+            <input type="number" id="availHours" min="0" max="80" value="${window.LunarUiRules ? window.LunarUiRules.getAvailabilityInputValue(user.available_hours) : (user.available_hours ?? '')}" placeholder="Set hours" style="width:96px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.8rem">
+            <button class="btn btn-sm" type="button" onclick="saveAvailability()">Save</button>
+            <button class="btn btn-sm" type="button" onclick="toggleAvailabilityEditor(false)">Cancel</button>
+          </div>
+        </div>
+      </div>` : ((user.skills || user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '') ? `
       <div class="profile-section">
-        <div class="profile-section-title">Skills</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">
-          ${user.skills.split(',').map(s => `<span class="looking-for-badge">${esc(s.trim())}</span>`).join('')}
-        </div>
-        ${user.available_hours ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:8px">${user.available_hours}h/week available</div>` : ''}
+        <div class="profile-section-title">Availability</div>
+        ${(user.skills || '').trim() ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${user.skills.split(',').map(s => `<span class="looking-for-badge">${esc(s.trim())}</span>`).join('')}</div>` : ''}
+        ${user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '' ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:${(user.skills || '').trim() ? '8px' : '0'}">${user.available_hours}h/week available</div>` : ''}
       </div>` : '')}
 
       ${activityChart}

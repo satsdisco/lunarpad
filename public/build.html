@@ -204,19 +204,51 @@
         <div class="onboarding-panel-head">
           <div>
             <div class="onboarding-kicker">Getting started</div>
-            <h2 class="onboarding-title">Welcome to LunarPad</h2>
+            <h2 class="onboarding-title">Welcome to LunarPad<span id="onboardingNameSuffix"></span></h2>
             <p class="onboarding-copy">LunarPad is where builders share projects, join events, and pick up bounties. Start with the live feed, then branch out when something catches your eye.</p>
           </div>
           <button class="onboarding-dismiss" type="button" aria-label="Skip getting started" onclick="dismissFirstVisitPanel()">Skip</button>
         </div>
+        <div class="onboarding-steps" aria-label="Suggested first steps">
+          <div class="onboarding-step">
+            <span class="onboarding-step-index">1</span>
+            <div class="onboarding-step-copy">
+              <strong>See what is live</strong>
+              <span>Events are the fastest way to understand what is happening right now.</span>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <span class="onboarding-step-index">2</span>
+            <div class="onboarding-step-copy">
+              <strong>Check the work</strong>
+              <span>Projects show what builders have already shipped or are actively making.</span>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <span class="onboarding-step-index">3</span>
+            <div class="onboarding-step-copy">
+              <strong>Find your angle</strong>
+              <span>Bounties and the Foyer are where you can jump in when something clicks.</span>
+            </div>
+          </div>
+        </div>
         <div class="onboarding-primary">
           <button class="btn btn-primary onboarding-primary-btn" type="button" onclick="handleOnboardingAction('events')">Start with Events</button>
-          <span class="onboarding-primary-copy">Best first move: see what is happening now, who is shipping, and what you can join.</span>
+          <span class="onboarding-primary-copy" id="onboardingPrimaryCopy">Best first move: see what is happening now, who is shipping, and what you can join.</span>
         </div>
         <div class="onboarding-shortcuts">
-          <button class="onboarding-shortcut" type="button" onclick="handleOnboardingAction('projects')">Projects</button>
-          <button class="onboarding-shortcut" type="button" onclick="handleOnboardingAction('bounties')">Bounties</button>
-          <a class="onboarding-shortcut onboarding-shortcut-link" href="/foyer" onclick="dismissFirstVisitPanel()">The Foyer</a>
+          <button class="onboarding-shortcut" type="button" onclick="handleOnboardingAction('projects')">
+            <span class="onboarding-shortcut-label">Projects</span>
+            <span class="onboarding-shortcut-copy">Browse what people are building.</span>
+          </button>
+          <button class="onboarding-shortcut" type="button" onclick="handleOnboardingAction('bounties')">
+            <span class="onboarding-shortcut-label">Bounties</span>
+            <span class="onboarding-shortcut-copy">Find work you can help finish.</span>
+          </button>
+          <a class="onboarding-shortcut onboarding-shortcut-link" href="/foyer" onclick="dismissFirstVisitPanel()">
+            <span class="onboarding-shortcut-label">The Foyer</span>
+            <span class="onboarding-shortcut-copy">Explore ideas, teams, and momentum.</span>
+          </a>
         </div>
       </section>
 
@@ -559,7 +591,7 @@ let showAllPastEvents = false;
 let countdownTimers = {};
 let currentView = 'events';
 let projectSubmissionContext = { bountyId: '', bountyTitle: '' };
-const FIRST_VISIT_PANEL_KEY = 'lunarpad:first-visit-panel:dismissed:v1';
+const FIRST_VISIT_PANEL_KEY = 'lunarpad:first-visit-panel:dismissed:v2';
 
 // ─── Sidebar Navigation ───────────────────────────────────────────────────
 function clearProjectSubmissionContext() {
@@ -603,9 +635,26 @@ function dismissFirstVisitPanel() {
   try { localStorage.setItem(FIRST_VISIT_PANEL_KEY, '1'); } catch {}
 }
 
+function hydrateFirstVisitPanel(user) {
+  const suffix = document.getElementById('onboardingNameSuffix');
+  const primaryCopy = document.getElementById('onboardingPrimaryCopy');
+  const rawName = String(user?.name || '').trim();
+  const firstName = rawName ? rawName.split(/\s+/)[0] : '';
+  if (suffix) {
+    suffix.textContent = firstName ? `, ${firstName}` : '';
+  }
+  if (primaryCopy) {
+    primaryCopy.textContent = firstName
+      ? `${firstName}, start with the live feed so you can see what is happening now, who is shipping, and what you can join.`
+      : 'Best first move: see what is happening now, who is shipping, and what you can join.';
+  }
+}
+
 function maybeShowFirstVisitPanel(user) {
   const panel = document.getElementById('firstVisitPanel');
   if (!panel || !user) return;
+  const hashView = window.location.hash.replace('#', '');
+  if (hashView && hashView !== 'events') return;
   try {
     if (localStorage.getItem(FIRST_VISIT_PANEL_KEY) === '1') return;
   } catch {}
@@ -1884,6 +1933,7 @@ if (window.location.hash === '#leaderboard' && !_lbLoaded) {
   if (bi && !bi.value) bi.value = user.name || user.email || '';
   var spk = document.getElementById('spkName');
   if (spk && !spk.value) spk.value = user.name || '';
+  hydrateFirstVisitPanel(user);
   maybeShowFirstVisitPanel(user);
 });</script>
 <button class="fab" id="contextualFab" title="Present Project" data-action="present"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Present Project</span></button>
