@@ -220,7 +220,7 @@
               <span id="onboardingProfileCopy">Add a bio, links, lightning, or availability so people know who you are.</span>
             </div>
             <div class="onboarding-step-actions">
-              <span class="onboarding-step-status" id="onboardingProfileStatus">Next</span>
+              <span class="onboarding-step-status" id="onboardingProfileStatus" hidden></span>
               <button class="btn btn-sm onboarding-task-btn" type="button" onclick="handleOnboardingAction('profile')">Open profile</button>
             </div>
           </div>
@@ -231,7 +231,7 @@
               <span id="onboardingProjectCopy">Ship something small so people can see what you are building.</span>
             </div>
             <div class="onboarding-step-actions">
-              <span class="onboarding-step-status" id="onboardingProjectStatus">Next</span>
+              <span class="onboarding-step-status" id="onboardingProjectStatus" hidden></span>
               <button class="btn btn-sm onboarding-task-btn" type="button" onclick="handleOnboardingAction('project')">Add project</button>
             </div>
           </div>
@@ -692,8 +692,14 @@ function renderOnboardingChecklist() {
       ? 'Nice. You have the basics in place now, so this onboarding panel will stop nagging you.'
       : 'Finish these basics and this panel gets out of your way.';
   }
-  if (profileStatus) profileStatus.textContent = state.profileReady ? 'Done' : 'Next';
-  if (projectStatus) projectStatus.textContent = state.hasProject ? 'Done' : 'Next';
+  if (profileStatus) {
+    profileStatus.textContent = state.profileReady ? 'Done' : '';
+    profileStatus.hidden = !state.profileReady;
+  }
+  if (projectStatus) {
+    projectStatus.textContent = state.hasProject ? 'Done' : '';
+    projectStatus.hidden = !state.hasProject;
+  }
   if (profileCopy) profileCopy.textContent = state.profileReady ? 'Your profile has enough signal now that people can tell who you are.' : 'Add a bio, links, lightning, or availability so people know who you are.';
   if (projectCopy) projectCopy.textContent = state.hasProject ? `You already have ${onboardingState.projectCount} project${onboardingState.projectCount === 1 ? '' : 's'} on the board.` : 'Ship something small so people can see what you are building.';
   [
@@ -1998,61 +2004,3 @@ document.querySelectorAll('.sidebar-link').forEach(link => {
 
 // Leaderboard sort tab clicks
 document.addEventListener('click', e => {
-  const tab = e.target.closest('.lb-tab');
-  if (!tab) return;
-  const sort = tab.dataset.sort;
-  if (sort && sort !== _lbCurrentSort) loadLeaderboard(sort);
-});
-
-// Deep-link: auto-load leaderboard if hash is set
-if (window.location.hash === '#leaderboard' && !_lbLoaded) {
-  _lbLoaded = true;
-  loadLeaderboard('earners');
-}
-</script>
-<script src="/js/auth.js"></script>
-<script>initAuth(async function(user) {
-  var bi = document.getElementById('projBuilder');
-  if (bi && !bi.value) bi.value = user.name || user.email || '';
-  var spk = document.getElementById('spkName');
-  if (spk && !spk.value) spk.value = user.name || '';
-  try {
-    const ownProjects = await fetch('/api/users/' + encodeURIComponent(user.id) + '/projects').then(r => r.json());
-    onboardingState.projectCount = Array.isArray(ownProjects) ? ownProjects.length : 0;
-  } catch {
-    onboardingState.projectCount = 0;
-  }
-  hydrateFirstVisitPanel(user);
-  maybeShowFirstVisitPanel(user);
-});</script>
-<button class="fab" id="contextualFab" title="Present Project" data-action="present"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Present Project</span></button>
-<script>
-const contextualFab = document.getElementById('contextualFab');
-if (contextualFab) {
-  contextualFab.addEventListener('click', () => {
-    if (contextualFab.dataset.action === 'project') {
-      document.getElementById('projectModal').classList.add('open');
-      return;
-    }
-    if (contextualFab.dataset.action === 'present') {
-      document.getElementById('speakerModal').classList.add('open');
-    }
-  });
-}
-document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});
-</script>
-<input type="file" id="bannerFileInput" accept="image/*" style="display:none">
-<div class='modal-overlay' id='bannerCropModal'>
-  <div class='modal-content' style='max-width:500px'>
-    <button class='modal-close' onclick='closeBannerCrop()'>&times;</button>
-    <div class='modal-title'>Crop Banner (16:9)</div>
-    <div style='width:100%;max-height:400px;overflow:hidden;background:#000;border-radius:8px'>
-      <img id='bannerCropImage' src='' style='max-width:100%;display:block'>
-    </div>
-    <div style='display:flex;align-items:center;justify-content:space-between;margin-top:16px'>
-      <div style='display:flex;gap:6px;align-items:center'>
-        <button class='btn' onclick='if(_bnCropper)_bnCropper.zoom(-0.1)' title='Zoom out' style='padding:6px 10px;font-size:1.1rem'>−</button>
-        <button class='btn' onclick='if(_bnCropper)_bnCropper.zoom(0.1)' title='Zoom in' style='padding:6px 10px;font-size:1.1rem'>+</button>
-        <button class='btn' onclick='if(_bnCropper)_bnCropper.reset()' title='Reset' style='padding:6px 10px;font-size:.8rem'>Reset</button>
-      </div>
-      <div style='display:flex;gap:8px'>

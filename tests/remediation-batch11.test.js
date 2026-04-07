@@ -18,6 +18,7 @@ test('build page onboarding stays focused on the two real setup tasks', () => {
   assert.match(html, /Add your first project/);
   assert.match(html, /Open profile/);
   assert.match(html, /Add project/);
+  assert.doesNotMatch(html, />Next</);
   assert.match(html, /Events/);
   assert.match(html, /Bounties/);
   assert.match(html, /The Foyer/);
@@ -29,6 +30,8 @@ test('build page onboarding stays focused on the two real setup tasks', () => {
   assert.match(html, /function getOnboardingChecklistState/);
   assert.match(html, /function renderOnboardingChecklist/);
   assert.match(html, /function handleOnboardingAction/);
+  assert.match(html, /profileStatus\.hidden = !state\.profileReady/);
+  assert.match(html, /projectStatus\.hidden = !state\.hasProject/);
   assert.match(html, /viewName === 'project'/);
   assert.doesNotMatch(html, /Explore the live flow/);
   assert.doesNotMatch(html, /Browse build flow/);
