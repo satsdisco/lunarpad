@@ -200,6 +200,25 @@
 
     <!-- Content -->
     <main class="build-content">
+      <section class="onboarding-panel" id="firstVisitPanel" hidden>
+        <div class="onboarding-panel-head">
+          <div>
+            <div class="onboarding-kicker">Getting started</div>
+            <h2 class="onboarding-title">Welcome to LunarPad</h2>
+            <p class="onboarding-copy">LunarPad is where builders share projects, join events, and pick up bounties. Start with the live feed, then branch out when something catches your eye.</p>
+          </div>
+          <button class="onboarding-dismiss" type="button" aria-label="Skip getting started" onclick="dismissFirstVisitPanel()">Skip</button>
+        </div>
+        <div class="onboarding-primary">
+          <button class="btn btn-primary onboarding-primary-btn" type="button" onclick="handleOnboardingAction('events')">Start with Events</button>
+          <span class="onboarding-primary-copy">Best first move: see what is happening now, who is shipping, and what you can join.</span>
+        </div>
+        <div class="onboarding-shortcuts">
+          <button class="onboarding-shortcut" type="button" onclick="handleOnboardingAction('projects')">Projects</button>
+          <button class="onboarding-shortcut" type="button" onclick="handleOnboardingAction('bounties')">Bounties</button>
+          <a class="onboarding-shortcut onboarding-shortcut-link" href="/foyer" onclick="dismissFirstVisitPanel()">The Foyer</a>
+        </div>
+      </section>
 
       <!-- Events View -->
       <div class="build-view active" id="view-events">
@@ -540,6 +559,7 @@ let showAllPastEvents = false;
 let countdownTimers = {};
 let currentView = 'events';
 let projectSubmissionContext = { bountyId: '', bountyTitle: '' };
+const FIRST_VISIT_PANEL_KEY = 'lunarpad:first-visit-panel:dismissed:v1';
 
 // ─── Sidebar Navigation ───────────────────────────────────────────────────
 function clearProjectSubmissionContext() {
@@ -575,6 +595,30 @@ function renderContextualFab() {
   fab.dataset.action = config.action || '';
   const label = fab.querySelector('.fab-label');
   if (label) label.textContent = config.label || '';
+}
+
+function dismissFirstVisitPanel() {
+  const panel = document.getElementById('firstVisitPanel');
+  if (panel) panel.hidden = true;
+  try { localStorage.setItem(FIRST_VISIT_PANEL_KEY, '1'); } catch {}
+}
+
+function maybeShowFirstVisitPanel(user) {
+  const panel = document.getElementById('firstVisitPanel');
+  if (!panel || !user) return;
+  try {
+    if (localStorage.getItem(FIRST_VISIT_PANEL_KEY) === '1') return;
+  } catch {}
+  panel.hidden = false;
+}
+
+function handleOnboardingAction(viewName) {
+  dismissFirstVisitPanel();
+  if (viewName === 'foyer') {
+    window.location.href = '/foyer';
+    return;
+  }
+  switchToView(viewName, { resetProjectContext: true });
 }
 
 function switchToView(viewName, options = {}) {
@@ -1840,6 +1884,7 @@ if (window.location.hash === '#leaderboard' && !_lbLoaded) {
   if (bi && !bi.value) bi.value = user.name || user.email || '';
   var spk = document.getElementById('spkName');
   if (spk && !spk.value) spk.value = user.name || '';
+  maybeShowFirstVisitPanel(user);
 });</script>
 <button class="fab" id="contextualFab" title="Present Project" data-action="present"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="fab-label">Present Project</span></button>
 <script>
