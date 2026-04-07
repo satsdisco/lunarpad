@@ -235,7 +235,7 @@
         <div class="section-block" id="section-bounties">
           <div class="section-header">
             <span class="section-title">Bounties</span>
-            <button class="btn btn-sm" id="createBountyBtn" style="display:none" onclick="document.getElementById('bountyCreateModal').classList.add('open')">+ Create Bounty</button>
+            <button class="btn btn-primary" id="createBountyBtn" style="display:none" onclick="document.getElementById('bountyCreateModal').classList.add('open')">+ Create Bounty</button>
           </div>
           <div class="bounty-grid" id="bountiesGrid">
             <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:10px"></div><div class="skeleton sk-line sk-w-100" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:22px;margin-top:8px;border-radius:100px"></div></div>
@@ -549,13 +549,16 @@ async function loadBounties() {
       const statusClass = { open: 'open', claimed: 'claimed', completed: 'completed' }[b.status] || 'open';
       const statusLabel = { open: 'Open', claimed: 'Claimed', completed: 'Completed' }[b.status] || b.status;
       const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
-      const deadline = b.deadline ? `<span class="bounty-deadline">⏳ ${esc(new Date(b.deadline).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>` : '';
+      const deadline = b.deadline
+        ? `<span class="bounty-deadline">⏳ ${esc(new Date(b.deadline).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>`
+        : `<span class="bounty-deadline open-ended">☁️ Open-ended</span>`;
       const participantCount = Array.isArray(b.participants) ? b.participants.length : (b.participant_count || 0);
       const baseAmt = Number(b.sats_amount || 0);
       const crowdAmt = Number(b.funded_amount || 0);
       const totalAmt = baseAmt + crowdAmt;
       const hasCrowd = crowdAmt > 0;
       const winner = b.winner_name ? `<div class="bc-winner">🏆 ${esc(b.winner_name)}</div>` : '';
+      const showBoost = b.status !== 'completed';
       return `
         <div class="bounty-card status-${statusClass}" onclick="window.location.href='/bounty/${esc(b.id)}'" style="cursor:pointer">
           <div class="bc-top">
@@ -578,7 +581,7 @@ async function loadBounties() {
           <div class="bc-footer">
             <span class="bc-builders">👥 ${participantCount}</span>
             ${tags ? `<div class="bc-tags">${tags}</div>` : ''}
-            <a class="bc-boost-btn" href="/bounty/${esc(b.id)}" onclick="event.stopPropagation()">⚡ Boost</a>
+            ${showBoost ? `<a class="bc-boost-btn" href="/bounty/${esc(b.id)}" onclick="event.stopPropagation()">⚡ Boost</a>` : ''}
           </div>
         </div>`;
     }).join('');

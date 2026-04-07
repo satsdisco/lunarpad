@@ -216,7 +216,14 @@ async function loadBounty() {
     const winnerData = winnerRes && winnerRes.ok ? await winnerRes.json() : null;
     const winnerLn = winnerData ? winnerData.lightning_address || null : null;
     const payments = paymentsRes && paymentsRes.ok ? await paymentsRes.json() : [];
-    const confirmedPayments = payments.filter(p => p.payment_type === 'fund' && p.status === 'confirmed');
+    const confirmedPaymentsRaw = payments.filter(p => p.payment_type === 'fund' && p.status === 'confirmed');
+    // Deduplicate by user — keep first occurrence (avoid duplicate rendering of same contributor)
+    const seenContrib = new Map();
+    for (const p of confirmedPaymentsRaw) {
+      const key = p.user_id || p.user_name;
+      if (key && !seenContrib.has(key)) seenContrib.set(key, p);
+    }
+    const confirmedPayments = Array.from(seenContrib.values());
 
     const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
     const participants = b.participants || [];

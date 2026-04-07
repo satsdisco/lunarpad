@@ -480,6 +480,7 @@ a:hover { color: var(--accent); }
 .bounty-status.claimed { border-color: rgba(212,168,67,0.4); color: var(--gold); }
 .bounty-status.completed { border-color: rgba(212,168,67,0.4); color: var(--gold); }
 .bounty-deadline { font-size: 0.65rem; color: var(--dim); }
+.bounty-deadline.open-ended { color: var(--muted2); }
 
 /* Event cards */
 .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
