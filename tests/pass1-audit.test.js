@@ -33,7 +33,8 @@ test('public leaderboard filters obvious demo/test users', () => {
 test('recap CTA only appears when an event has actual recap-worthy speaker content', () => {
   assert.ok(uiRules?.shouldShowEventRecap, 'expected shouldShowEventRecap helper');
   assert.equal(uiRules.shouldShowEventRecap({ speakers: [] }), false);
-  assert.equal(uiRules.shouldShowEventRecap({ speakers: [{ id: 'spk-1' }] }), true);
+  assert.equal(uiRules.shouldShowEventRecap({ speakers: [{ id: 'spk-1' }] }), false);
+  assert.equal(uiRules.shouldShowEventRecap({ result_summary: { id: 'res-1' } }), true);
 });
 
 test('availability display helpers keep unset values blank but preserve explicit zero', () => {

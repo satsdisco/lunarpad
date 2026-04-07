@@ -1234,6 +1234,15 @@ app.get('/api/events', requireAuth, (req, res) => {
       LIMIT 5
     `).all(ev.id);
     ev.rsvp_count = db.prepare('SELECT COUNT(*) as c FROM rsvps WHERE event_id = ?').get(ev.id)?.c || 0;
+    const resultSummary = getStoredEventResults(ev.id);
+    ev.result_summary = resultSummary ? {
+      id: resultSummary.id,
+      created_at: resultSummary.created_at,
+      winner_name: resultSummary.winner_name,
+      winner_project_title: resultSummary.winner_project_title,
+      total_votes: Number(resultSummary.total_votes || 0),
+      total_zaps: Number(resultSummary.total_zaps || 0),
+    } : null;
   }
   res.json(rows);
 });
@@ -2116,6 +2125,7 @@ app.get('/api/events/:id', (req, res) => {
   const event = db.prepare('SELECT *, event_type as type FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Not found' });
   const livePayload = getLiveSessionPayload(req.params.id);
+  const eventResults = getStoredEventResults(req.params.id);
   const speakers = livePayload?.speakers?.length
     ? livePayload.speakers.slice().sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0) || Number(a.queue_position || 2147483647) - Number(b.queue_position || 2147483647))
     : db.prepare(`
@@ -2131,8 +2141,23 @@ app.get('/api/events/:id', (req, res) => {
     winner_confirmed_at: livePayload.session.winner_confirmed_at || null,
     winner: livePayload.winner || null,
     winner_recommendation: livePayload.winner_recommendation || null,
+    results_url: livePayload.results_url || null,
   } : null;
-  res.json({ ...event, speakers, live_summary });
+  const result_summary = eventResults ? {
+    id: eventResults.id,
+    created_at: eventResults.created_at,
+    winner_name: eventResults.winner_name,
+    winner_project_title: eventResults.winner_project_title,
+    total_votes: Number(eventResults.total_votes || 0),
+    total_zaps: Number(eventResults.total_zaps || 0),
+  } : null;
+  res.json({
+    ...event,
+    speakers,
+    live_summary,
+    result_summary,
+    event_results: eventResults?.results || null,
+  });
 });
 
 // ─── Speakers API ─────────────────────────────────────────────────────────────
@@ -3258,6 +3283,196 @@ function getRecommendedWinner(eventId, providedSpeakers = null) {
       || String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] || null;
 }
 
+function getStoredEventResults(eventId) {
+  const row = db.prepare('SELECT * FROM event_results WHERE event_id = ?').get(eventId);
+  if (!row) return null;
+  let parsed = null;
+  if (row.results_json) {
+    try {
+      parsed = JSON.parse(row.results_json);
+    } catch {
+      parsed = null;
+    }
+  }
+  return {
+    ...row,
+    results: parsed,
+  };
+}
+
+function buildEventResultsRecord(eventId) {
+  const event = db.prepare('SELECT id, name, description, event_type as type, date, time, location, virtual_link FROM events WHERE id = ?').get(eventId);
+  if (!event) return null;
+
+  const session = db.prepare(`
+    SELECT *,
+      COALESCE(status, CASE WHEN COALESCE(is_active, 0) = 1 THEN 'live' ELSE 'idle' END) as normalized_status,
+      COALESCE(voting_open, 0) as normalized_voting_open,
+      COALESCE(payout_status, 'pending') as normalized_payout_status,
+      COALESCE(current_duration_minutes, 10) as normalized_current_duration_minutes,
+      COALESCE(meet_url, ?) as normalized_meet_url
+    FROM live_sessions
+    WHERE event_id = ?
+  `).get(event.virtual_link || null, eventId);
+  const speakers = getOrderedEventSpeakers(eventId);
+  if (!speakers.length) return null;
+
+  const rankings = speakers
+    .slice()
+    .sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0)
+      || Number(b.zap_total || 0) - Number(a.zap_total || 0)
+      || Number(a.queue_position || 2147483647) - Number(b.queue_position || 2147483647)
+      || String(a.created_at || '').localeCompare(String(b.created_at || '')))
+    .map((speaker, index) => ({
+      rank: index + 1,
+      id: speaker.id,
+      name: speaker.name,
+      user_id: speaker.user_id || null,
+      project_title: speaker.project_title || speaker.project || 'Untitled',
+      description: speaker.description || null,
+      status: speaker.status || 'scheduled',
+      duration: speaker.duration || null,
+      votes: Number(speaker.votes || 0),
+      zap_total: Number(speaker.zap_total || 0),
+      deck_id: speaker.deck_id || speaker.deck_id_real || null,
+      github_url: speaker.github_url || null,
+      demo_url: speaker.demo_url || null,
+      queue_position: Number(speaker.queue_position || 0) || null,
+      presented_at: speaker.presented_at || null,
+      skipped_at: speaker.skipped_at || null,
+    }));
+
+  const winner = rankings.find((speaker) => speaker.id === session?.winner_speaker_id)
+    || rankings.find((speaker) => speaker.status === 'winner')
+    || (['winner_pending', 'completed'].includes(session?.normalized_status) ? getRecommendedWinner(eventId, speakers) : null);
+
+  const recentSupport = db.prepare(`
+    SELECT z.id, z.target_id, z.user_name, z.amount_sats, z.created_at, z.confirmed_at, s.name as speaker_name, s.project_title
+    FROM zaps z
+    JOIN speakers s ON s.id = z.target_id
+    WHERE z.target_type = 'speaker' AND z.status = 'confirmed' AND s.event_id = ?
+    ORDER BY z.confirmed_at DESC, z.created_at DESC
+    LIMIT 6
+  `).all(eventId).map((row) => ({
+    id: row.id,
+    target_id: row.target_id,
+    user_name: row.user_name,
+    amount_sats: Number(row.amount_sats || 0),
+    created_at: row.confirmed_at || row.created_at,
+    speaker_name: row.speaker_name,
+    project_title: row.project_title,
+  }));
+
+  const totalVotes = rankings.reduce((sum, speaker) => sum + Number(speaker.votes || 0), 0);
+  const totalZaps = rankings.reduce((sum, speaker) => sum + Number(speaker.zap_total || 0), 0);
+  const completedCount = rankings.filter((speaker) => speaker.status === 'presented' || speaker.status === 'winner').length;
+  const skippedCount = rankings.filter((speaker) => speaker.status === 'skipped').length;
+  const payoutStatus = session?.normalized_payout_status || 'pending';
+  const summaryMarkdown = [
+    `# ${event.name} results`,
+    winner ? `Winner: ${winner.name} — ${winner.project_title}` : 'Winner: pending',
+    `Presenters: ${rankings.length}`,
+    `Completed presentations: ${completedCount}`,
+    `Skipped presenters: ${skippedCount}`,
+    `Total votes: ${totalVotes}`,
+    `Total zaps: ${totalZaps} sats`,
+    `Payout status: ${payoutStatus}`,
+    '',
+    '## Rankings',
+    ...rankings.map((speaker) => `${speaker.rank}. ${speaker.name} — ${speaker.project_title} (${speaker.votes} votes, ${speaker.zap_total} sats)`),
+  ].join('\n');
+
+  const winnerPayload = winner ? {
+    id: winner.id,
+    name: winner.name,
+    user_id: winner.user_id || null,
+    project_title: winner.project_title || winner.project || 'Untitled',
+    votes: Number(winner.votes || 0),
+    zap_total: Number(winner.zap_total || 0),
+    deck_id: winner.deck_id || winner.deck_id_real || null,
+    github_url: winner.github_url || null,
+    demo_url: winner.demo_url || null,
+  } : null;
+
+  const results = {
+    generated_at: new Date().toISOString(),
+    event: {
+      id: event.id,
+      name: event.name,
+      description: event.description || null,
+      type: event.type,
+      date: event.date || null,
+      time: event.time || null,
+      location: event.location || null,
+    },
+    session: session ? {
+      id: session.id,
+      status: session.normalized_status,
+      voting_open: Number(session.normalized_voting_open || 0),
+      payout_status: payoutStatus,
+      winner_confirmed_at: session.winner_confirmed_at || null,
+      ended_at: session.ended_at || null,
+      meet_url: session.normalized_meet_url || null,
+      current_duration_minutes: Number(session.normalized_current_duration_minutes || 10),
+    } : null,
+    winner: winnerPayload,
+    scoreboard: {
+      total_votes: totalVotes,
+      total_zaps: totalZaps,
+      presenter_count: rankings.length,
+      completed_count: completedCount,
+      skipped_count: skippedCount,
+    },
+    rankings,
+    recent_support: recentSupport,
+    summary_markdown: summaryMarkdown,
+  };
+
+  const existing = db.prepare('SELECT id FROM event_results WHERE event_id = ?').get(eventId);
+  return {
+    id: existing?.id || crypto.randomUUID(),
+    event_id: eventId,
+    winner_speaker_id: winnerPayload?.id || null,
+    winner_name: winnerPayload?.name || null,
+    winner_project_title: winnerPayload?.project_title || null,
+    total_votes: totalVotes,
+    total_zaps: totalZaps,
+    results_json: JSON.stringify(results),
+    summary_markdown: summaryMarkdown,
+  };
+}
+
+function upsertEventResults(eventId) {
+  const record = buildEventResultsRecord(eventId);
+  if (!record) return null;
+  db.prepare(`
+    INSERT INTO event_results (
+      id, event_id, winner_speaker_id, winner_name, winner_project_title,
+      total_votes, total_zaps, results_json, summary_markdown
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(event_id) DO UPDATE SET
+      winner_speaker_id = excluded.winner_speaker_id,
+      winner_name = excluded.winner_name,
+      winner_project_title = excluded.winner_project_title,
+      total_votes = excluded.total_votes,
+      total_zaps = excluded.total_zaps,
+      results_json = excluded.results_json,
+      summary_markdown = excluded.summary_markdown,
+      created_at = CURRENT_TIMESTAMP
+  `).run(
+    record.id,
+    record.event_id,
+    record.winner_speaker_id,
+    record.winner_name,
+    record.winner_project_title,
+    record.total_votes,
+    record.total_zaps,
+    record.results_json,
+    record.summary_markdown,
+  );
+  return getStoredEventResults(eventId);
+}
+
 function resetSpeakerStatusesForSession(eventId, liveSpeakerId = null) {
   const speakers = getOrderedEventSpeakers(eventId);
   for (const speaker of speakers) {
@@ -3386,7 +3601,7 @@ function getLiveSessionPayload(eventId, viewer = null) {
     : (current?.user_id && viewer?.id && current.user_id === viewer.id ? 'presenter' : 'audience');
   const can_control_slides = !!(current?.user_id && viewer?.id && current.user_id === viewer.id);
 
-  const results = db.prepare('SELECT id, created_at FROM event_results WHERE event_id = ?').get(eventId);
+  const results = getStoredEventResults(eventId);
 
   return {
     active: !!session?.is_active,
@@ -3407,6 +3622,14 @@ function getLiveSessionPayload(eventId, viewer = null) {
     time_remaining_label,
     meet_url: session?.meet_url || event.virtual_link || null,
     results_url: results ? `/event/${eventId}#results` : null,
+    results_summary: results ? {
+      id: results.id,
+      created_at: results.created_at,
+      winner_name: results.winner_name,
+      winner_project_title: results.winner_project_title,
+      total_votes: Number(results.total_votes || 0),
+      total_zaps: Number(results.total_zaps || 0),
+    } : null,
   };
 }
 
@@ -3437,6 +3660,7 @@ app.post('/api/live/:eventId/start', requireAuth, requireAdmin, (req, res) => {
 app.post('/api/live/:eventId/stop', requireAuth, requireAdmin, (req, res) => {
   resetSpeakerStatusesForSession(req.params.eventId);
   db.prepare("UPDATE live_sessions SET is_active = 0, current_speaker_id = NULL, voting_open = 0, status = 'completed', ended_at = datetime('now'), updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+  upsertEventResults(req.params.eventId);
   const payload = getLiveSessionPayload(req.params.eventId);
   res.json({ ok: true, payload });
 });
@@ -3504,6 +3728,7 @@ app.post('/api/live/:eventId/confirm-winner', requireAuth, requireAdmin, (req, r
   db.prepare("UPDATE live_sessions SET current_speaker_id = NULL, current_started_at = NULL, voting_open = 0, winner_speaker_id = ?, winner_confirmed_at = datetime('now'), payout_status = CASE WHEN payout_status = 'sent' THEN 'sent' ELSE 'pending' END, status = 'winner_pending', updated_at = datetime('now') WHERE event_id = ?")
     .run(winnerCandidate.id, req.params.eventId);
 
+  upsertEventResults(req.params.eventId);
   const nextPayload = getLiveSessionPayload(req.params.eventId);
   res.json({ ok: true, payload: nextPayload });
 });
@@ -3513,6 +3738,7 @@ app.post('/api/live/:eventId/confirm-payout', requireAuth, requireAdmin, (req, r
   if (!activeSession) return res.status(409).json({ error: 'Live session is not active' });
   if (!activeSession.winner_speaker_id) return res.status(409).json({ error: 'Confirm a winner before confirming payout' });
   db.prepare("UPDATE live_sessions SET payout_status = 'confirmed', status = 'winner_pending', updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+  upsertEventResults(req.params.eventId);
   const payload = getLiveSessionPayload(req.params.eventId);
   res.json({ ok: true, payload });
 });
@@ -3522,6 +3748,7 @@ app.post('/api/live/:eventId/mark-payout-sent', requireAuth, requireAdmin, (req,
   if (!activeSession) return res.status(409).json({ error: 'Live session is not active' });
   if (!activeSession.winner_speaker_id) return res.status(409).json({ error: 'Confirm a winner before marking payout sent' });
   db.prepare("UPDATE live_sessions SET payout_status = 'sent', status = 'completed', is_active = 0, ended_at = COALESCE(ended_at, datetime('now')), updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+  upsertEventResults(req.params.eventId);
   const payload = getLiveSessionPayload(req.params.eventId);
   res.json({ ok: true, payload });
 });

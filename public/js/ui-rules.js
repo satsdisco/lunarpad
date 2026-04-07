@@ -27,8 +27,11 @@
   }
 
   function shouldShowEventRecap(event) {
-    const speakers = Array.isArray(event && event.speakers) ? event.speakers : [];
-    return speakers.length > 0;
+    const resultSummary = event && (event.result_summary || event.event_results || null);
+    if (resultSummary) return true;
+    const liveSummary = event && event.live_summary;
+    if (liveSummary && (liveSummary.results_url || liveSummary.winner || liveSummary.winner_recommendation)) return true;
+    return false;
   }
 
   function getAvailabilityInputValue(value) {

@@ -169,6 +169,149 @@
   color: var(--btc-bright);
   background: rgba(242,177,52,0.08);
 }
+.event-results-shell {
+  display: grid;
+  gap: 16px;
+}
+.event-results-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.event-results-stat {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+}
+.event-results-stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 8px;
+}
+.event-results-stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--text);
+}
+.event-results-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 16px;
+}
+.event-results-panel {
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+}
+.event-results-panel-title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 12px;
+}
+.event-results-ranking-list,
+.event-results-support-list {
+  display: grid;
+  gap: 10px;
+}
+.event-results-ranking-item,
+.event-results-support-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.event-results-ranking-item:first-child,
+.event-results-support-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.event-results-ranking-main,
+.event-results-support-main {
+  min-width: 0;
+}
+.event-results-ranking-rank {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted2);
+  margin-bottom: 6px;
+}
+.event-results-ranking-name,
+.event-results-support-name {
+  font-size: 0.9rem;
+  color: var(--text);
+  font-weight: 700;
+}
+.event-results-ranking-project,
+.event-results-support-copy,
+.event-results-summary-markdown {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+.event-results-ranking-meta,
+.event-results-support-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.event-results-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text2);
+}
+.event-results-meta-pill.gold {
+  color: var(--btc-bright);
+  border-color: rgba(242,177,52,0.25);
+  background: rgba(242,177,52,0.08);
+}
+.event-results-ranking-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.event-results-link {
+  font-size: 0.74rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+.event-results-ranking-score {
+  text-align: right;
+  min-width: 88px;
+  font-family: var(--font-mono);
+}
+.event-results-ranking-score strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+.event-results-ranking-score span {
+  display: block;
+  margin-top: 4px;
+  color: var(--btc-bright);
+  font-size: 0.72rem;
+}
+.event-results-summary-markdown {
+  white-space: pre-wrap;
+}
 
 .spk-card-right { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
 
@@ -207,6 +350,15 @@
   .event-tabs { overflow-x: auto; margin-bottom: 18px; }
   .event-tab { white-space: nowrap; padding: 10px 14px; }
   .empty-cta { padding: 28px 18px; }
+  .event-results-grid { grid-template-columns: 1fr; }
+  .event-results-ranking-item,
+  .event-results-support-item {
+    flex-direction: column;
+  }
+  .event-results-ranking-score {
+    text-align: left;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 480px) {
@@ -258,6 +410,106 @@ let eventData = null;
 function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
 function timeAgo(ds) { const m = Math.floor((Date.now()-new Date(ds).getTime())/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; const h=Math.floor(m/60); if(h<24)return h+'h ago'; return Math.floor(h/24)+'d ago'; }
 
+function renderResultsSection(results, liveSummary, speakers) {
+  const artifact = results || null;
+  const winner = artifact?.winner || liveSummary?.winner || null;
+  if (!artifact && !winner) return '';
+  const scoreboard = artifact?.scoreboard || {
+    total_votes: artifact?.total_votes || liveSummary?.scoreboard?.total_votes || 0,
+    total_zaps: artifact?.total_zaps || liveSummary?.scoreboard?.total_zaps || 0,
+    presenter_count: Array.isArray(speakers) ? speakers.length : 0,
+    completed_count: Array.isArray(speakers) ? speakers.filter((sp) => sp.presented_at || sp.status === 'presented' || sp.status === 'winner').length : 0,
+    skipped_count: Array.isArray(speakers) ? speakers.filter((sp) => sp.status === 'skipped').length : 0,
+  };
+  const payoutLabel = liveSummary?.payout_status === 'sent'
+    ? 'Payout sent'
+    : (liveSummary?.payout_status === 'confirmed' ? 'Payout pending send' : 'Payout pending');
+  const rankings = Array.isArray(artifact?.rankings) && artifact.rankings.length
+    ? artifact.rankings
+    : (Array.isArray(speakers) ? speakers.map((speaker, index) => ({
+        rank: index + 1,
+        id: speaker.id,
+        name: speaker.name,
+        user_id: speaker.user_id || null,
+        project_title: speaker.project || speaker.project_title || 'Untitled',
+        votes: Number(speaker.votes || 0),
+        zap_total: Number(speaker.zap_total || 0),
+        deck_id: speaker.deck_id || null,
+        github_url: speaker.github_url || null,
+        demo_url: speaker.demo_url || null,
+        status: speaker.status || 'scheduled',
+      })) : []);
+  const rankingHtml = rankings.length
+    ? rankings.map((speaker) => {
+        const profileHref = speaker.user_id ? `/profile/${encodeURIComponent(speaker.user_id)}` : '';
+        const deckHref = speaker.deck_id ? `/deck/${encodeURIComponent(speaker.deck_id)}` : '';
+        return `
+          <div class="event-results-ranking-item">
+            <div class="event-results-ranking-main">
+              <div class="event-results-ranking-rank">#${speaker.rank}</div>
+              <div class="event-results-ranking-name">${profileHref ? `<a href="${profileHref}" style="color:inherit;text-decoration:none">${esc(speaker.name)}</a>` : esc(speaker.name)}</div>
+              <div class="event-results-ranking-project">${esc(speaker.project_title || 'Untitled')}</div>
+              <div class="event-results-ranking-meta">
+                ${speaker.status === 'winner' ? '<span class="event-results-meta-pill gold">🏆 Winner</span>' : ''}
+                ${speaker.status === 'skipped' ? '<span class="event-results-meta-pill">Skipped</span>' : ''}
+                ${(speaker.status === 'presented' || speaker.presented_at) ? '<span class="event-results-meta-pill">Presented</span>' : ''}
+              </div>
+              <div class="event-results-ranking-links">
+                ${deckHref ? `<a class="event-results-link" href="${deckHref}">📽 Deck</a>` : ''}
+                ${speaker.demo_url ? `<a class="event-results-link" href="${esc(speaker.demo_url)}" target="_blank" rel="noopener">↗ Demo</a>` : ''}
+                ${speaker.github_url ? `<a class="event-results-link" href="${esc(speaker.github_url)}" target="_blank" rel="noopener">⌥ GitHub</a>` : ''}
+              </div>
+            </div>
+            <div class="event-results-ranking-score">
+              <strong>${Number(speaker.votes || 0).toLocaleString()} vote${Number(speaker.votes || 0) === 1 ? '' : 's'}</strong>
+              <span>⚡ ${Number(speaker.zap_total || 0).toLocaleString()} sats</span>
+            </div>
+          </div>`;
+      }).join('')
+    : '<div class="event-results-summary-markdown">No ranked presenters captured yet.</div>';
+  const supportHtml = Array.isArray(artifact?.recent_support) && artifact.recent_support.length
+    ? artifact.recent_support.map((item) => `
+        <div class="event-results-support-item">
+          <div class="event-results-support-main">
+            <div class="event-results-support-name">${esc(item.user_name || 'Anonymous')} → ${esc(item.speaker_name || 'Presenter')}</div>
+            <div class="event-results-support-copy">Backed ${esc(item.project_title || 'their project')} • ${timeAgo(item.created_at)}</div>
+          </div>
+          <div class="event-results-meta-pill gold">⚡ ${Number(item.amount_sats || 0).toLocaleString()} sats</div>
+        </div>`).join('')
+    : '<div class="event-results-summary-markdown">No support activity was captured for this session.</div>';
+  return `
+    <div class="event-results-card" id="results">
+      <div class="event-results-kicker">Event Results</div>
+      <div class="event-results-title">${winner ? `Winner confirmed — ${esc(winner.name)}` : 'Event recap available'}</div>
+      <div class="event-results-copy">${winner ? `${esc(winner.project_title || winner.project || 'Untitled')} took the room on votes. The support layer stayed visible, but the finish stayed vote-first.` : 'This event now has a durable recap artifact with rankings, totals, and support activity.'}</div>
+      <div class="event-results-status-row">
+        ${winner ? '<span class="event-results-status-pill gold">🏆 Winner confirmed</span>' : ''}
+        <span class="event-results-status-pill">${esc(payoutLabel)}</span>
+        ${artifact?.generated_at ? `<span class="event-results-status-pill">Updated ${timeAgo(artifact.generated_at)}</span>` : ''}
+      </div>
+      <div class="event-results-shell" style="margin-top:16px">
+        <div class="event-results-stats">
+          <div class="event-results-stat"><div class="event-results-stat-label">Total votes</div><div class="event-results-stat-value">${Number(scoreboard.total_votes || 0).toLocaleString()}</div></div>
+          <div class="event-results-stat"><div class="event-results-stat-label">Total sats</div><div class="event-results-stat-value">⚡ ${Number(scoreboard.total_zaps || 0).toLocaleString()}</div></div>
+          <div class="event-results-stat"><div class="event-results-stat-label">Presenters</div><div class="event-results-stat-value">${Number(scoreboard.presenter_count || rankings.length || 0).toLocaleString()}</div></div>
+          <div class="event-results-stat"><div class="event-results-stat-label">Completed</div><div class="event-results-stat-value">${Number(scoreboard.completed_count || 0).toLocaleString()}</div></div>
+        </div>
+        <div class="event-results-grid">
+          <div class="event-results-panel">
+            <div class="event-results-panel-title">Rankings</div>
+            <div class="event-results-ranking-list">${rankingHtml}</div>
+          </div>
+          <div class="event-results-panel">
+            <div class="event-results-panel-title">Session recap</div>
+            <div class="event-results-summary-markdown">${esc(artifact?.summary_markdown || 'No stored recap summary yet.')}</div>
+            <div class="event-results-panel-title" style="margin-top:18px">Recent support</div>
+            <div class="event-results-support-list">${supportHtml}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
 async function loadEvent() {
   try {
     const [evRes, bRes, rsvpRes, meRes] = await Promise.all([
@@ -288,6 +540,7 @@ async function loadEvent() {
     const dateStr = ev.date ? new Date(ev.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' }) : 'TBD';
     const speakers = (ev.speakers || []).sort((a,b) => (b.votes||0) - (a.votes||0));
     const liveSummary = ev.live_summary || null;
+    const resultsArtifact = ev.event_results || null;
     const currentUser = meRes?.user || null;
     const userPresenting = !!(currentUser && speakers.some((sp) => sp.user_id && sp.user_id === currentUser.id));
 
@@ -325,20 +578,8 @@ async function loadEvent() {
     const evTypeRaw = ev.event_type || ev.type || 'Event';
     const heroTypeColors = { 'demo-day': '#7c5cfc', 'hackathon': '#39d98a', 'bounty': '#d4a843', 'workshop': '#3CCBDA', 'meetup': '#f472b6' };
     const heroColor = heroTypeColors[evTypeRaw] || '#7c5cfc';
-    const winner = liveSummary?.winner || null;
-    const payoutLabel = liveSummary?.payout_status === 'sent'
-      ? 'Payout sent'
-      : (liveSummary?.payout_status === 'confirmed' ? 'Payout pending send' : 'Payout pending');
-    const resultsHtml = winner ? `
-      <div class="event-results-card">
-        <div class="event-results-kicker">Event Results</div>
-        <div class="event-results-title">Winner confirmed — ${esc(winner.name)}</div>
-        <div class="event-results-copy">${esc(winner.project_title || winner.project || 'Untitled')} won this event on votes. Support stayed visible, but the result stayed vote-first.</div>
-        <div class="event-results-status-row">
-          <span class="event-results-status-pill gold">🏆 Winner confirmed</span>
-          <span class="event-results-status-pill">${esc(payoutLabel)}</span>
-        </div>
-      </div>` : '';
+    const hasResults = !!(resultsArtifact || ev.result_summary || liveSummary?.results_url);
+    const resultsHtml = renderResultsSection(resultsArtifact, liveSummary, speakers);
 
     document.getElementById('eventContent').innerHTML = `
       <div class="event-hero" style="display:flex;align-items:flex-start;gap:24px">
@@ -396,11 +637,14 @@ async function loadEvent() {
 
       <!-- Tabs -->
       <div class="event-tabs">
-        <button class="event-tab active" onclick="switchTab('lineup')">Lineup (${speakers.length})</button>
-        <button class="event-tab" onclick="switchTab('bounties')">Bounties (${bounties.length})</button>
+        ${hasResults ? `<button class="event-tab active" onclick="switchTab('results', event)">Results</button>` : ''}
+        <button class="event-tab ${hasResults ? '' : 'active'}" onclick="switchTab('lineup', event)">Lineup (${speakers.length})</button>
+        <button class="event-tab" onclick="switchTab('bounties', event)">Bounties (${bounties.length})</button>
       </div>
 
-      <div class="event-tab-view active" id="tab-lineup">
+      ${hasResults ? `<div class="event-tab-view active" id="tab-results">${resultsHtml}</div>` : ''}
+
+      <div class="event-tab-view ${hasResults ? '' : 'active'}" id="tab-lineup">
         <div id="speakerRows">
           ${speakers.length
             ? speakers.map((sp, i) => renderSpeaker(sp, i+1)).join('')
@@ -569,10 +813,11 @@ function renderBounty(b) {
     </a>`;
 }
 
-function switchTab(name) {
+function switchTab(name, evt) {
   document.querySelectorAll('.event-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.event-tab-view').forEach(v => v.classList.remove('active'));
-  event.target.classList.add('active');
+  const trigger = evt?.currentTarget || evt?.target;
+  if (trigger) trigger.classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
 }
 
