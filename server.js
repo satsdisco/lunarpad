@@ -2277,7 +2277,13 @@ app.delete('/api/events/:id/rsvp', requireAuth, (req, res) => {
 });
 
 app.get('/api/events/:id/rsvps', (req, res) => {
-  const rows = db.prepare('SELECT * FROM rsvps WHERE event_id = ? ORDER BY created_at ASC').all(req.params.id);
+  const rows = db.prepare(`
+    SELECT r.*, u.avatar, u.id as profile_user_id, u.username, u.name as profile_name
+    FROM rsvps r
+    LEFT JOIN users u ON r.user_id = u.id
+    WHERE r.event_id = ?
+    ORDER BY r.created_at ASC
+  `).all(req.params.id);
   const user_rsvp = req.user ? !!db.prepare('SELECT 1 FROM rsvps WHERE event_id = ? AND user_id = ?').get(req.params.id, req.user.id) : false;
   res.json({ rsvps: rows, count: rows.length, user_rsvp });
 });

@@ -77,6 +77,55 @@
 .event-about-body {
   font-size: 0.9rem; color: var(--text2); line-height: 1.75; white-space: pre-wrap;
 }
+.event-attendees-card {
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 22px 24px; margin-bottom: 24px;
+}
+.event-attendees-head {
+  display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 16px;
+}
+.event-attendees-title {
+  font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .12em; color: var(--accent);
+}
+.event-attendees-copy {
+  font-size: 0.84rem; color: var(--muted); margin-top: 6px;
+}
+.event-attendees-count {
+  font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted2);
+  padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03); white-space: nowrap;
+}
+.event-attendees-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;
+}
+.event-attendee-pill {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: 12px 14px; border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
+  text-decoration: none; color: inherit;
+}
+.event-attendee-pill:hover {
+  border-color: rgba(124,92,252,.28); background: rgba(124,92,252,.08);
+}
+.event-attendee-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  font-family: var(--font-mono); font-size: 0.78rem; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, rgba(124,92,252,.85), rgba(60,203,218,.72));
+  border: 1px solid rgba(255,255,255,.14);
+}
+.event-attendee-avatar img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.event-attendee-body { min-width: 0; }
+.event-attendee-name {
+  font-size: 0.88rem; color: var(--text); font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.event-attendee-meta {
+  font-size: 0.76rem; color: var(--muted2); margin-top: 4px;
+}
 
 /* Speaker cards */
 .speaker-card {
@@ -409,6 +458,36 @@ let eventData = null;
 
 function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
 function timeAgo(ds) { const m = Math.floor((Date.now()-new Date(ds).getTime())/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; const h=Math.floor(m/60); if(h<24)return h+'h ago'; return Math.floor(h/24)+'d ago'; }
+function initials(name) { return String(name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(); }
+
+function renderAttendeesSection(rsvpPayload) {
+  const attendees = Array.isArray(rsvpPayload?.rsvps) ? rsvpPayload.rsvps : [];
+  if (!attendees.length) return '';
+  const attendeeHtml = attendees.map((rsvp) => {
+    const name = rsvp.profile_name || rsvp.name || 'Anonymous';
+    const href = rsvp.profile_user_id ? `/profile/${encodeURIComponent(rsvp.profile_user_id)}` : null;
+    const content = `
+      <div class="event-attendee-avatar">${rsvp.avatar ? `<img src="${esc(rsvp.avatar)}" alt="${esc(name)}">` : esc(initials(name))}</div>
+      <div class="event-attendee-body">
+        <div class="event-attendee-name">${esc(name)}</div>
+        <div class="event-attendee-meta">Joined ${timeAgo(rsvp.created_at)}</div>
+      </div>`;
+    return href
+      ? `<a class="event-attendee-pill" href="${href}">${content}</a>`
+      : `<div class="event-attendee-pill">${content}</div>`;
+  }).join('');
+  return `
+    <div class="event-attendees-card">
+      <div class="event-attendees-head">
+        <div>
+          <div class="event-attendees-title">Attendees</div>
+          <div class="event-attendees-copy">See who is already in the room before you RSVP or present.</div>
+        </div>
+        <div class="event-attendees-count">👥 ${attendees.length} attending</div>
+      </div>
+      <div class="event-attendees-grid">${attendeeHtml}</div>
+    </div>`;
+}
 
 function renderResultsSection(results, liveSummary, speakers) {
   const artifact = results || null;
@@ -541,6 +620,7 @@ async function loadEvent() {
     const speakers = (ev.speakers || []).sort((a,b) => (b.votes||0) - (a.votes||0));
     const liveSummary = ev.live_summary || null;
     const resultsArtifact = ev.event_results || null;
+    const attendeesHtml = renderAttendeesSection(rsvpRes);
     const currentUser = meRes?.user || null;
     const userPresenting = !!(currentUser && speakers.some((sp) => sp.user_id && sp.user_id === currentUser.id));
 
@@ -615,6 +695,8 @@ async function loadEvent() {
         <div class="event-about-heading">About This Event</div>
         <div class="event-about-body">${esc(ev.description)}</div>
       </div>` : ''}
+
+      ${attendeesHtml}
 
       ${resultsHtml}
 

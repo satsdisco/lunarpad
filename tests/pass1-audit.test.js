@@ -65,6 +65,16 @@ test('past event recap affordance is conditional', () => {
   assert.match(html, /shouldShowEventRecap\(ev\)/);
 });
 
+test('event detail page surfaces attendee visibility beyond the hero count', () => {
+  const eventHtml = read('public', 'event.html');
+  const server = read('server.js');
+
+  assert.match(server, /LEFT JOIN users u ON r\.user_id = u\.id/);
+  assert.match(eventHtml, /function renderAttendeesSection/);
+  assert.match(eventHtml, /event-attendees-card/);
+  assert.match(eventHtml, /See who is already in the room before you RSVP or present/);
+});
+
 test('profile availability input uses a friendly placeholder', () => {
   const html = read('public', 'profile.html');
   assert.match(html, /placeholder="Set hours"/);
