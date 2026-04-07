@@ -21,6 +21,8 @@ test('build page includes a dismissible first-visit onboarding panel with quick 
   assert.match(html, /The Foyer/);
   assert.match(html, /Skip/);
   assert.match(html, /const FIRST_VISIT_PANEL_KEY = 'lunarpad:first-visit-panel:dismissed:v2'/);
+  assert.match(html, /function shouldForceShowFirstVisitPanel/);
+  assert.match(html, /showOnboarding/);
   assert.match(html, /function hydrateFirstVisitPanel/);
   assert.match(html, /function maybeShowFirstVisitPanel/);
   assert.match(html, /function dismissFirstVisitPanel/);
@@ -40,9 +42,11 @@ test('profile availability stays hidden until the owner chooses to edit it', () 
   const html = read('public', 'profile.html');
 
   assert.match(html, /function toggleAvailabilityEditor/);
+  assert.match(html, /function replayBuildOnboarding/);
   assert.match(html, /id="availabilityToggle"/);
   assert.match(html, /id="availabilitySummary"/);
   assert.match(html, /id="availabilityEditor" style="display:none/);
   assert.match(html, /Hide this until you want it public/);
   assert.match(html, /Set availability/);
+  assert.match(html, /Replay onboarding/);
 });

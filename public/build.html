@@ -593,6 +593,23 @@ let currentView = 'events';
 let projectSubmissionContext = { bountyId: '', bountyTitle: '' };
 const FIRST_VISIT_PANEL_KEY = 'lunarpad:first-visit-panel:dismissed:v2';
 
+function shouldForceShowFirstVisitPanel() {
+  try {
+    return new URLSearchParams(window.location.search).get('showOnboarding') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function clearForcedFirstVisitPanelParam() {
+  if (!shouldForceShowFirstVisitPanel()) return;
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('showOnboarding');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  } catch {}
+}
+
 // ─── Sidebar Navigation ───────────────────────────────────────────────────
 function clearProjectSubmissionContext() {
   projectSubmissionContext = { bountyId: '', bountyTitle: '' };
@@ -632,6 +649,7 @@ function renderContextualFab() {
 function dismissFirstVisitPanel() {
   const panel = document.getElementById('firstVisitPanel');
   if (panel) panel.hidden = true;
+  clearForcedFirstVisitPanelParam();
   try { localStorage.setItem(FIRST_VISIT_PANEL_KEY, '1'); } catch {}
 }
 
@@ -653,10 +671,11 @@ function hydrateFirstVisitPanel(user) {
 function maybeShowFirstVisitPanel(user) {
   const panel = document.getElementById('firstVisitPanel');
   if (!panel || !user) return;
+  const forced = shouldForceShowFirstVisitPanel();
   const hashView = window.location.hash.replace('#', '');
-  if (hashView && hashView !== 'events') return;
+  if (!forced && hashView && hashView !== 'events') return;
   try {
-    if (localStorage.getItem(FIRST_VISIT_PANEL_KEY) === '1') return;
+    if (!forced && localStorage.getItem(FIRST_VISIT_PANEL_KEY) === '1') return;
   } catch {}
   panel.hidden = false;
 }

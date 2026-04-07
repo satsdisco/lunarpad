@@ -299,6 +299,10 @@ function toggleAvailabilityEditor(forceOpen) {
   if (toggle) toggle.textContent = shouldOpen ? 'Cancel' : (toggle.dataset.defaultLabel || 'Edit');
 }
 
+function replayBuildOnboarding() {
+  window.location.href = '/build?showOnboarding=1#events';
+}
+
 async function saveLinks() {
   const w = document.getElementById('websiteInput')?.value.trim() ?? '';
   const g = document.getElementById('githubInput')?.value.trim() ?? '';
@@ -625,6 +629,9 @@ async function loadProfile() {
             ${(user.skills || '').trim() ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '' ? '10px' : '0'}">${user.skills.split(',').map(s => `<span class="looking-for-badge">${esc(s.trim())}</span>`).join('')}</div>` : ''}
             ${user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== '' ? `<div style="font-size:0.78rem;color:var(--muted)">${esc(String(user.available_hours))}h/week available</div>` : ''}
           ` : `<div style="font-size:0.78rem;color:var(--muted);line-height:1.55">Hide this until you want it public. Add roles and weekly capacity when you actually want collaborators to know your availability.</div>`}
+          <div style="margin-top:12px">
+            <button class="btn btn-sm" type="button" onclick="replayBuildOnboarding()">Replay onboarding</button>
+          </div>
         </div>
         <div id="availabilityEditor" style="display:none;margin-top:12px">
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="skillChips">
