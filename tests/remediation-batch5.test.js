@@ -30,10 +30,10 @@ test('build sidebar has clearer hierarchy with a labeled navigation shell', () =
   const css = read('public', 'css', 'style.css');
 
   assert.match(html, /sidebar-title">Build in Public/);
-  assert.match(html, /sidebar-intro/);
+  assert.doesNotMatch(html, /Follow the weekly shipping loop/);
   assert.match(html, /sidebar-link-kicker/);
   assert.match(css, /\.build-sidebar-shell/);
-  assert.match(css, /\.sidebar-intro/);
+  assert.doesNotMatch(css, /\.sidebar-intro/);
 });
 
 test('build floating action button is contextual to the active section instead of static', () => {
