@@ -115,8 +115,61 @@
 .speaker-status-pill.presented {
   border-color: rgba(57,217,138,0.28);
   color: #8df0bf;
-  background: rgba(57,217,138,0.10);
 }
+.speaker-status-pill.winner {
+  border-color: rgba(242,177,52,0.35);
+  background: rgba(242,177,52,0.08);
+  color: var(--btc-bright);
+}
+.event-results-card {
+  margin: 0 0 24px;
+  padding: 20px 22px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(242,177,52,0.22);
+  background: linear-gradient(180deg, rgba(18,20,36,0.92), rgba(13,15,26,0.96));
+}
+.event-results-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 8px;
+}
+.event-results-title {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.event-results-copy {
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin-bottom: 14px;
+}
+.event-results-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.event-results-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text2);
+}
+.event-results-status-pill.gold {
+  border-color: rgba(242,177,52,0.28);
+  color: var(--btc-bright);
+  background: rgba(242,177,52,0.08);
+}
+
 .spk-card-right { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
 
 /* Empty CTA state */
@@ -234,6 +287,7 @@ async function loadEvent() {
 
     const dateStr = ev.date ? new Date(ev.date).toLocaleDateString('en', { weekday:'long', month:'long', day:'numeric', year:'numeric' }) : 'TBD';
     const speakers = (ev.speakers || []).sort((a,b) => (b.votes||0) - (a.votes||0));
+    const liveSummary = ev.live_summary || null;
     const currentUser = meRes?.user || null;
     const userPresenting = !!(currentUser && speakers.some((sp) => sp.user_id && sp.user_id === currentUser.id));
 
@@ -271,6 +325,20 @@ async function loadEvent() {
     const evTypeRaw = ev.event_type || ev.type || 'Event';
     const heroTypeColors = { 'demo-day': '#7c5cfc', 'hackathon': '#39d98a', 'bounty': '#d4a843', 'workshop': '#3CCBDA', 'meetup': '#f472b6' };
     const heroColor = heroTypeColors[evTypeRaw] || '#7c5cfc';
+    const winner = liveSummary?.winner || null;
+    const payoutLabel = liveSummary?.payout_status === 'sent'
+      ? 'Payout sent'
+      : (liveSummary?.payout_status === 'confirmed' ? 'Payout pending send' : 'Payout pending');
+    const resultsHtml = winner ? `
+      <div class="event-results-card">
+        <div class="event-results-kicker">Event Results</div>
+        <div class="event-results-title">Winner confirmed — ${esc(winner.name)}</div>
+        <div class="event-results-copy">${esc(winner.project_title || winner.project || 'Untitled')} won this event on votes. Support stayed visible, but the result stayed vote-first.</div>
+        <div class="event-results-status-row">
+          <span class="event-results-status-pill gold">🏆 Winner confirmed</span>
+          <span class="event-results-status-pill">${esc(payoutLabel)}</span>
+        </div>
+      </div>` : '';
 
     document.getElementById('eventContent').innerHTML = `
       <div class="event-hero" style="display:flex;align-items:flex-start;gap:24px">
@@ -306,6 +374,8 @@ async function loadEvent() {
         <div class="event-about-heading">About This Event</div>
         <div class="event-about-body">${esc(ev.description)}</div>
       </div>` : ''}
+
+      ${resultsHtml}
 
       <!-- RSVP handled via toggle button in hero actions -->
 
@@ -445,11 +515,14 @@ function renderSpeaker(sp, rank) {
   const avatarBg = speakerAvatarColor(sp.name);
   const projectTitle = sp.project || sp.project_title || '';
   const profileLink = sp.user_id ? `/profile/${esc(sp.user_id)}` : null;
-  const isPresented = !!sp.presented_at || sp.status === 'presented';
+  const isWinner = sp.status === 'winner';
+  const isPresented = !!sp.presented_at || sp.status === 'presented' || isWinner;
   const isSkipped = sp.status === 'skipped';
-  const speakerStatusHtml = isPresented
-    ? '<span class="speaker-status-pill presented">Presented ✓</span>'
-    : (isSkipped ? '<span class="speaker-status-pill">Skipped</span>' : '<span class="speaker-status-pill">Scheduled</span>');
+  const speakerStatusHtml = isWinner
+    ? '<span class="speaker-status-pill winner">Winner 🏆</span>'
+    : (isPresented
+      ? '<span class="speaker-status-pill presented">Presented ✓</span>'
+      : (isSkipped ? '<span class="speaker-status-pill">Skipped</span>' : '<span class="speaker-status-pill">Scheduled</span>'));
   const nameEl = profileLink
     ? `<a href="${profileLink}" class="spk-card-name" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()">${esc(sp.name)}</a>`
     : `<div class="spk-card-name">${esc(sp.name)}</div>`;

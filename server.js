@@ -2115,14 +2115,24 @@ app.delete('/api/speakers/:id', requireAuth, (req, res) => {
 app.get('/api/events/:id', (req, res) => {
   const event = db.prepare('SELECT *, event_type as type FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Not found' });
-  const speakers = db.prepare(`
-    SELECT s.*, s.project_title as project, COALESCE(v.vote_count, 0) as votes
-    FROM speakers s
-    LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
-    WHERE s.event_id = ?
-    ORDER BY votes DESC, s.created_at ASC
-  `).all(req.params.id);
-  res.json({ ...event, speakers });
+  const livePayload = getLiveSessionPayload(req.params.id);
+  const speakers = livePayload?.speakers?.length
+    ? livePayload.speakers.slice().sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0) || Number(a.queue_position || 2147483647) - Number(b.queue_position || 2147483647))
+    : db.prepare(`
+      SELECT s.*, s.project_title as project, COALESCE(v.vote_count, 0) as votes
+      FROM speakers s
+      LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
+      WHERE s.event_id = ?
+      ORDER BY votes DESC, s.created_at ASC
+    `).all(req.params.id);
+  const live_summary = livePayload?.session ? {
+    status: livePayload.session.status,
+    payout_status: livePayload.session.payout_status,
+    winner_confirmed_at: livePayload.session.winner_confirmed_at || null,
+    winner: livePayload.winner || null,
+    winner_recommendation: livePayload.winner_recommendation || null,
+  } : null;
+  res.json({ ...event, speakers, live_summary });
 });
 
 // ─── Speakers API ─────────────────────────────────────────────────────────────
@@ -3237,6 +3247,17 @@ function getNextQueueSpeaker(eventId, currentSpeakerId = null) {
   return candidates.find((speaker) => !['presented', 'skipped', 'winner', 'live'].includes(speaker.status)) || null;
 }
 
+function getRecommendedWinner(eventId, providedSpeakers = null) {
+  const speakers = providedSpeakers || getOrderedEventSpeakers(eventId);
+  return speakers
+    .filter((speaker) => speaker.status !== 'skipped')
+    .slice()
+    .sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0)
+      || Number(b.zap_total || 0) - Number(a.zap_total || 0)
+      || Number(a.queue_position || 2147483647) - Number(b.queue_position || 2147483647)
+      || String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] || null;
+}
+
 function resetSpeakerStatusesForSession(eventId, liveSpeakerId = null) {
   const speakers = getOrderedEventSpeakers(eventId);
   for (const speaker of speakers) {
@@ -3351,6 +3372,15 @@ function getLiveSessionPayload(eventId) {
     zap_leader,
     recent_support,
   };
+  const winner_recommendation = getRecommendedWinner(eventId, speakers);
+  const winner = session?.winner_speaker_id
+    ? speakers.find((speaker) => speaker.id === session.winner_speaker_id) || null
+    : null;
+  const payout_status_label = {
+    pending: 'Payout pending',
+    confirmed: 'Payout confirmed',
+    sent: 'Payout sent',
+  }[session?.payout_status || 'pending'] || 'Payout pending';
 
   const results = db.prepare('SELECT id, created_at FROM event_results WHERE event_id = ?').get(eventId);
 
@@ -3363,6 +3393,9 @@ function getLiveSessionPayload(eventId) {
     speakers,
     lineup_groups,
     scoreboard,
+    winner,
+    winner_recommendation,
+    payout_status_label,
     stage_status_label,
     time_remaining_seconds,
     time_remaining_label,
@@ -3385,7 +3418,7 @@ app.post('/api/live/:eventId/start', requireAuth, requireAdmin, (req, res) => {
   if (!event) return res.status(404).json({ error: 'Event not found' });
   const existing = db.prepare('SELECT id FROM live_sessions WHERE event_id = ?').get(req.params.eventId);
   if (existing) {
-    db.prepare("UPDATE live_sessions SET is_active = 1, current_speaker_id = NULL, current_started_at = NULL, status = 'live', voting_open = 0, ended_at = NULL, meet_url = COALESCE(meet_url, ?), updated_at = datetime('now') WHERE event_id = ?").run(event.virtual_link || null, req.params.eventId);
+    db.prepare("UPDATE live_sessions SET is_active = 1, current_speaker_id = NULL, current_started_at = NULL, winner_speaker_id = NULL, winner_confirmed_at = NULL, status = 'live', voting_open = 0, payout_status = 'pending', ended_at = NULL, meet_url = COALESCE(meet_url, ?), updated_at = datetime('now') WHERE event_id = ?").run(event.virtual_link || null, req.params.eventId);
   } else {
     db.prepare("INSERT INTO live_sessions (id, event_id, is_active, mode, status, voting_open, payout_status, meet_url) VALUES (?, ?, 1, 'demo-day-live', 'live', 0, 'pending', ?)").run(crypto.randomUUID(), req.params.eventId, event.virtual_link || null);
   }
@@ -3434,6 +3467,55 @@ app.post('/api/live/:eventId/close-voting', requireAuth, requireAdmin, (req, res
   if (!activeSession) return res.status(409).json({ error: 'Live session is not active' });
   if (!Number(activeSession.voting_open || 0)) return res.status(409).json({ error: 'Final voting is not open' });
   db.prepare("UPDATE live_sessions SET voting_open = 0, status = 'presentations_complete', updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+  const payload = getLiveSessionPayload(req.params.eventId);
+  res.json({ ok: true, payload });
+});
+
+app.post('/api/live/:eventId/confirm-winner', requireAuth, requireAdmin, (req, res) => {
+  const activeSession = getActiveLiveSessionOrNull(req.params.eventId);
+  if (!activeSession) return res.status(409).json({ error: 'Live session is not active' });
+  if (activeSession.current_speaker_id) return res.status(409).json({ error: 'Finish the current presentation before confirming a winner' });
+  if (!['voting', 'presentations_complete', 'winner_pending'].includes(activeSession.status)) {
+    return res.status(409).json({ error: 'Winner confirmation is only available after presentations finish' });
+  }
+
+  const payload = getLiveSessionPayload(req.params.eventId);
+  const winnerCandidateId = req.body?.speaker_id || payload?.winner_recommendation?.id;
+  if (!winnerCandidateId) return res.status(404).json({ error: 'No eligible winner candidate found' });
+  const winnerCandidate = (payload?.speakers || []).find((speaker) => speaker.id === winnerCandidateId && speaker.status !== 'skipped');
+  if (!winnerCandidate) return res.status(404).json({ error: 'Winner candidate not found' });
+
+  db.prepare(`
+    UPDATE speakers
+    SET status = CASE
+      WHEN presented_at IS NOT NULL THEN 'presented'
+      WHEN skipped_at IS NOT NULL THEN 'skipped'
+      ELSE 'scheduled'
+    END
+    WHERE event_id = ? AND status = 'winner' AND id != ?
+  `).run(req.params.eventId, winnerCandidate.id);
+  db.prepare("UPDATE speakers SET status = 'winner', presented_at = COALESCE(presented_at, datetime('now')) WHERE id = ?").run(winnerCandidate.id);
+  db.prepare("UPDATE live_sessions SET current_speaker_id = NULL, current_started_at = NULL, voting_open = 0, winner_speaker_id = ?, winner_confirmed_at = datetime('now'), payout_status = CASE WHEN payout_status = 'sent' THEN 'sent' ELSE 'pending' END, status = 'winner_pending', updated_at = datetime('now') WHERE event_id = ?")
+    .run(winnerCandidate.id, req.params.eventId);
+
+  const nextPayload = getLiveSessionPayload(req.params.eventId);
+  res.json({ ok: true, payload: nextPayload });
+});
+
+app.post('/api/live/:eventId/confirm-payout', requireAuth, requireAdmin, (req, res) => {
+  const activeSession = getActiveLiveSessionOrNull(req.params.eventId);
+  if (!activeSession) return res.status(409).json({ error: 'Live session is not active' });
+  if (!activeSession.winner_speaker_id) return res.status(409).json({ error: 'Confirm a winner before confirming payout' });
+  db.prepare("UPDATE live_sessions SET payout_status = 'confirmed', status = 'winner_pending', updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+  const payload = getLiveSessionPayload(req.params.eventId);
+  res.json({ ok: true, payload });
+});
+
+app.post('/api/live/:eventId/mark-payout-sent', requireAuth, requireAdmin, (req, res) => {
+  const activeSession = getActiveLiveSessionOrNull(req.params.eventId);
+  if (!activeSession) return res.status(409).json({ error: 'Live session is not active' });
+  if (!activeSession.winner_speaker_id) return res.status(409).json({ error: 'Confirm a winner before marking payout sent' });
+  db.prepare("UPDATE live_sessions SET payout_status = 'sent', status = 'completed', is_active = 0, ended_at = COALESCE(ended_at, datetime('now')), updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
   const payload = getLiveSessionPayload(req.params.eventId);
   res.json({ ok: true, payload });
 });

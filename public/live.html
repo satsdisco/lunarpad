@@ -557,6 +557,53 @@ body { background: #080a14; overflow: hidden; }
   flex-direction: column;
 }
 .live-final-voting-panel.visible { display: flex; }
+.live-winner-panel {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: rgba(13,15,26,0.92);
+  border-top: 1px solid rgba(242,177,52,0.16);
+  flex-shrink: 0;
+}
+.live-winner-panel.visible {
+  display: flex;
+}
+.live-winner-copy h3 {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+.live-winner-copy p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.live-winner-payout-status {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(242,177,52,0.24);
+  background: rgba(242,177,52,0.08);
+  color: var(--btc-bright);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.live-winner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .live-final-voting-copy h3 {
   font-family: var(--font-mono);
   font-size: 0.95rem;
@@ -863,6 +910,20 @@ body { background: #080a14; overflow: hidden; }
     <div class="live-final-voting-grid" id="finalVotingGrid"></div>
   </div>
 
+  <div class="live-winner-panel" id="winnerPanel">
+    <div class="live-winner-copy">
+      <div class="live-stage-kicker">Winner desk</div>
+      <h3 id="winnerHeading">Winner pending</h3>
+      <p id="winnerRecommendation">No recommendation yet.</p>
+      <div class="live-winner-payout-status" id="winnerPayoutStatus">Payout pending</div>
+    </div>
+    <div class="live-winner-actions">
+      <button class="btn-live-admin primary" id="confirmWinnerBtn" onclick="confirmWinner()" style="display:none">Confirm Winner</button>
+      <button class="btn-live-admin" id="confirmPayoutBtn" onclick="confirmPayout()" style="display:none">Confirm Payout</button>
+      <button class="btn-live-admin" id="markPayoutSentBtn" onclick="markPayoutSent()" style="display:none">Mark Paid</button>
+    </div>
+  </div>
+
   <!-- Admin controls -->
   <div class="live-admin-bar" id="adminBar">
     <span class="live-admin-label">Host controls:</span>
@@ -988,10 +1049,10 @@ function renderScoreboard(data) {
 function renderStageMeta(data) {
   const spk = data?.speaker;
   const state = formatSessionState(data);
-  document.getElementById('stageHeading').textContent = spk ? `${spk.name} — ${spk.project_title || spk.project || 'Untitled'}` : (data?.session?.status === 'presentations_complete' ? 'All presentations complete' : (data?.session?.status === 'voting' && !spk ? 'Final voting is live' : 'Waiting for the next presenter'));
+  document.getElementById('stageHeading').textContent = spk ? `${spk.name} — ${spk.project_title || spk.project || 'Untitled'}` : (data?.winner ? `${data.winner.name} wins ${data.winner.project_title || data.winner.project || 'Untitled'}` : (data?.session?.status === 'presentations_complete' ? 'All presentations complete' : (data?.session?.status === 'voting' && !spk ? 'Final voting is live' : 'Waiting for the next presenter')));
   document.getElementById('stageSubcopy').textContent = spk
     ? (data.session?.voting_open ? 'Audience voting is open.' : 'Presentation is live on stage.')
-    : (data?.session?.status === 'presentations_complete' ? 'Every presenter has finished. Hold the room here, then open final voting when ready.' : (data?.session?.status === 'voting' ? 'Voting is now open for the full event.' : (data?.active ? 'No presenter is currently on stage. Pick the next builder from the lineup.' : 'The stage opens when the host starts the session.')));
+    : (data?.winner ? `Winner confirmed. ${data?.payout_status_label || 'Payout pending'}.` : (data?.session?.status === 'presentations_complete' ? 'Every presenter has finished. Hold the room here, then open final voting when ready.' : (data?.session?.status === 'voting' ? 'Voting is now open for the full event.' : (data?.active ? 'No presenter is currently on stage. Pick the next builder from the lineup.' : 'The stage opens when the host starts the session.'))));
   document.getElementById('nextSpeakerText').textContent = data?.next_speaker
     ? `Next: ${data.next_speaker.name}`
     : (data?.active ? `Next: none yet` : 'Next: —');
@@ -1038,6 +1099,31 @@ function renderFinalVoting(data) {
   panel.classList.add('visible');
 }
 
+function renderWinnerPanel(data) {
+  const panel = document.getElementById('winnerPanel');
+  const heading = document.getElementById('winnerHeading');
+  const recommendation = document.getElementById('winnerRecommendation');
+  const payout = document.getElementById('winnerPayoutStatus');
+  const winner = data?.winner;
+  const recommended = data?.winner_recommendation;
+  const status = data?.session?.status || 'idle';
+  const shouldShow = !!winner || !!recommended || ['voting', 'presentations_complete', 'winner_pending', 'completed'].includes(status);
+  if (!shouldShow) {
+    panel.classList.remove('visible');
+    return;
+  }
+  heading.textContent = winner
+    ? `${winner.name} confirmed`
+    : (recommended ? 'Winner recommendation ready' : 'Winner pending');
+  recommendation.textContent = winner
+    ? `${winner.name} — ${winner.project_title || winner.project || 'Untitled'} is locked as the winner.`
+    : (recommended
+      ? `${recommended.name} — ${recommended.project_title || recommended.project || 'Untitled'} leads on votes${Number(recommended.zap_total || 0) > 0 ? ` and has ⚡ ${Number(recommended.zap_total || 0).toLocaleString()} in support` : ''}.`
+      : 'No recommendation yet.');
+  payout.textContent = data?.payout_status_label || 'Payout pending';
+  panel.classList.add('visible');
+}
+
 function renderAdminControls(data) {
   if (!isAdmin) return;
   const active = !!data?.active;
@@ -1045,6 +1131,8 @@ function renderAdminControls(data) {
   const votingOpen = !!data?.session?.voting_open;
   const finalVotingReady = data?.session?.status === 'presentations_complete';
   const finalVotingOpen = data?.session?.status === 'voting' && !hasSpeaker;
+  const winnerConfirmed = !!data?.winner;
+  const payoutStatus = data?.session?.payout_status || 'pending';
   document.getElementById('startBtn').style.display = active ? 'none' : '';
   document.getElementById('stopBtn').style.display = active ? '' : 'none';
   document.getElementById('openVotingBtn').style.display = finalVotingReady ? '' : 'none';
@@ -1054,8 +1142,11 @@ function renderAdminControls(data) {
   document.getElementById('undoSkippedBtn').style.display = active && !hasSpeaker && (data?.lineup_groups?.completed || []).some((speaker) => speaker.status === 'skipped') ? '' : 'none';
   document.getElementById('advanceBtn').style.display = active ? '' : 'none';
   document.getElementById('skipSpeakerBtn').style.display = active && hasSpeaker ? '' : 'none';
+  document.getElementById('confirmWinnerBtn').style.display = active && !hasSpeaker && !winnerConfirmed && (finalVotingOpen || finalVotingReady) ? '' : 'none';
+  document.getElementById('confirmPayoutBtn').style.display = active && winnerConfirmed && payoutStatus === 'pending' ? '' : 'none';
+  document.getElementById('markPayoutSentBtn').style.display = active && winnerConfirmed && payoutStatus !== 'sent' ? '' : 'none';
   document.getElementById('adminSpeakerHint').textContent = active
-    ? (hasSpeaker ? 'Run the live queue from here — no per-speaker voting prompts, just the presentation flow.' : (finalVotingReady ? 'All presentations are complete. Open one final voting window when ready.' : (finalVotingOpen ? 'Final voting is live. Close it when you are ready to pick a winner.' : 'Click a speaker in the list to put them on stage.')))
+    ? (hasSpeaker ? 'Run the live queue from here — no per-speaker voting prompts, just the presentation flow.' : (winnerConfirmed ? `Winner confirmed. ${data?.payout_status_label || 'Payout pending'}.` : (finalVotingReady ? 'All presentations are complete. Open one final voting window when ready.' : (finalVotingOpen ? 'Final voting is live. Close it when you are ready to pick a winner.' : 'Click a speaker in the list to put them on stage.'))))
     : 'Start the session when the room is ready.';
 }
 
@@ -1088,6 +1179,7 @@ async function poll() {
 function render(data) {
   latestPayload = data;
   renderStageMeta(data);
+  renderWinnerPanel(data);
   renderAdminControls(data);
   renderFinalVoting(data);
 
@@ -1400,6 +1492,18 @@ async function undoSkipped() {
 async function skipSpeaker() {
   if (!latestPayload?.speaker?.id) return;
   await hostAction(`/api/speakers/${latestPayload.speaker.id}/skip`);
+}
+
+async function confirmWinner() {
+  await hostAction(`/api/live/${eventId}/confirm-winner`, { body: JSON.stringify({}) });
+}
+
+async function confirmPayout() {
+  await hostAction(`/api/live/${eventId}/confirm-payout`);
+}
+
+async function markPayoutSent() {
+  await hostAction(`/api/live/${eventId}/mark-payout-sent`);
 }
 
 init();

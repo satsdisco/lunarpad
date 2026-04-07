@@ -36,7 +36,7 @@ test('pass 0 routes reuse the shared payload helper and initialize richer sessio
 
   assert.match(server, /const payload = getLiveSessionPayload\(req.params.eventId\);/);
   assert.match(server, /INSERT INTO live_sessions \(id, event_id, is_active, mode, status, voting_open, payout_status, meet_url\)/);
-  assert.match(server, /UPDATE live_sessions SET is_active = 1, current_speaker_id = NULL, current_started_at = NULL, status = 'live'/);
+  assert.match(server, /UPDATE live_sessions SET is_active = 1, current_speaker_id = NULL, current_started_at = NULL,[\s\S]*status = 'live'/);
   assert.match(server, /UPDATE live_sessions SET is_active = 0, current_speaker_id = NULL, voting_open = 0, status = 'completed'/);
   assert.match(server, /current_started_at = datetime\('now'\)/);
 });
