@@ -9,6 +9,7 @@ const read = (...parts) => fs.readFileSync(path.join(ROOT, ...parts), 'utf8');
 test('server tracks scheduled vs presented speaker state', () => {
   const server = read('server.js');
   assert.match(server, /v019_speaker_presented_state/);
+  assert.match(server, /v021_speaker_schedule_repair/);
   assert.match(server, /ALTER TABLE speakers ADD COLUMN presented_at TEXT/);
   assert.match(server, /ALTER TABLE speakers ADD COLUMN scheduled_at TEXT/);
   assert.match(server, /ALTER TABLE speakers ADD COLUMN status TEXT DEFAULT 'scheduled'/);

@@ -342,12 +342,16 @@ const MIGRATIONS = [
     'ALTER TABLE users ADD COLUMN banner_preset TEXT',
   ]},
   { name: 'v019_speaker_presented_state', sql: [
-    'ALTER TABLE speakers ADD COLUMN scheduled_at TEXT DEFAULT CURRENT_TIMESTAMP',
+    'ALTER TABLE speakers ADD COLUMN scheduled_at TEXT',
     "ALTER TABLE speakers ADD COLUMN status TEXT DEFAULT 'scheduled'",
     'ALTER TABLE speakers ADD COLUMN presented_at TEXT',
     "UPDATE speakers SET scheduled_at = COALESCE(scheduled_at, created_at, datetime('now'))",
     "UPDATE speakers SET status = CASE WHEN presented_at IS NOT NULL THEN 'presented' ELSE COALESCE(status, 'scheduled') END",
     'CREATE INDEX IF NOT EXISTS idx_speakers_user_status ON speakers(user_id, status, presented_at)',
+  ]},
+  { name: 'v021_speaker_schedule_repair', sql: [
+    'ALTER TABLE speakers ADD COLUMN scheduled_at TEXT',
+    "UPDATE speakers SET scheduled_at = COALESCE(scheduled_at, created_at, datetime('now'))",
   ]},
   { name: 'v020_lunar_hangout_phase0', sql: [
     "ALTER TABLE live_sessions ADD COLUMN mode TEXT DEFAULT 'demo-day-live'",
