@@ -349,6 +349,64 @@ const MIGRATIONS = [
     "UPDATE speakers SET status = CASE WHEN presented_at IS NOT NULL THEN 'presented' ELSE COALESCE(status, 'scheduled') END",
     'CREATE INDEX IF NOT EXISTS idx_speakers_user_status ON speakers(user_id, status, presented_at)',
   ]},
+  { name: 'v020_lunar_hangout_phase0', sql: [
+    "ALTER TABLE live_sessions ADD COLUMN mode TEXT DEFAULT 'demo-day-live'",
+    "ALTER TABLE live_sessions ADD COLUMN status TEXT DEFAULT 'idle'",
+    'ALTER TABLE live_sessions ADD COLUMN voting_open INTEGER DEFAULT 0',
+    'ALTER TABLE live_sessions ADD COLUMN current_started_at TEXT',
+    'ALTER TABLE live_sessions ADD COLUMN current_duration_minutes INTEGER DEFAULT 10',
+    'ALTER TABLE live_sessions ADD COLUMN winner_speaker_id TEXT',
+    'ALTER TABLE live_sessions ADD COLUMN winner_confirmed_at TEXT',
+    "ALTER TABLE live_sessions ADD COLUMN payout_status TEXT DEFAULT 'pending'",
+    'ALTER TABLE live_sessions ADD COLUMN meet_url TEXT',
+    'ALTER TABLE live_sessions ADD COLUMN ended_at TEXT',
+    'ALTER TABLE speakers ADD COLUMN queue_position INTEGER',
+    'ALTER TABLE speakers ADD COLUMN skipped_at TEXT',
+    `CREATE TABLE IF NOT EXISTS event_results (
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL UNIQUE,
+      winner_speaker_id TEXT,
+      winner_name TEXT,
+      winner_project_title TEXT,
+      total_votes INTEGER DEFAULT 0,
+      total_zaps INTEGER DEFAULT 0,
+      results_json TEXT,
+      summary_markdown TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_event_results_event ON event_results(event_id)',
+    `UPDATE live_sessions
+      SET mode = COALESCE(mode, 'demo-day-live'),
+          status = CASE
+            WHEN COALESCE(is_active, 0) = 1 THEN 'live'
+            ELSE COALESCE(status, 'idle')
+          END,
+          voting_open = COALESCE(voting_open, 0),
+          current_duration_minutes = COALESCE(current_duration_minutes, 10),
+          payout_status = COALESCE(payout_status, 'pending'),
+          meet_url = COALESCE(meet_url, (SELECT virtual_link FROM events WHERE events.id = live_sessions.event_id))`,
+    `UPDATE speakers
+      SET queue_position = (
+        SELECT COUNT(*)
+        FROM speakers s2
+        WHERE s2.event_id = speakers.event_id
+          AND (
+            COALESCE(s2.scheduled_at, s2.created_at, datetime('now')) < COALESCE(speakers.scheduled_at, speakers.created_at, datetime('now'))
+            OR (
+              COALESCE(s2.scheduled_at, s2.created_at, datetime('now')) = COALESCE(speakers.scheduled_at, speakers.created_at, datetime('now'))
+              AND s2.id <= speakers.id
+            )
+          )
+      )
+      WHERE queue_position IS NULL`,
+    `UPDATE speakers
+      SET status = CASE
+        WHEN presented_at IS NOT NULL THEN 'presented'
+        WHEN skipped_at IS NOT NULL THEN 'skipped'
+        ELSE COALESCE(status, 'scheduled')
+      END`,
+    'CREATE INDEX IF NOT EXISTS idx_speakers_event_queue ON speakers(event_id, queue_position, status)',
+  ]},
 ];
 
 // Run pending migrations
@@ -2018,14 +2076,15 @@ app.post('/api/speakers', requireAuth, (req, res) => {
   const eid = event_id || eventId;
   const ptitle = project_title || project;
   if (!eid || !name || !ptitle) return res.status(400).json({ error: 'event_id, name, project_title required' });
-  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(eid);
+  const event = db.prepare('SELECT id, virtual_link FROM events WHERE id = ?').get(eid);
   if (!event) return res.status(404).json({ error: 'Event not found' });
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url, deck_id, user_id, scheduled_at, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 'scheduled')`).run(
+  const nextQueuePosition = (db.prepare('SELECT COALESCE(MAX(queue_position), 0) + 1 as next_pos FROM speakers WHERE event_id = ?').get(eid)?.next_pos) || 1;
+  db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url, deck_id, user_id, scheduled_at, status, queue_position)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 'scheduled', ?)`).run(
     id, eid, name.trim(), ptitle.trim(),
     description || null, parseInt(duration) || 10,
-    github_url || null, demo_url || null, deck_id || null, req.user?.id || null
+    github_url || null, demo_url || null, deck_id || null, req.user?.id || null, nextQueuePosition
   );
   res.json({ id });
 });
@@ -3046,51 +3105,120 @@ app.get('/api/events/:id/bounties', (req, res) => {
 
 // ─── Live Presenter Mode API ──────────────────────────────────────────────────
 
-// GET /api/live/:eventId — get current live state (public, no auth for polling)
-app.get('/api/live/:eventId', (req, res) => {
-  const session = db.prepare('SELECT * FROM live_sessions WHERE event_id = ?').get(req.params.eventId);
-  if (!session || !session.is_active) return res.json({ active: false, speaker: null, speakers: [], event: null });
-
-  const event = db.prepare('SELECT id, name, description FROM events WHERE id = ?').get(req.params.eventId);
-  const speakers = db.prepare(`
+function getOrderedEventSpeakers(eventId) {
+  return db.prepare(`
     SELECT s.*, COALESCE(v.vote_count, 0) as votes,
+      COALESCE(z.total_sats, 0) as zap_total,
       d.entry_point, d.id as deck_id_real
     FROM speakers s
     LEFT JOIN (SELECT target_id, COUNT(*) as vote_count FROM votes WHERE target_type = 'speaker' GROUP BY target_id) v ON s.id = v.target_id
+    LEFT JOIN (
+      SELECT target_id, SUM(amount_sats) as total_sats
+      FROM zaps
+      WHERE target_type = 'speaker' AND status = 'confirmed'
+      GROUP BY target_id
+    ) z ON s.id = z.target_id
     LEFT JOIN decks d ON s.deck_id = d.id
     WHERE s.event_id = ?
-    ORDER BY s.created_at ASC
-  `).all(req.params.eventId);
-  const current = session.current_speaker_id
-    ? speakers.find(s => s.id === session.current_speaker_id) || null
+    ORDER BY COALESCE(s.queue_position, 2147483647) ASC, s.created_at ASC
+  `).all(eventId).map((speaker) => ({
+    ...speaker,
+    status: speaker.status || 'scheduled',
+  }));
+}
+
+function getLiveSessionPayload(eventId) {
+  const event = db.prepare('SELECT id, name, description, event_type as type, virtual_link FROM events WHERE id = ?').get(eventId);
+  if (!event) return null;
+
+  const sessionRow = db.prepare(`
+    SELECT *,
+      COALESCE(mode, 'demo-day-live') as mode,
+      COALESCE(status, CASE WHEN COALESCE(is_active, 0) = 1 THEN 'live' ELSE 'idle' END) as normalized_status,
+      COALESCE(voting_open, 0) as normalized_voting_open,
+      COALESCE(current_duration_minutes, 10) as normalized_current_duration_minutes,
+      COALESCE(payout_status, 'pending') as normalized_payout_status,
+      COALESCE(meet_url, ?) as normalized_meet_url
+    FROM live_sessions
+    WHERE event_id = ?
+  `).get(event.virtual_link || null, eventId);
+
+  const speakers = getOrderedEventSpeakers(eventId);
+  const session = sessionRow ? {
+    ...sessionRow,
+    mode: sessionRow.mode || 'demo-day-live',
+    status: sessionRow.normalized_status,
+    voting_open: Number(sessionRow.normalized_voting_open || 0),
+    current_duration_minutes: Number(sessionRow.normalized_current_duration_minutes || 10),
+    payout_status: sessionRow.normalized_payout_status || 'pending',
+    meet_url: sessionRow.normalized_meet_url || null,
+  } : null;
+
+  const current = session?.current_speaker_id
+    ? speakers.find((speaker) => speaker.id === session.current_speaker_id) || null
     : null;
-  res.json({ active: true, session, speaker: current, speakers, event });
+  const next_speaker = current
+    ? speakers.find((speaker) => speaker.id !== current.id && !['presented', 'skipped', 'winner'].includes(speaker.status)) || null
+    : speakers.find((speaker) => !['presented', 'skipped', 'winner'].includes(speaker.status)) || null;
+
+  const scoreboard = {
+    total_votes: speakers.reduce((sum, speaker) => sum + Number(speaker.votes || 0), 0),
+    total_zaps: speakers.reduce((sum, speaker) => sum + Number(speaker.zap_total || 0), 0),
+    leader: speakers
+      .slice()
+      .sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0) || Number(b.zap_total || 0) - Number(a.zap_total || 0) || Number(a.queue_position || 2147483647) - Number(b.queue_position || 2147483647))[0] || null,
+  };
+
+  const results = db.prepare('SELECT id, created_at FROM event_results WHERE event_id = ?').get(eventId);
+
+  return {
+    active: !!session?.is_active,
+    event,
+    session,
+    speaker: current,
+    next_speaker,
+    speakers,
+    scoreboard,
+    meet_url: session?.meet_url || event.virtual_link || null,
+    results_url: results ? `/event/${eventId}#results` : null,
+  };
+}
+
+// GET /api/live/:eventId — get current live state (public, no auth for polling)
+app.get('/api/live/:eventId', (req, res) => {
+  const payload = getLiveSessionPayload(req.params.eventId);
+  if (!payload) return res.status(404).json({ error: 'Event not found' });
+  if (!payload.active) return res.json({ ...payload, active: false, speaker: null });
+  res.json(payload);
 });
 
 // POST /api/live/:eventId/start — admin starts live session
 app.post('/api/live/:eventId/start', requireAuth, requireAdmin, (req, res) => {
-  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.eventId);
+  const event = db.prepare('SELECT id, virtual_link FROM events WHERE id = ?').get(req.params.eventId);
   if (!event) return res.status(404).json({ error: 'Event not found' });
   const existing = db.prepare('SELECT id FROM live_sessions WHERE event_id = ?').get(req.params.eventId);
   if (existing) {
-    db.prepare("UPDATE live_sessions SET is_active = 1, updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+    db.prepare("UPDATE live_sessions SET is_active = 1, status = 'live', voting_open = 0, ended_at = NULL, meet_url = COALESCE(meet_url, ?), updated_at = datetime('now') WHERE event_id = ?").run(event.virtual_link || null, req.params.eventId);
   } else {
-    db.prepare("INSERT INTO live_sessions (id, event_id, is_active) VALUES (?, ?, 1)").run(crypto.randomUUID(), req.params.eventId);
+    db.prepare("INSERT INTO live_sessions (id, event_id, is_active, mode, status, voting_open, payout_status, meet_url) VALUES (?, ?, 1, 'demo-day-live', 'live', 0, 'pending', ?)").run(crypto.randomUUID(), req.params.eventId, event.virtual_link || null);
   }
-  res.json({ ok: true });
+  const payload = getLiveSessionPayload(req.params.eventId);
+  res.json({ ok: true, payload });
 });
 
 // POST /api/live/:eventId/stop — admin ends live session
 app.post('/api/live/:eventId/stop', requireAuth, requireAdmin, (req, res) => {
-  db.prepare("UPDATE live_sessions SET is_active = 0, current_speaker_id = NULL, updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
-  res.json({ ok: true });
+  db.prepare("UPDATE live_sessions SET is_active = 0, current_speaker_id = NULL, voting_open = 0, status = 'completed', ended_at = datetime('now'), updated_at = datetime('now') WHERE event_id = ?").run(req.params.eventId);
+  const payload = getLiveSessionPayload(req.params.eventId);
+  res.json({ ok: true, payload });
 });
 
 // POST /api/live/:eventId/speaker — admin sets current speaker
 app.post('/api/live/:eventId/speaker', requireAuth, requireAdmin, (req, res) => {
   const { speaker_id } = req.body;
-  db.prepare("UPDATE live_sessions SET current_speaker_id = ?, updated_at = datetime('now') WHERE event_id = ?").run(speaker_id || null, req.params.eventId);
-  res.json({ ok: true });
+  db.prepare("UPDATE live_sessions SET current_speaker_id = ?, current_started_at = datetime('now'), status = 'live', updated_at = datetime('now') WHERE event_id = ?").run(speaker_id || null, req.params.eventId);
+  const payload = getLiveSessionPayload(req.params.eventId);
+  res.json({ ok: true, payload });
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -3645,8 +3773,9 @@ function seedPlatformData() {
     { name: 'noderunner', project_title: 'LNConnect', description: 'A simple dashboard for monitoring your Lightning node channels, capacity, and routing fees in real-time.', duration: 5, github_url: 'https://github.com/noderunner/lnconnect', demo_url: '', deck_id: deckId2 },
   ];
   for (const s of speakers) {
-    db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url, deck_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      crypto.randomUUID(), eventId, s.name, s.project_title, s.description, s.duration, s.github_url || null, s.demo_url || null, s.deck_id || null
+    const nextQueuePosition = (db.prepare('SELECT COALESCE(MAX(queue_position), 0) + 1 as next_pos FROM speakers WHERE event_id = ?').get(eventId)?.next_pos) || 1;
+    db.prepare(`INSERT INTO speakers (id, event_id, name, project_title, description, duration, github_url, demo_url, deck_id, queue_position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      crypto.randomUUID(), eventId, s.name, s.project_title, s.description, s.duration, s.github_url || null, s.demo_url || null, s.deck_id || null, nextQueuePosition
     );
   }
 
