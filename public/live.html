@@ -770,8 +770,10 @@ body { background: #080a14; overflow: hidden; }
 }
 .sats-preset-btn.active,
 .sats-preset-btn:hover {
-  background: rgba(242,177,52,0.16);
-  border-color: rgba(242,177,52,0.38);
+  background: rgba(242,177,52,0.18);
+  border-color: rgba(242,177,52,0.5);
+  box-shadow: 0 0 0 1px rgba(242,177,52,0.24), 0 8px 22px rgba(242,177,52,0.18);
+  transform: translateY(-1px);
 }
 .payment-confirmed {
   color: #9bf2bc;
@@ -906,7 +908,7 @@ body { background: #080a14; overflow: hidden; }
     </div>
   </div>
 
-  <div class="live-zap-modal" id="zapModal" style="display:none">
+  <div class="live-zap-modal" id="zapModal" style="display:none" onclick="handleZapModalBackdropClick(event)">
     <div class="live-zap-modal-card">
       <button class="live-zap-close" onclick="closeZapModal()" aria-label="Close zap modal">×</button>
       <div id="zapModalBody"></div>
@@ -1178,6 +1180,7 @@ async function init() {
     }
   } catch {}
 
+  document.addEventListener('keydown', handleZapModalKeydown);
   document.getElementById('joinUrl').textContent = window.location.origin + '/live/' + eventId;
   await poll();
   pollInterval = setInterval(poll, 3000);
@@ -1327,6 +1330,16 @@ function closeZapModal() {
   if (_zapPollTimeout) clearTimeout(_zapPollTimeout);
   _zapPollInterval = null;
   _zapPollTimeout = null;
+}
+
+function handleZapModalBackdropClick(event) {
+  if (event.target === event.currentTarget) closeZapModal();
+}
+
+function handleZapModalKeydown(event) {
+  if (event.key === 'Escape' && document.getElementById('zapModal').style.display !== 'none') {
+    closeZapModal();
+  }
 }
 
 function setZapAmount(val, btn) {

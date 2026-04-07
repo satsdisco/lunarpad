@@ -33,7 +33,11 @@ test('pass 3 live page adds bitcoin-native zap support and deeper scoreboard tre
   assert.match(html, /Open Final Voting/);
   assert.match(html, /id="zapBtn"/);
   assert.match(html, /function openZapModal/);
+  assert.match(html, /function closeZapModal/);
+  assert.match(html, /function handleZapModalBackdropClick/);
+  assert.match(html, /function handleZapModalKeydown/);
   assert.match(html, /function generateSpeakerZapInvoice/);
+  assert.match(html, /\.sats-preset-btn\.active/);
   assert.match(html, /id="scoreboardLeaderVotes"/);
   assert.match(html, /id="scoreboardLeaderSats"/);
   assert.match(html, /id="scoreboardSupportList"/);
