@@ -737,7 +737,7 @@ function maybeShowFirstVisitPanel(user) {
 
 function handleOnboardingAction(viewName) {
   if (viewName === 'profile') {
-    window.location.href = '/profile';
+    window.location.href = '/profile?onboarding=1';
     return;
   }
   if (viewName === 'project') {

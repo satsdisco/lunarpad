@@ -84,6 +84,114 @@ const ALL_BADGES = [
 const pathParts = window.location.pathname.split('/').filter(Boolean);
 let profileId = pathParts.length > 1 ? pathParts[1] : null;
 
+function hasProfileOnboardingIntent() {
+  try {
+    return new URLSearchParams(window.location.search).get('onboarding') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function clearProfileOnboardingIntent() {
+  if (!hasProfileOnboardingIntent()) return;
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('onboarding');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  } catch {}
+}
+
+function getProfileOnboardingChecklist(user) {
+  return [
+    {
+      key: 'bio',
+      label: 'Bio',
+      done: !!String(user?.bio || '').trim(),
+      actionLabel: 'Edit bio',
+      action: 'bio',
+    },
+    {
+      key: 'links',
+      label: 'Links',
+      done: !!(String(user?.website_url || '').trim() || String(user?.github_url || '').trim()),
+      actionLabel: 'Add links',
+      action: 'links',
+    },
+    {
+      key: 'lightning',
+      label: 'Lightning',
+      done: !!String(user?.lightning_address || '').trim(),
+      actionLabel: 'Add lightning',
+      action: 'lightning',
+    },
+    {
+      key: 'availability',
+      label: 'Availability',
+      done: !!(String(user?.skills || '').trim() || user?.available_hours !== null && user?.available_hours !== undefined && user?.available_hours !== ''),
+      actionLabel: 'Set availability',
+      action: 'availability',
+    },
+  ];
+}
+
+function focusProfileOnboardingAction(action) {
+  if (action === 'bio') {
+    enterBioEditMode();
+    document.getElementById('bioInput')?.focus();
+    return;
+  }
+  if (action === 'links') {
+    enterLinksEditMode();
+    document.getElementById('websiteInput')?.focus();
+    return;
+  }
+  if (action === 'lightning') {
+    enterLnEditMode();
+    document.getElementById('lnInput')?.focus();
+    return;
+  }
+  if (action === 'availability') {
+    toggleAvailabilityEditor(true);
+    document.getElementById('availHours')?.focus();
+  }
+}
+
+function renderProfileOnboardingCard(user, isOwn) {
+  if (!isOwn || !hasProfileOnboardingIntent()) return '';
+  const checklist = getProfileOnboardingChecklist(user);
+  const completed = checklist.filter(item => item.done).length;
+  const remaining = checklist.filter(item => !item.done);
+  const subtitle = remaining.length
+    ? `You came here from onboarding. Knock out the missing profile basics, then jump back into Build.`
+    : 'Your profile basics are set. Jump back into Build and keep shipping.';
+  return `
+    <section class="profile-onboarding-card">
+      <div class="profile-onboarding-head">
+        <div>
+          <div class="profile-onboarding-kicker">Onboarding handoff</div>
+          <h2 class="profile-onboarding-title">Finish your profile setup</h2>
+          <p class="profile-onboarding-copy">${subtitle}</p>
+        </div>
+        <button class="profile-onboarding-dismiss" type="button" onclick="clearProfileOnboardingIntent(); this.closest('.profile-onboarding-card').remove();">Hide setup guide</button>
+      </div>
+      <div class="profile-onboarding-progress">${completed}/${checklist.length} profile basics done</div>
+      <div class="profile-onboarding-steps">
+        ${checklist.map(item => `
+          <div class="profile-onboarding-step${item.done ? ' done' : ''}">
+            <span class="profile-onboarding-step-label">${item.label}</span>
+            <span class="profile-onboarding-step-state">${item.done ? 'Done' : 'Missing'}</span>
+            ${item.done ? `<span class="profile-onboarding-step-copy">Looks good.</span>` : `<button class="btn btn-sm" type="button" onclick="focusProfileOnboardingAction('${item.action}')">${item.actionLabel}</button>`}
+          </div>
+        `).join('')}
+      </div>
+      <div class="profile-onboarding-actions">
+        <a class="btn btn-primary" href="/build?showOnboarding=1#events">Back to Build</a>
+        ${remaining.length ? `<button class="btn btn-sm" type="button" onclick="clearProfileOnboardingIntent();">Continue below</button>` : ''}
+      </div>
+    </section>
+  `;
+}
+
 function showAchievementToast(badge) {
   const toast = document.createElement('div');
   toast.className = 'achievement-toast';
@@ -590,7 +698,10 @@ async function loadProfile() {
       ? `<button class="profile-tab" onclick="switchProfileTab('badges', event)">Badges (${earnedCount}/${ALL_BADGES.length})</button>`
       : '';
 
+    const onboardingCard = renderProfileOnboardingCard(user, isOwn);
+
     content.innerHTML = `
+      ${onboardingCard}
       <div class="profile-banner-wrap">
         <div class="profile-banner" id="profileBanner"></div>
         ${isOwn ? `<div class="banner-preset-picker" id="bannerPresetPicker">${bannerPresetOptions}</div>` : ''}
