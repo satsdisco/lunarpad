@@ -21,6 +21,7 @@ test('pass 2 live page renders timer and grouped lineup affordances', () => {
   const html = read('public', 'live.html');
 
   assert.match(html, /id="liveToolbarStrip"/);
+  assert.match(html, /class="live-rail-meta" id="liveToolbarStrip"/);
   assert.match(html, /id="stageTimerValue"/);
   assert.match(html, /id="stageTimerMeta"/);
   assert.match(html, /id="lineupCurrent"/);
