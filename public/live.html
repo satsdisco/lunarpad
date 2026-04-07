@@ -263,8 +263,18 @@ body { background: #080a14; overflow: hidden; }
   padding: 3px 6px;
   flex-shrink: 0;
 }
-.live-vote-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-.live-vote-btn.closed { background: rgba(255,255,255,0.08); color: var(--muted2); border: 1px solid rgba(255,255,255,0.08); }
+.live-vote-btn:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  transform: none;
+  filter: saturate(0.35);
+  box-shadow: none;
+}
+.live-vote-btn.closed {
+  background: rgba(255,255,255,0.08);
+  color: var(--muted2);
+  border: 1px solid rgba(255,255,255,0.08);
+}
 .live-stage-timer {
   margin-top: 0;
   display: flex;
@@ -490,11 +500,19 @@ body { background: #080a14; overflow: hidden; }
   font-size: 0.9rem;
   font-weight: 800;
   color: var(--text);
+  max-width: min(42vw, 520px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .live-current-project {
   font-size: 0.75rem;
   color: var(--accent);
   font-weight: 600;
+  max-width: min(46vw, 620px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .live-vote-area {
   display: flex;
@@ -937,6 +955,18 @@ body { background: #080a14; overflow: hidden; }
     </div>
   </div>
 
+  <div class="live-zap-modal" id="endSessionModal" style="display:none" onclick="handleEndSessionBackdropClick(event)">
+    <div class="live-zap-modal-card">
+      <button class="live-zap-close" onclick="closeEndSessionModal()" aria-label="Close end session modal">×</button>
+      <div style="font-size:1.05rem;font-weight:800;color:#ff9b9b;margin-bottom:6px">End live session?</div>
+      <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;margin-bottom:18px">This ends the live surface for everyone and moves the session into its completed state. Make sure you are done before you pull the plug.</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn-live-admin" onclick="closeEndSessionModal()">Cancel</button>
+        <button class="btn-live-admin danger" onclick="confirmStopSession()">Yes, end session</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Admin controls -->
   <div class="live-admin-bar" id="adminBar">
     <span class="live-admin-label">Host controls:</span>
@@ -1024,8 +1054,8 @@ function renderLineupGroups(data) {
       <div class="live-speaker-item${roleLabel === 'UP NEXT' ? ' status-up-next' : ''}${roleLabel === 'NOW' ? ' active' : ''}${['presented','skipped','winner'].includes(s.status) ? ' status-complete' : ''}" ${isReplayable ? `onclick="setSpeaker('${esc(s.id)}')"` : ''}>
         <div class="live-speaker-avatar">${esc(initials)}</div>
         <div class="live-speaker-info">
-          <div class="live-speaker-name">${esc(s.name)}</div>
-          <div class="live-speaker-project">${esc(s.project_title || s.project || '')}</div>
+          <div class="live-speaker-name" title="${esc(s.name)}">${esc(s.name)}</div>
+          <div class="live-speaker-project" title="${esc(s.project_title || s.project || '')}">${esc(s.project_title || s.project || '')}</div>
         </div>
         ${statusTag}
         ${finalVotingOpen && s.status !== 'skipped' ? `<div class="live-speaker-actions"><span class="live-votes-badge">▲${Number(finalVoteState?.[s.id]?.votes ?? s.votes ?? 0).toLocaleString()}</span><button class="live-inline-vote-btn${finalVoteState?.[s.id]?.voted ? ' voted' : ''}" onclick="event.stopPropagation(); voteForSpeaker('${esc(s.id)}')">${finalVoteState?.[s.id]?.voted ? '✓ Voted' : 'Vote'}</button></div>` : `<span class="live-votes-badge">▲${Number(s.votes || 0).toLocaleString()}</span>`}
@@ -1482,10 +1512,26 @@ async function startSession() {
   await hostAction(`/api/live/${eventId}/start`);
 }
 
-async function stopSession() {
-  if (!confirm('End the live session?')) return;
+function openEndSessionModal() {
+  document.getElementById('endSessionModal').style.display = 'flex';
+}
+
+function closeEndSessionModal() {
+  document.getElementById('endSessionModal').style.display = 'none';
+}
+
+function handleEndSessionBackdropClick(event) {
+  if (event.target === event.currentTarget) closeEndSessionModal();
+}
+
+async function confirmStopSession() {
+  closeEndSessionModal();
   currentSpeakerId = null;
   await hostAction(`/api/live/${eventId}/stop`);
+}
+
+async function stopSession() {
+  openEndSessionModal();
 }
 
 async function setSpeaker(speakerId) {
