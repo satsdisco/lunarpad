@@ -1115,7 +1115,12 @@ function renderProjects(projects) {
 function renderProjectCards(projects) {
   const grid = document.getElementById('projectsGrid');
   if (!projects.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🛠</div><h3>No projects yet</h3><p>Submit yours and build in public!</p></div>`;
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;padding:60px 20px">
+      <div class="icon">🛠</div>
+      <h3>No projects yet</h3>
+      <p style="color:var(--muted2);margin-top:6px">Be the first to ship something great</p>
+      <button class="btn btn-primary" style="margin-top:20px" onclick="toggleProjectForm()">+ Submit your project</button>
+    </div>`;
     return;
   }
   grid.innerHTML = projects.map(p => {
@@ -1125,8 +1130,8 @@ function renderProjectCards(projects) {
     const bountyTag = p.bounty_title ? `<span class="bounty-status open" style="font-size:0.6rem">⚡ ${esc(p.bounty_title)}</span>` : '';
     const catTag = p.category ? `<span class="card-tag cat-${esc(p.category)}">${esc(p.category)}</span>` : '';
     const links = [
-      (p.repo_url||p.repo) ? `<a href="${esc(p.repo_url||p.repo)}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">⌥ Repo</a>` : '',
-      (p.demo_url||p.demo) ? `<a href="${esc(p.demo_url||p.demo)}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">↗ Demo</a>` : ''
+      (p.repo_url||p.repo) ? `<a href="${esc(p.repo_url||p.repo)}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()"><span style="font-size:0.75rem">↗</span> <span>Repo</span></a>` : '',
+      (p.demo_url||p.demo) ? `<a href="${esc(p.demo_url||p.demo)}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()"><span style="font-size:0.75rem">↗</span> <span>Demo</span></a>` : ''
     ].filter(Boolean).join('');
     const satsLabel = p.total_sats_received > 0
       ? `<span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--btc-bright);opacity:.85">⚡${Number(p.total_sats_received).toLocaleString()}</span>`
