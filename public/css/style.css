@@ -480,6 +480,7 @@ a:hover { color: var(--accent); }
 .bounty-status.claimed { border-color: rgba(212,168,67,0.4); color: var(--gold); }
 .bounty-status.completed { border-color: rgba(212,168,67,0.4); color: var(--gold); }
 .bounty-deadline { font-size: 0.65rem; color: var(--dim); }
+.bounty-deadline.open-ended { color: var(--muted2); }
 
 /* Event cards */
 .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
@@ -1997,13 +1998,13 @@ a:hover { color: var(--accent); }
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 2px solid var(--muted2);
+  border: 2px solid var(--text2);
   background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.65rem;
-  color: var(--muted2);
+  color: var(--text2);
   z-index: 1;
   transition: all .2s ease;
   flex-shrink: 0;
@@ -2038,7 +2039,7 @@ a:hover { color: var(--accent); }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: var(--muted2);
+  color: var(--text2);
   white-space: nowrap;
   text-align: center;
   transition: color .2s ease;

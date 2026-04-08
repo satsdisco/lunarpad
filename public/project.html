@@ -718,7 +718,16 @@ async function loadDeckVersions(project) {
     const res = await fetch('/api/projects/' + project.id + '/decks');
     if (!res.ok) { section.innerHTML = ''; return; }
     const versions = await res.json();
-    if (!versions.length && !project.deck_id) { section.innerHTML = ''; embedSection.innerHTML = ''; return; }
+    if (!versions.length && !project.deck_id) {
+      const emptyMsg = `<div style="text-align:center;padding:40px 20px;color:var(--muted)">
+        <div style="font-size:2rem;margin-bottom:12px">📊</div>
+        <div style="font-size:0.85rem;color:var(--muted2)">No presentations added yet</div>
+        <div style="font-size:0.75rem;color:var(--dim);margin-top:4px"> Presentations will appear here once added to this project</div>
+      </div>`;
+      section.innerHTML = emptyMsg;
+      embedSection.innerHTML = '';
+      return;
+    }
 
     // Check ownership for upload button
     const meRes = await fetch('/api/me');
