@@ -84,3 +84,25 @@ test('bounty cards show explicit deadline or expiration state instead of raw dat
   assert.match(buildHtml, /Due today/);
   assert.match(buildHtml, /class=\"bounty-deadline \$\{deadlineState\.tone\}\"/);
 });
+
+test('projects view makes tag overflow discoverable and uses stronger repo demo labels', () => {
+  const buildHtml = read('public', 'build.html');
+  const css = read('public', 'css', 'style.css');
+  assert.match(buildHtml, /projectTagBarWrap/);
+  assert.match(buildHtml, /projectTagOverflowHint/);
+  assert.match(buildHtml, /Repository ↗/);
+  assert.match(buildHtml, /Live Demo ↗/);
+  assert.match(css, /\.tag-bar-wrap/);
+  assert.match(css, /\.tag-overflow-hint/);
+});
+
+test('projects sparse states and project detail explain status and support actions', () => {
+  const buildHtml = read('public', 'build.html');
+  const projectHtml = read('public', 'project.html');
+  assert.match(buildHtml, /projectsSparseCta/);
+  assert.match(buildHtml, /Submit your first project/);
+  assert.match(projectHtml, /statusLegend/);
+  assert.match(projectHtml, /Support guide:/);
+  assert.match(projectHtml, /Upvote signals interest/);
+  assert.match(projectHtml, /Zap sats sends bitcoin support/);
+});

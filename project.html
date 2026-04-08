@@ -191,9 +191,10 @@ async function loadProject() {
           <div style="font-size:0.85rem;color:var(--muted);margin-bottom:8px">by <strong style="color:var(--text)">${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link">${esc(p.builder)}</a>` : esc(p.builder)}</strong></div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             <span class="card-tag ${p.category ? 'cat-' + p.category : ''}" style="font-size:0.7rem">${esc(p.category || 'project')}</span>
-            <span class="card-tag" style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${statusMap[p.status] || p.status}</span>
+            <span class="card-tag" style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em" title="Idea = early concept, Building = actively in progress, Shipped = live or released">${statusMap[p.status] || p.status}</span>
             ${p.bounty_title ? `<a href="/bounty/${esc(p.bounty_id || '')}" style="text-decoration:none"><span style="color:var(--btc-bright);border:1px solid rgba(242,177,52,.25);border-radius:100px;padding:2px 8px;font-size:0.75rem;background:rgba(242,177,52,.06)">🏆 ${esc(p.bounty_title)}</span></a>` : ''}
           </div>
+          <div class="project-help-strip" id="statusLegend">Status guide: <strong>Idea</strong> = early concept, <strong>Building</strong> = actively in progress, <strong>Shipped</strong> = live or released.</div>
         </div>
         <div style="display:flex;gap:6px;align-items:flex-start;flex-shrink:0">
           <button class="btn btn-ghost btn-sm" id="editProjectBtn" style="display:none;font-size:0.7rem;color:var(--muted)" onclick="openEditProject()">✏️ Edit</button>
@@ -226,10 +227,11 @@ async function loadProject() {
             <span id="statsComments">💬 — comments</span>
             <span>▲ <span id="projVoteCountBtn">${p.votes || 0}</span> votes</span>
           </div>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:${(p.repo_url || p.demo_url) ? '14px' : '0'}">
-            <button class="vote-btn vote-pill" id="projVoteBtn" onclick="voteProject()" style="font-size:0.85rem;padding:8px 18px">▲ Upvote</button>
-            <button class="btn btn-zap" id="zapProjectBtn" onclick="openZapModal()" style="font-size:0.82rem;padding:7px 16px">⚡ Zap sats</button>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+            <button class="vote-btn vote-pill" id="projVoteBtn" onclick="voteProject()" style="font-size:0.85rem;padding:8px 18px" title="Upvote signals interest and social support.">▲ Upvote</button>
+            <button class="btn btn-zap" id="zapProjectBtn" onclick="openZapModal()" style="font-size:0.82rem;padding:7px 16px" title="Zap sats sends bitcoin support directly.">⚡ Zap sats</button>
           </div>
+          <div class="project-help-strip">Support guide: <strong>Upvote signals interest</strong>; <strong>Zap sats sends bitcoin support</strong> directly to the project.</div>
           ${(p.repo_url || p.demo_url) ? `<div style="padding-top:14px;border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:0.78rem;color:var(--muted2)">
             ${p.repo_url ? `<a href="${esc(p.repo_url)}" target="_blank" style="color:var(--muted2);text-decoration:none;display:flex;align-items:center;gap:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted2)'">⌥ Repo</a>` : ''}
             ${p.demo_url ? `<a href="${esc(p.demo_url)}" target="_blank" style="color:var(--muted2);text-decoration:none;display:flex;align-items:center;gap:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted2)'">↗ Demo</a>` : ''}

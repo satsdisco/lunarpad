@@ -294,12 +294,16 @@
             <span class="section-title">Projects</span>
             <button class="btn btn-sm" onclick="document.getElementById('projectModal').classList.add('open')">+ Submit</button>
           </div>
-          <div class="tag-bar" id="projectTagBar"></div>
+          <div class="tag-bar-wrap" id="projectTagBarWrap">
+            <div class="tag-bar" id="projectTagBar"></div>
+          </div>
+          <div class="tag-overflow-hint" id="projectTagOverflowHint">Scroll for more filters →</div>
           <div class="project-grid" id="projectsGrid">
             <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:8px"></div><div class="skeleton sk-line sk-w-80" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:11px"></div></div>
             <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:8px"></div><div class="skeleton sk-line sk-w-80" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:11px"></div></div>
             <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:8px"></div><div class="skeleton sk-line sk-w-80" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:11px"></div></div>
           </div>
+          <div class="projects-sparse-cta" id="projectsSparseCta" style="display:none"></div>
         </div>
 
       </div><!-- end #view-projects -->
@@ -1454,9 +1458,10 @@ async function loadProjects() {
 
 let allProjects = [];
 let activeProjectTag = null;
-
 function renderProjectTags(projects) {
   const tagBar = document.getElementById('projectTagBar');
+  const hint = document.getElementById('projectTagOverflowHint');
+  if (!tagBar) return;
   const tagSet = new Set();
   projects.forEach(p => {
     if (p.category) tagSet.add(p.category);
@@ -1465,6 +1470,27 @@ function renderProjectTags(projects) {
   const tags = [...tagSet].sort();
   tagBar.innerHTML = `<div class="tag-chip ${!activeProjectTag ? 'active' : ''}" onclick="filterProjects(null)">All</div>` +
     tags.map(t => `<div class="tag-chip ${activeProjectTag === t ? 'active' : ''}" onclick="filterProjects('${t}')">${t}</div>`).join('');
+  if (hint) hint.style.display = tags.length > 5 ? '' : 'none';
+}
+
+function renderProjectsSparseCta(projectCount) {
+  const cta = document.getElementById('projectsSparseCta');
+  if (!cta) return;
+  if (projectCount > 3) {
+    cta.style.display = 'none';
+    cta.innerHTML = '';
+    return;
+  }
+  cta.style.display = '';
+  cta.innerHTML = `
+    <div class="projects-sparse-cta-card">
+      <div>
+        <div class="projects-sparse-kicker">Keep the momentum up</div>
+        <div class="projects-sparse-title">Submit your first project</div>
+        <div class="projects-sparse-copy">The grid is still early. Turn the empty space into signal by sharing what you are building.</div>
+      </div>
+      <button class="btn btn-primary" onclick="document.getElementById('projectModal').classList.add('open')">+ Submit your first project</button>
+    </div>`;
 }
 
 function filterProjects(tag) {
@@ -1481,6 +1507,7 @@ function renderProjects(projects) {
   allProjects = projects;
   renderProjectTags(projects);
   renderProjectCards(projects);
+  renderProjectsSparseCta(projects.length);
 }
 
 function renderProjectCards(projects) {
@@ -1496,8 +1523,8 @@ function renderProjectCards(projects) {
     const bountyTag = p.bounty_title ? `<span class="bounty-status open" style="font-size:0.6rem">⚡ ${esc(p.bounty_title)}</span>` : '';
     const catTag = p.category ? `<span class="card-tag cat-${esc(p.category)}">${esc(p.category)}</span>` : '';
     const links = [
-      (p.repo_url||p.repo) ? `<a href="${esc(p.repo_url||p.repo)}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">⌥ Repo</a>` : '',
-      (p.demo_url||p.demo) ? `<a href="${esc(p.demo_url||p.demo)}" target="_blank" rel="noopener" class="spk-link" onclick="event.stopPropagation()">↗ Demo</a>` : ''
+      (p.repo_url||p.repo) ? `<a href="${esc(p.repo_url||p.repo)}" target="_blank" rel="noopener" class="spk-link project-card-link" onclick="event.stopPropagation()">Repository ↗</a>` : '',
+      (p.demo_url||p.demo) ? `<a href="${esc(p.demo_url||p.demo)}" target="_blank" rel="noopener" class="spk-link project-card-link" onclick="event.stopPropagation()">Live Demo ↗</a>` : ''
     ].filter(Boolean).join('');
     const satsLabel = p.total_sats_received > 0
       ? `<span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--btc-bright);opacity:.85">⚡${Number(p.total_sats_received).toLocaleString()}</span>`
