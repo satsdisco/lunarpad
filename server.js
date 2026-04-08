@@ -1279,19 +1279,45 @@ app.get('/api/events', requireAuth, (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/events', requireAuth, (req, res) => {
+app.post('/api/events', requireAuth, requireCapability('event.create'), (req, res) => {
   const { name, description, event_type, date, time, location, virtual_link } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   if (!date) return res.status(400).json({ error: 'date required' });
   if (!time) return res.status(400).json({ error: 'time required' });
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location, virtual_link)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location, virtual_link, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, name.trim(), description || null,
     event_type || 'demo-day', date, time || null,
-    location || null, virtual_link || null
+    location || null, virtual_link || null, req.user.id
+  );
+  db.prepare(`INSERT INTO event_memberships (id, event_id, user_id, role, granted_by)
+    VALUES (?, ?, ?, ?, ?)`).run(
+    crypto.randomUUID(), id, req.user.id, 'organizer', req.user.id
   );
   res.json({ id });
+});
+
+app.put('/api/events/:id', requireAuth, requireEventCapability('event.edit', 'id'), (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Not found' });
+  const { name, description, event_type, date, time, location, virtual_link } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  if (!date) return res.status(400).json({ error: 'date required' });
+  if (!time) return res.status(400).json({ error: 'time required' });
+  db.prepare(`UPDATE events
+    SET name = ?, description = ?, event_type = ?, date = ?, time = ?, location = ?, virtual_link = ?
+    WHERE id = ?`).run(
+      name.trim(),
+      description || null,
+      event_type || 'demo-day',
+      date,
+      time,
+      location || null,
+      virtual_link || null,
+      req.params.id
+    );
+  res.json({ ok: true });
 });
 
 // Admin: delete event
