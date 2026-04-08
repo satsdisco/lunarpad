@@ -1276,6 +1276,7 @@ app.post('/api/events', requireAuth, (req, res) => {
   const { name, description, event_type, date, time, location, virtual_link } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   if (!date) return res.status(400).json({ error: 'date required' });
+  if (!time) return res.status(400).json({ error: 'time required' });
   const id = crypto.randomUUID();
   db.prepare(`INSERT INTO events (id, name, description, event_type, date, time, location, virtual_link)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(

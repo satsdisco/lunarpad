@@ -575,6 +575,10 @@ a:hover { color: var(--accent); }
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+.bounty-deadline.normal { color: var(--muted2); }
+.bounty-deadline.soon { color: #f0c767; }
+.bounty-deadline.urgent { color: #ff8f8f; }
+.bounty-deadline.overdue { color: #ff7f7f; }
 .bounty-tags-row { margin-top: 14px; }
 .bounty-footer-row {
   display:flex;

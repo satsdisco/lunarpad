@@ -64,3 +64,23 @@ test('bounty timeline inactive steps and create bounty CTA have stronger visual 
   assert.match(css, /\.timeline-step\.pending \.timeline-label/);
   assert.match(css, /\.timeline-step\.pending \.timeline-dot/);
 });
+
+test('event countdowns and event selection use exact scheduled start datetimes', () => {
+  const buildHtml = read('public', 'build.html');
+  const eventHtml = read('public', 'event.html');
+  const server = read('server.js');
+  assert.match(buildHtml, /function getEventStartDate\(/);
+  assert.match(buildHtml, /new Date\(ev\.date \+ \('T' \+ ev\.time\)\)/);
+  assert.match(buildHtml, /if \(!name \|\| !date \|\| !time\) return alert\('Name, date, and time required'\)/);
+  assert.match(eventHtml, /function getEventStartDate\(/);
+  assert.match(eventHtml, /const eventDate = getEventStartDate\(eventData\)/);
+  assert.match(server, /if \(!time\) return res\.status\(400\)\.json\(\{ error: 'time required' \}\)/);
+});
+
+test('bounty cards show explicit deadline or expiration state instead of raw dates only', () => {
+  const buildHtml = read('public', 'build.html');
+  assert.match(buildHtml, /function formatBountyDeadlineState\(/);
+  assert.match(buildHtml, /Deadline passed:/);
+  assert.match(buildHtml, /Due today/);
+  assert.match(buildHtml, /class=\"bounty-deadline \$\{deadlineState\.tone\}\"/);
+});

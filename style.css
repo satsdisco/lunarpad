@@ -399,6 +399,10 @@ a:hover { color: var(--accent); }
 .bounty-status.claimed { border-color: var(--gold); color: var(--gold); }
 .bounty-status.completed { border-color: var(--success); color: var(--success); }
 .bounty-deadline { font-size: 0.65rem; color: var(--dim); }
+.bounty-deadline.normal { color: var(--dim); }
+.bounty-deadline.soon { color: #f0c767; }
+.bounty-deadline.urgent { color: #ff8f8f; }
+.bounty-deadline.overdue { color: #ff7f7f; }
 
 /* Event cards */
 .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }

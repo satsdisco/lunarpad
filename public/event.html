@@ -460,6 +460,12 @@ function esc(s) { const d = document.createElement('div'); d.textContent = Strin
 function timeAgo(ds) { const m = Math.floor((Date.now()-new Date(ds).getTime())/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; const h=Math.floor(m/60); if(h<24)return h+'h ago'; return Math.floor(h/24)+'d ago'; }
 function initials(name) { return String(name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(); }
 
+function getEventStartDate(ev) {
+  if (!ev?.date || !ev?.time) return null;
+  const value = new Date(ev.date + ('T' + ev.time));
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
 function renderAttendeesSection(rsvpPayload) {
   const attendees = Array.isArray(rsvpPayload?.rsvps) ? rsvpPayload.rsvps : [];
   if (!attendees.length) return '';
@@ -627,7 +633,7 @@ async function loadEvent() {
     const attendingBadge = rsvpCount > 0 ? `<span>👥 ${rsvpCount} attending</span>` : '';
 
     // Determine if event is in the past (ended)
-    const eventDate = ev.date ? new Date(ev.date + (ev.time ? 'T' + ev.time : 'T23:59:59')) : null;
+    const eventDate = getEventStartDate(ev);
     const isEnded = eventDate ? (Date.now() - eventDate.getTime() > 86400000) : false;
 
     // Build action buttons outside template to avoid nested backtick issues
@@ -907,10 +913,14 @@ function switchTab(name, evt) {
 function startCountdown() {
   if (!eventData?.date) return;
   function tick() {
-    const eventDate = new Date(eventData.date + (eventData.time ? 'T' + eventData.time : 'T00:00'));
-    const diff = eventDate.getTime() - Date.now();
+    const eventDate = getEventStartDate(eventData);
     const container = document.querySelector('.event-hero-countdown');
     if (!container) return;
+    if (!eventDate) {
+      container.innerHTML = '<div class="event-status-ended">Start time TBD</div>';
+      return;
+    }
+    const diff = eventDate.getTime() - Date.now();
 
     if (diff > 0) {
       const d=Math.floor(diff/864e5), h=Math.floor(diff%864e5/36e5), m=Math.floor(diff%36e5/6e4), s=Math.floor(diff%6e4/1e3);

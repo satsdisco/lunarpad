@@ -590,6 +590,26 @@ let heroRsvpState = { userRsvp: false, loading: false };
 let showAllPastEvents = false;
 let countdownTimers = {};
 let currentView = 'events';
+
+function getEventStartDate(ev) {
+  if (!ev?.date || !ev?.time) return null;
+  const value = new Date(ev.date + ('T' + ev.time));
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
+function formatBountyDeadlineState(deadline) {
+  if (!deadline) return null;
+  const deadlineDate = new Date(deadline);
+  if (Number.isNaN(deadlineDate.getTime())) return null;
+  const diff = deadlineDate.getTime() - Date.now();
+  const days = Math.ceil(diff / 86400000);
+  const label = deadlineDate.toLocaleDateString('en', { month:'short', day:'numeric', year:'numeric' });
+  if (diff < 0) return { label: 'Deadline passed: ' + label, tone: 'overdue' };
+  if (days === 0) return { label: 'Due today', tone: 'urgent' };
+  if (days === 1) return { label: '1 day left · ' + label, tone: 'urgent' };
+  if (days <= 3) return { label: days + ' days left · ' + label, tone: 'soon' };
+  return { label: days + ' days left · ' + label, tone: 'normal' };
+}
 let projectSubmissionContext = { bountyId: '', bountyTitle: '' };
 const FIRST_VISIT_PANEL_KEY = 'lunarpad:first-visit-panel:dismissed:v2';
 const ONBOARDING_PROGRESS_KEY = 'lunarpad:onboarding-progress:v1';
@@ -801,7 +821,8 @@ async function loadBounties() {
       const statusClass = { open: 'open', claimed: 'claimed', completed: 'completed' }[b.status] || 'open';
       const statusLabel = { open: 'Open', claimed: 'Claimed', completed: 'Completed' }[b.status] || b.status;
       const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
-      const deadline = b.deadline ? `<span class="bounty-deadline">⏳ ${esc(new Date(b.deadline).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>` : '';
+      const deadlineState = formatBountyDeadlineState(b.deadline);
+      const deadline = deadlineState ? `<span class="bounty-deadline ${deadlineState.tone}">⏳ ${esc(deadlineState.label)}</span>` : '';
       const participantCount = Array.isArray(b.participants) ? b.participants.length : (b.participant_count || 0);
       const participantLabel = participantCount === 1 ? 'hunter' : 'hunters';
       const baseAmt = Number(b.sats_amount || 0);
@@ -935,15 +956,26 @@ async function loadEvents() {
 
     // Hero: next upcoming event
     const _now = new Date();
-    const _upcoming = eventsData.filter(ev => ev.date && new Date(ev.date) >= _now).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const _upcoming = eventsData
+      .filter(ev => {
+        const start = getEventStartDate(ev);
+        return start && start >= _now;
+      })
+      .sort((a, b) => getEventStartDate(a) - getEventStartDate(b));
     heroEventData = _upcoming[0] || null;
     await syncHeroRsvpState();
     renderHeroBanner(heroEventData);
 
     // Split into upcoming and past events
     const now = new Date();
-    const upcomingEvents = eventsData.filter(ev => !ev.date || new Date(ev.date) >= new Date(now.toISOString().split('T')[0]));
-    const pastEvents = eventsData.filter(ev => ev.date && new Date(ev.date) < new Date(now.toISOString().split('T')[0]));
+    const upcomingEvents = eventsData.filter(ev => {
+      const start = getEventStartDate(ev);
+      return !start || start >= now;
+    });
+    const pastEvents = eventsData.filter(ev => {
+      const start = getEventStartDate(ev);
+      return start && start < now;
+    });
 
     if (!upcomingEvents.length && !pastEvents.length) {
       grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📅</div><h3>No upcoming events</h3><p>Nothing scheduled yet — stay tuned</p></div>`;
@@ -1011,10 +1043,11 @@ async function loadEvents() {
     eventsData.forEach(ev => loadEventBounties(ev.id));
 
     // Find next demo-day for speaker section
-    const demoDays = eventsData.filter(ev =>
-      (ev.event_type || ev.type || '').toLowerCase().includes('demo') &&
-      new Date(ev.date) > now
-    ).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const demoDays = eventsData.filter(ev => {
+      if (!(ev.event_type || ev.type || '').toLowerCase().includes('demo')) return false;
+      const start = getEventStartDate(ev);
+      return !!(start && start > now);
+    }).sort((a, b) => getEventStartDate(a) - getEventStartDate(b));
     if (demoDays.length) {
       nextDemoDay = demoDays[0];
       loadSpeakers();
@@ -1080,7 +1113,8 @@ function renderHeroBanner(ev) {
 
 function formatSecondaryEventDateLabel(ev) {
   if (!ev?.date) return 'Date TBD';
-  const eventDate = new Date(ev.date + (ev.time ? 'T' + ev.time : 'T00:00'));
+  const eventDate = getEventStartDate(ev);
+  if (!eventDate) return 'Start time TBD';
   const dateLabel = eventDate.toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' });
   const now = new Date();
   const statusLabel = eventDate.getTime() < now.getTime()
@@ -1155,7 +1189,8 @@ function updateCountdowns() {
 
   // Hero countdown
   if (heroEventData && heroEventData.date) {
-    const heroDate = new Date(heroEventData.date + (heroEventData.time ? 'T' + heroEventData.time : 'T00:00'));
+    const heroDate = getEventStartDate(heroEventData);
+    if (!heroDate) return;
     const hDiff = heroDate.getTime() - now;
     if (hDiff > 0) {
       const hSet = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v).padStart(2, '0'); };
@@ -1814,7 +1849,7 @@ async function createEvent() {
   const date = document.getElementById('newEventDate').value;
   const time = document.getElementById('newEventTime').value || null;
   const location = document.getElementById('newEventLocation').value.trim() || null;
-  if (!name || !date) return alert('Name and date required');
+  if (!name || !date || !time) return alert('Name, date, and time required');
   try {
     const r = await fetch('/api/events', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,description,event_type,date,time,location}) });
     if (!r.ok) { const e = await r.json().catch(()=>({})); alert(e.error||'Failed'); return; }
