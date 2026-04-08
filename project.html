@@ -521,8 +521,8 @@ async function checkOwnership() {
     const r = await fetch('/api/me');
     const me = await r.json();
     if (me.user && currentProject) {
-      const isOwner = currentProject.user_id === me.user.id || !currentProject.user_id;
-      if (isOwner || me.user.is_admin) {
+      const canManageProject = me.user.is_admin || (currentProject.user_id && currentProject.user_id === me.user.id);
+      if (canManageProject) {
         document.getElementById('editProjectBtn').style.display = '';
         document.getElementById('deleteProjectBtn').style.display = '';
         // Show project image upload overlay on hover

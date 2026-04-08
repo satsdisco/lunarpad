@@ -877,6 +877,13 @@ function requireAuth(req, res, next) {
 }
 
 
+function canManageProject(project, user) {
+  if (!project || !user) return false;
+  if (user.is_admin) return true;
+  return !!project.user_id && user.id === project.user_id;
+}
+
+
 function requireAdmin(req, res, next) {
   if (req.user && req.user.is_admin) return next();
   res.status(403).json({ error: "Admin access required" });
@@ -1707,7 +1714,7 @@ app.post('/api/profile/avatar', requireAuth, avatarUpload.single('avatar'), asyn
 app.post('/api/projects/:id/banner', requireAuth, bannerUpload.single('banner'), async (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) { if (req.file) fs.unlinkSync(req.file.path); return res.status(404).json({ error: 'Not found' }); }
-  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+  if (!canManageProject(project, req.user)) {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: 'Not authorized' });
   }
@@ -1737,7 +1744,7 @@ app.post('/api/projects/:id/banner', requireAuth, bannerUpload.single('banner'),
 app.post('/api/projects/:id/thumbnail', requireAuth, avatarUpload.single('thumbnail'), async (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) { if (req.file) fs.unlinkSync(req.file.path); return res.status(404).json({ error: 'Not found' }); }
-  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+  if (!canManageProject(project, req.user)) {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: 'Not authorized' });
   }
@@ -2128,7 +2135,7 @@ app.post('/api/webhook/lnbits', async (req, res) => {
 app.delete('/api/projects/:id', requireAuth, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!p) return res.status(404).json({ error: 'Not found' });
-  if (p.user_id && p.user_id !== req.user?.id && !req.user?.is_admin) return res.status(403).json({ error: 'Not authorized' });
+  if (!canManageProject(p, req.user)) return res.status(403).json({ error: 'Not authorized' });
   db.prepare('DELETE FROM comments WHERE deck_id = ?').run(req.params.id); // reuse comments table
   db.prepare('DELETE FROM votes WHERE target_type = ? AND target_id = ?').run('project', req.params.id);
   db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
@@ -2333,7 +2340,7 @@ app.post('/api/projects', requireAuth, (req, res) => {
 app.put('/api/projects/:id', requireAuth, (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) return res.status(404).json({ error: 'Not found' });
-  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) return res.status(403).json({ error: 'Not your project' });
+  if (!canManageProject(project, req.user)) return res.status(403).json({ error: 'Not your project' });
   const { name, description, status, tags, category, repo_url, demo_url, deck_id } = req.body;
   if (isPlaceholderProject({ name: name !== undefined ? name : project.name, description: description !== undefined ? description : project.description })) {
     return res.status(400).json({ error: 'Project looks like placeholder content' });
@@ -2771,7 +2778,7 @@ app.get('/api/projects/:id/decks', (req, res) => {
 app.post('/api/projects/:id/decks', requireAuth, (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) return res.status(404).json({ error: 'Not found' });
-  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+  if (!canManageProject(project, req.user)) {
     return res.status(403).json({ error: 'Not authorized' });
   }
 
@@ -2803,7 +2810,7 @@ app.post('/api/projects/:id/decks/upload', requireAuth, upload.single('file'), a
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(404).json({ error: 'Not found' });
   }
-  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+  if (!canManageProject(project, req.user)) {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: 'Not authorized' });
   }
@@ -2864,7 +2871,7 @@ app.post('/api/projects/:id/decks/upload', requireAuth, upload.single('file'), a
 app.delete('/api/projects/:id/decks/:version_id', requireAuth, (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) return res.status(404).json({ error: 'Not found' });
-  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+  if (!canManageProject(project, req.user)) {
     return res.status(403).json({ error: 'Not authorized' });
   }
 
@@ -2891,7 +2898,7 @@ app.delete('/api/projects/:id/decks/:version_id', requireAuth, (req, res) => {
 app.patch('/api/projects/:id/decks/:version_id/set-current', requireAuth, (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) return res.status(404).json({ error: 'Not found' });
-  if (project.user_id && req.user?.id !== project.user_id && !req.user?.is_admin) {
+  if (!canManageProject(project, req.user)) {
     return res.status(403).json({ error: 'Not authorized' });
   }
 
