@@ -64,6 +64,40 @@
 }
 .rsvp-card h3 { font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 16px; }
 .rsvp-success { font-size: 0.85rem; color: var(--accent); padding: 12px; display: none; }
+.presenter-signup-modal {
+  max-width: 640px;
+}
+.presenter-signup-modal .modal-title {
+  margin-bottom: 10px;
+}
+.presenter-signup-modal-copy {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.presenter-signup-modal .form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.presenter-signup-modal .form-group {
+  margin-bottom: 14px;
+}
+.presenter-signup-modal .form-group:last-child {
+  margin-bottom: 0;
+}
+.presenter-signup-modal textarea {
+  min-height: 120px;
+}
+.presenter-signup-modal .modal-actions {
+  justify-content: flex-start;
+}
+@media (max-width: 640px) {
+  .presenter-signup-modal .form-row {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* About section */
 .event-about-section {
@@ -450,6 +484,22 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="speakerSignupModal" onclick="if(event.target===this) closeSpeakerSignupModal()">
+  <div class="modal-content presenter-signup-modal">
+    <button class="modal-close" onclick="closeSpeakerSignupModal()">&times;</button>
+    <div class="modal-title">Sign Up to Present</div>
+    <div class="presenter-signup-modal-copy">Share your project, demo something you built, or talk about what you're learning. This stays centered in front of the event so the action is obvious.</div>
+    <div class="form-row"><div class="form-group"><label>Name</label><input type="text" id="spkName" placeholder="Your name"></div><div class="form-group"><label>Project</label><input type="text" id="spkProject" placeholder="Project title"></div></div>
+    <div class="form-group"><label>Description</label><textarea id="spkDesc" placeholder="What will you demo?"></textarea></div>
+    <div class="form-row"><div class="form-group"><label>GitHub (optional)</label><input type="url" id="spkGithub" placeholder="https://github.com/..."></div><div class="form-group"><label>Demo (optional)</label><input type="url" id="spkDemo" placeholder="https://..."></div></div>
+    <div class="form-row"><div class="form-group"><label>Duration</label><select id="spkDuration"><option value="5">5 min</option><option value="10" selected>10 min</option><option value="15">15 min</option></select></div><div class="form-group"><label>Attach Deck</label><select id="spkDeck"><option value="">None</option></select></div></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="submitSpeaker()">Submit</button>
+      <button class="btn" onclick="closeSpeakerSignupModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <footer class="footer"><div class="footer-brand">LunarPad — Build. Ship. Earn sats.</div><div class="footer-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://github.com/satsdisco/lunarpad" target="_blank" rel="noopener">Docs</a><a href="https://github.com/satsdisco/lunarpad/issues" target="_blank" rel="noopener">Changelog</a><a href="https://github.com/satsdisco/lunarpad" target="_blank" rel="noopener">GitHub</a></div></footer>
 
 <script>
@@ -708,21 +758,6 @@ async function loadEvent() {
 
       <!-- RSVP handled via toggle button in hero actions -->
 
-      <!-- Speaker Signup (hidden by default) -->
-      <div id="signupSection" style="display:none;margin-bottom:24px">
-        <div class="rsvp-card" style="max-width:520px">
-          <h3>Sign Up to Present</h3>
-          <div class="form-row"><div class="form-group"><label>Name</label><input type="text" id="spkName" placeholder="Your name"></div><div class="form-group"><label>Project</label><input type="text" id="spkProject" placeholder="Project title"></div></div>
-          <div class="form-group"><label>Description</label><textarea id="spkDesc" placeholder="What will you demo?"></textarea></div>
-          <div class="form-row"><div class="form-group"><label>GitHub (optional)</label><input type="url" id="spkGithub" placeholder="https://github.com/..."></div><div class="form-group"><label>Demo (optional)</label><input type="url" id="spkDemo" placeholder="https://..."></div></div>
-          <div class="form-row"><div class="form-group"><label>Duration</label><select id="spkDuration"><option value="5">5 min</option><option value="10" selected>10 min</option><option value="15">15 min</option></select></div><div class="form-group"><label>Attach Deck</label><select id="spkDeck"><option value="">None</option></select></div></div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="btn btn-primary btn-sm" onclick="submitSpeaker()">Submit</button>
-            <button class="btn btn-sm" onclick="document.getElementById('signupSection').style.display='none'">Cancel</button>
-          </div>
-        </div>
-      </div>
-
       <!-- Tabs -->
       <div class="event-tabs">
         ${hasResults ? `<button class="event-tab active" onclick="switchTab('results', event)">Results</button>` : ''}
@@ -747,7 +782,7 @@ async function loadEvent() {
                   <div class="empty-cta-icon">🎤</div>
                   <h3>No speakers yet — be the first to present!</h3>
                   <p>Share your project, demo something you built, or talk about what you're learning.</p>
-                  <button class="btn btn-primary" onclick="document.getElementById('signupSection').style.display='block';document.getElementById('signupSection').scrollIntoView({behavior:'smooth'})">Sign Up to Present</button>
+                  <button class="btn btn-primary" onclick="openSpeakerSignupModal()">Sign Up to Present</button>
                  </div>`)}
         </div>
       </div>
@@ -786,10 +821,7 @@ async function loadEvent() {
     };
     // RSVP toggle handled via inline onclick (doRsvp/cancelRsvp)
     const presentToggle = document.getElementById('presentToggle');
-    if (presentToggle) presentToggle.onclick = () => {
-      const s = document.getElementById('signupSection');
-      if (s) s.style.display = s.style.display === 'none' ? 'block' : 'none';
-    };
+    if (presentToggle) presentToggle.onclick = openSpeakerSignupModal;
 
     // Pre-fill RSVP + Speaker forms from session
     try {
@@ -820,9 +852,8 @@ async function loadEvent() {
     // BUG-002/003: Hide inappropriate CTAs for ended events
     if (isEnded) {
       const rsvp = document.getElementById('rsvpSection');
-      const signup = document.getElementById('signupSection');
       if (rsvp) rsvp.remove();
-      if (signup) signup.remove();
+      closeSpeakerSignupModal();
     }
   } catch(e) {
     document.getElementById('eventContent').innerHTML = '<div class="error-state"><span>⚠️</span><p>Failed to load event.</p><button onclick="loadEvent()">Retry</button></div>';
@@ -960,6 +991,14 @@ async function cancelRsvp() {
   } catch { alert('Failed to cancel RSVP'); }
 }
 
+function openSpeakerSignupModal() {
+  document.getElementById('speakerSignupModal')?.classList.add('open');
+}
+
+function closeSpeakerSignupModal() {
+  document.getElementById('speakerSignupModal')?.classList.remove('open');
+}
+
 // Speaker signup
 async function submitSpeaker() {
   const name=document.getElementById('spkName').value.trim(), proj=document.getElementById('spkProject').value.trim();
@@ -971,7 +1010,7 @@ async function submitSpeaker() {
     demo_url:document.getElementById('spkDemo').value.trim()||null,
     deck_id:document.getElementById('spkDeck').value||null
   })});
-  if(r.ok){ document.getElementById('signupSection').style.display='none'; loadEvent(); }
+  if(r.ok){ closeSpeakerSignupModal(); loadEvent(); }
   else { const e=await r.json().catch(()=>({})); alert(e.error||'Failed'); }
 }
 
