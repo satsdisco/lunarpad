@@ -2971,7 +2971,10 @@ app.patch('/api/projects/:id/decks/:version_id/set-current', requireAuth, (req, 
 
 app.get('/api/leaderboard', (req, res) => {
   const sort = req.query.sort || 'earners';
-  const leaderboardQueryLimit = 40;
+  const requestedOffset = Number.parseInt(req.query.offset, 10);
+  const requestedLimit = Number.parseInt(req.query.limit, 10);
+  const offset = Number.isFinite(requestedOffset) && requestedOffset > 0 ? requestedOffset : 0;
+  const limit = Math.min(100, Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 20));
   let rows;
   if (sort === 'zappers') {
     rows = db.prepare(`
@@ -2982,7 +2985,7 @@ app.get('/api/leaderboard', (req, res) => {
         (SELECT COALESCE(SUM(z.amount_sats),0) FROM zaps z WHERE z.user_id=u.id AND z.status='confirmed') +
         (SELECT COALESCE(SUM(bp.amount_sats),0) FROM bounty_payments bp WHERE bp.user_id=u.id AND bp.payment_type='fund' AND bp.status='confirmed') as sort_val
       FROM users u LEFT JOIN bounties b ON b.winner_id = u.id
-      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC LIMIT ${leaderboardQueryLimit}
+      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC
     `).all();
   } else if (sort === 'projects') {
     rows = db.prepare(`
@@ -2992,7 +2995,7 @@ app.get('/api/leaderboard', (req, res) => {
         COALESCE(u.total_sats_received, 0) as zaps_received,
         (SELECT COUNT(*) FROM projects p WHERE p.user_id=u.id) as sort_val
       FROM users u LEFT JOIN bounties b ON b.winner_id = u.id
-      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC LIMIT ${leaderboardQueryLimit}
+      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC
     `).all();
   } else if (sort === 'active') {
     rows = db.prepare(`
@@ -3005,7 +3008,7 @@ app.get('/api/leaderboard', (req, res) => {
         (SELECT COUNT(*) FROM zaps z WHERE z.user_id=u.id AND z.status='confirmed') +
         (SELECT COUNT(*) FROM bounty_payments bpay WHERE bpay.user_id=u.id AND bpay.status='confirmed') as sort_val
       FROM users u LEFT JOIN bounties b ON b.winner_id = u.id
-      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC LIMIT ${leaderboardQueryLimit}
+      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC
     `).all();
   } else {
     rows = db.prepare(`
@@ -3015,21 +3018,53 @@ app.get('/api/leaderboard', (req, res) => {
         COALESCE(u.total_sats_received, 0) as zaps_received,
         (COALESCE(SUM(CASE WHEN b.paid_out = 1 THEN b.sats_amount ELSE 0 END), 0) + COALESCE(u.total_sats_received, 0)) as sort_val
       FROM users u LEFT JOIN bounties b ON b.winner_id = u.id
-      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC, bounties_won DESC LIMIT ${leaderboardQueryLimit}
+      WHERE u.name IS NOT NULL GROUP BY u.id ORDER BY sort_val DESC, bounties_won DESC
     `).all();
   }
 
-  const result = filterPublicLeaderboardRows(rows)
-    .slice(0, 20)
+  const leaderboard = filterPublicLeaderboardRows(rows)
     .map((u, i) => {
       const projects_count = db.prepare('SELECT COUNT(*) as c FROM projects WHERE user_id = ?').get(u.user_id)?.c || 0;
       const zaps_sent = db.prepare('SELECT COALESCE(SUM(amount_sats),0) as s FROM zaps WHERE user_id = ? AND status = ?').get(u.user_id, 'confirmed')?.s || 0;
       let badges = [];
       try { badges = JSON.parse(u.badges || '[]'); } catch {}
       const total_sats = Number(u.bounty_sats) + Number(u.zaps_received);
-      return { rank: i + 1, user_id: u.user_id, name: u.name, avatar: u.avatar, total_sats, bounty_sats: Number(u.bounty_sats), zaps_received: Number(u.zaps_received), zaps_sent, bounties_won: u.bounties_won, projects_count, badges, sort_val: Number(u.sort_val || 0) };
+      return {
+        rank: i + 1,
+        user_id: u.user_id,
+        name: u.name,
+        avatar: u.avatar,
+        total_sats,
+        bounty_sats: Number(u.bounty_sats),
+        zaps_received: Number(u.zaps_received),
+        zaps_sent,
+        bounties_won: Number(u.bounties_won || 0),
+        projects_count,
+        badges,
+        sort_val: Number(u.sort_val || 0),
+      };
     });
-  res.json(result);
+
+  const total = leaderboard.length;
+  const results = leaderboard.slice(offset, offset + limit);
+  const meRank = req.user ? leaderboard.find(entry => entry.user_id === req.user.id) || null : null;
+  const totalSatsDistributed = leaderboard.reduce((sum, entry) => sum + Number(entry.total_sats || 0), 0);
+
+  res.json({
+    results,
+    total,
+    offset,
+    limit,
+    has_more: offset + results.length < total,
+    my_rank: meRank ? {
+      rank: meRank.rank,
+      user_id: meRank.user_id,
+      name: meRank.name,
+      total_sats: meRank.total_sats,
+      sort_val: meRank.sort_val,
+    } : null,
+    total_sats_distributed: totalSatsDistributed,
+  });
 });
 
 app.get('/api/users/:id', (req, res) => {

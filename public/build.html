@@ -148,6 +148,47 @@
 }
 .carousel-counter-nav:hover { border-color: var(--accent); color: var(--accent); }
 
+.lb-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(124,92,252,0.14);
+  background: rgba(124,92,252,0.05);
+}
+.lb-toolbar-copy {
+  min-width: 0;
+}
+.lb-listing-note {
+  font-size: 0.76rem;
+  color: var(--text2);
+}
+.lb-my-rank {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.lb-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@media (max-width: 760px) {
+  .lb-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lb-toolbar-actions {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 600px) {
   .event-hero-banner { padding: 20px; }
   .event-hero-title { font-size: 1.2rem; }
@@ -337,6 +378,16 @@
             <button class="lb-tab" data-sort="zappers">Top Zappers</button>
             <button class="lb-tab" data-sort="projects">Most Projects</button>
             <button class="lb-tab" data-sort="active">Most Active</button>
+          </div>
+          <div class="lb-toolbar">
+            <div class="lb-toolbar-copy">
+              <div class="lb-listing-note" id="lbListingNote">Showing top builders</div>
+              <div class="lb-my-rank" id="lbMyRank" style="display:none"></div>
+            </div>
+            <div class="lb-toolbar-actions">
+              <button class="btn btn-sm btn-ghost" id="lbBrowseToggle" type="button" style="display:none">Browse full leaderboard</button>
+              <button class="btn btn-sm btn-ghost" id="lbLoadMoreBtn" type="button" style="display:none">Load 20 more</button>
+            </div>
           </div>
           <div id="leaderboardList">
             <div class="skeleton-lb-row"><div class="skeleton sk-circle" style="width:32px;height:32px;flex-shrink:0"></div><div class="skeleton sk-circle" style="width:36px;height:36px;flex-shrink:0"></div><div style="flex:1"><div class="skeleton sk-line sk-w-60" style="height:12px;margin-bottom:5px"></div><div class="skeleton sk-line sk-w-40" style="height:9px"></div></div><div class="skeleton" style="width:80px;height:16px;border-radius:8px"></div></div>
@@ -1952,7 +2003,11 @@ async function checkAdmin() {
 // ─── Leaderboard ──────────────────────────────────────────────────────────
 let _lbCurrentSort = 'earners';
 let _lbMeId = null;
+let _lbLoaded = false;
+let _lbExpanded = false;
+let _lbVisibleCount = 20;
 
+const LB_PAGE_SIZE = 20;
 const LB_SORT_LABELS = {
   earners:  'Ranked by total sats earned',
   zappers:  'Ranked by total sats contributed',
@@ -1960,14 +2015,141 @@ const LB_SORT_LABELS = {
   active:   'Ranked by total activity',
 };
 
-async function loadLeaderboard(sort) {
+function getLeaderboardPrimaryLabel(sort) {
+  if (sort === 'zappers') return 'Sats Zapped';
+  if (sort === 'projects') return 'Projects';
+  if (sort === 'active') return 'Activity';
+  return 'Sats Earned';
+}
+
+function getLeaderboardPrimaryStat(sort, entry) {
+  if (sort === 'zappers') return `🤙 ${Number(entry.sort_val).toLocaleString()}`;
+  if (sort === 'projects') return `📦 ${Number(entry.sort_val).toLocaleString()}`;
+  if (sort === 'active') return `⚡ ${Number(entry.sort_val).toLocaleString()} actions`;
+  return `⚡ ${Number(entry.total_sats).toLocaleString()}`;
+}
+
+function getLeaderboardMyRankCopy(sort, entry, visibleCount) {
+  if (!entry) return '';
+  const primary = getLeaderboardPrimaryStat(sort, entry);
+  const hiddenCopy = entry.rank > visibleCount ? ' — outside the current view' : '';
+  return `Your rank: #${entry.rank} · ${primary}${hiddenCopy}`;
+}
+
+function renderLeaderboardRows(data, sort, myId) {
+  const maxVal = Math.max(1, ...data.map(u => Number(u.sort_val)));
+  const BADGE_MAP = { first_build:'🔨', first_sats:'⚡', demo_champ:'🏆', streak:'🔥' };
+
+  const rankEl = (rank) => {
+    if (rank === 1) return `<span class="lb-medal lb-medal-gold">1</span>`;
+    if (rank === 2) return `<span class="lb-medal lb-medal-silver">2</span>`;
+    if (rank === 3) return `<span class="lb-medal lb-medal-bronze">3</span>`;
+    return `<span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted);min-width:28px;text-align:center;display:inline-block">#${rank}</span>`;
+  };
+
+  const primaryLabel = getLeaderboardPrimaryLabel(sort);
+  const headerRow = `<div class="lb-row" style="padding:4px 16px;background:none;border:none;opacity:0.6;font-size:0.6rem;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted2)">
+    <div class="lb-rank" style="min-width:28px"></div>
+    <div class="lb-avatar-wrap" style="width:36px"></div>
+    <div class="lb-name-col" style="flex:1">Builder</div>
+    <div class="lb-bar-wrap"></div>
+    <div class="lb-stat lb-sats">${primaryLabel}</div>
+    ${sort === 'earners' ? '<div class="lb-stat lb-meta">Zaps Sent</div>' : ''}
+    ${sort !== 'projects' ? '<div class="lb-stat lb-meta">Projects</div>' : ''}
+    <div class="lb-stat lb-meta">Bounties</div>
+  </div>`;
+
+  return `<div class="lb-table">${headerRow}` + data.map(u => {
+    const badgePills = u.badges.map(b =>
+      `<span class="lb-badge-pill" title="${b.replace(/_/g,' ')}">${BADGE_MAP[b] || '🏅'}</span>`
+    ).join('');
+    const avatarHtml = u.avatar
+      ? `<img class="lb-avatar" src="${esc(u.avatar)}" alt="" onerror="this.style.display='none'">`
+      : `<div class="lb-avatar lb-avatar-placeholder">${esc((u.name||'?')[0].toUpperCase())}</div>`;
+    const tierClass = u.rank === 1 ? 'lb-rank-gold' : u.rank === 2 ? 'lb-rank-silver' : u.rank === 3 ? 'lb-rank-bronze' : '';
+    const selfClass = (myId && u.user_id === myId) ? 'lb-row-self' : '';
+    const barPct = Math.round((Number(u.sort_val) / maxVal) * 100);
+    return `
+      <div class="lb-row ${tierClass} ${selfClass}" onclick="location.href='/profile/${esc(u.user_id)}'" style="cursor:pointer">
+        <div class="lb-rank">${rankEl(u.rank)}</div>
+        <div class="lb-avatar-wrap">${avatarHtml}</div>
+        <div class="lb-name-col">
+          <a href="/profile/${esc(u.user_id)}" class="lb-name">${esc(u.name)}</a>
+          <div class="lb-badges">${badgePills}</div>
+        </div>
+        <div class="lb-bar-wrap"><div class="lb-bar-fill" style="width:${barPct}%"></div></div>
+        <div class="lb-stat lb-sats">${getLeaderboardPrimaryStat(sort, u)}</div>
+        ${sort === 'earners' ? `<div class="lb-stat lb-meta" title="Zaps sent">🤙 ${getLeaderboardCountDisplay(u.zaps_sent)}</div>` : ''}
+        ${sort !== 'projects' ? `<div class="lb-stat lb-meta">📦 ${getLeaderboardCountDisplay(u.projects_count)}</div>` : ''}
+        <div class="lb-stat lb-meta">🏆 ${getLeaderboardWonDisplay(u.bounties_won)}</div>
+      </div>`;
+  }).join('') + `</div>`;
+}
+
+function updateLeaderboardControls(payload, sort) {
+  const browseBtn = document.getElementById('lbBrowseToggle');
+  const loadMoreBtn = document.getElementById('lbLoadMoreBtn');
+  const listingNote = document.getElementById('lbListingNote');
+  const myRankEl = document.getElementById('lbMyRank');
+  const total = Number(payload?.total || 0);
+  const visibleCount = Array.isArray(payload?.results) ? payload.results.length : 0;
+
+  if (listingNote) {
+    if (!total) {
+      listingNote.textContent = 'Leaderboard updates as builders earn sats, ship projects, and join bounties.';
+    } else if (_lbExpanded) {
+      listingNote.textContent = `Showing ${visibleCount} of ${total} builders on the full leaderboard.`;
+    } else if (total > LB_PAGE_SIZE) {
+      listingNote.textContent = `Showing the top ${Math.min(total, LB_PAGE_SIZE)} builders. Open the full leaderboard to browse everyone.`;
+    } else {
+      listingNote.textContent = `Showing all ${visibleCount} ranked builders.`;
+    }
+  }
+
+  if (browseBtn) {
+    const canBrowse = total > LB_PAGE_SIZE;
+    browseBtn.style.display = canBrowse ? '' : 'none';
+    browseBtn.textContent = _lbExpanded ? 'Show top 20' : 'Browse full leaderboard';
+  }
+
+  if (loadMoreBtn) {
+    const hasMore = !!payload?.has_more;
+    loadMoreBtn.style.display = _lbExpanded && hasMore ? '' : 'none';
+    const remaining = Math.max(0, total - visibleCount);
+    loadMoreBtn.textContent = remaining > LB_PAGE_SIZE ? `Load ${LB_PAGE_SIZE} more` : `Load final ${remaining || LB_PAGE_SIZE}`;
+  }
+
+  if (myRankEl) {
+    const myRank = payload?.my_rank;
+    if (myRank) {
+      myRankEl.textContent = getLeaderboardMyRankCopy(sort, myRank, visibleCount);
+      myRankEl.style.display = '';
+    } else {
+      myRankEl.style.display = 'none';
+      myRankEl.textContent = '';
+    }
+  }
+}
+
+async function loadLeaderboard(sort, options = {}) {
   sort = sort || _lbCurrentSort;
   _lbCurrentSort = sort;
+
+  if (options.mode === 'top') {
+    _lbExpanded = false;
+    _lbVisibleCount = LB_PAGE_SIZE;
+  } else if (options.mode === 'full') {
+    _lbExpanded = true;
+    _lbVisibleCount = Math.max(_lbVisibleCount, LB_PAGE_SIZE);
+  } else if (options.append) {
+    _lbExpanded = true;
+    _lbVisibleCount += LB_PAGE_SIZE;
+  }
+
   const el = document.getElementById('leaderboardList');
   const subEl = document.getElementById('lbAuroraSub');
   if (subEl) subEl.textContent = LB_SORT_LABELS[sort] || LB_SORT_LABELS.earners;
 
-  // Update tab active state
   document.querySelectorAll('.lb-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.sort === sort);
   });
@@ -1976,88 +2158,48 @@ async function loadLeaderboard(sort) {
 
   try {
     const fetchMe = _lbMeId !== null ? Promise.resolve({ user: { id: _lbMeId } }) : fetch('/api/me').then(r => r.json()).catch(() => ({}));
-    const [data, meData] = await Promise.all([
-      fetch('/api/leaderboard?sort=' + sort).then(r => r.json()),
+    const requestLimit = _lbExpanded ? _lbVisibleCount : LB_PAGE_SIZE;
+    const params = new URLSearchParams({ sort, offset: '0', limit: String(requestLimit) });
+    const [payload, meData] = await Promise.all([
+      fetch('/api/leaderboard?' + params.toString()).then(r => r.json()),
       fetchMe,
     ]);
     if (_lbMeId === null) _lbMeId = meData.user?.id || '';
     const myId = _lbMeId || null;
+    const data = Array.isArray(payload?.results) ? payload.results : Array.isArray(payload) ? payload : [];
+    const total = Number(payload?.total || data.length || 0);
 
     if (!data.length) {
+      updateLeaderboardControls({ total: 0, results: [], has_more: false, my_rank: payload?.my_rank || null }, sort);
       el.innerHTML = `<div class="empty-state"><div class="icon">⚡</div><h3>No builders ranked yet</h3><p>Win a bounty to claim your spot on the leaderboard.</p></div>`;
       return;
     }
 
-    // Total sats distributed (earners tab only)
     const totalEl = document.getElementById('lbTotalSats');
     const totalValEl = document.getElementById('lbTotalSatsVal');
     if (totalEl && totalValEl) {
       if (sort === 'earners') {
-        const totalSats = data.reduce((s, u) => s + Number(u.total_sats), 0);
-        if (totalSats > 0) { totalValEl.textContent = totalSats.toLocaleString(); totalEl.style.display = ''; }
-        else totalEl.style.display = 'none';
+        const totalSats = Number(payload?.total_sats_distributed || data.reduce((s, u) => s + Number(u.total_sats), 0));
+        if (totalSats > 0) {
+          totalValEl.textContent = totalSats.toLocaleString();
+          totalEl.style.display = '';
+        } else {
+          totalEl.style.display = 'none';
+        }
       } else {
         totalEl.style.display = 'none';
       }
     }
 
-    const maxVal = Math.max(1, ...data.map(u => Number(u.sort_val)));
-
-    const BADGE_MAP = { first_build:'🔨', first_sats:'⚡', demo_champ:'🏆', streak:'🔥' };
-
-    const rankEl = (rank) => {
-      if (rank === 1) return `<span class="lb-medal lb-medal-gold">1</span>`;
-      if (rank === 2) return `<span class="lb-medal lb-medal-silver">2</span>`;
-      if (rank === 3) return `<span class="lb-medal lb-medal-bronze">3</span>`;
-      return `<span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted);min-width:28px;text-align:center;display:inline-block">#${rank}</span>`;
-    };
-
-    const primaryStat = (u) => {
-      if (sort === 'zappers')  return `🤙 ${Number(u.sort_val).toLocaleString()}`;
-      if (sort === 'projects') return `📦 ${Number(u.sort_val)}`;
-      if (sort === 'active')   return `⚡ ${Number(u.sort_val)} actions`;
-      return `⚡ ${Number(u.total_sats).toLocaleString()}`;
-    };
-
-    // Column header labels based on sort
-    const primaryLabel = sort === 'zappers' ? 'Sats Zapped' : sort === 'projects' ? 'Projects' : sort === 'active' ? 'Activity' : 'Sats Earned';
-    const headerRow = `<div class="lb-row" style="padding:4px 16px;background:none;border:none;opacity:0.6;font-size:0.6rem;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted2)">
-      <div class="lb-rank" style="min-width:28px"></div>
-      <div class="lb-avatar-wrap" style="width:36px"></div>
-      <div class="lb-name-col" style="flex:1">Builder</div>
-      <div class="lb-bar-wrap"></div>
-      <div class="lb-stat lb-sats">${primaryLabel}</div>
-      ${sort === 'earners' ? '<div class="lb-stat lb-meta">Zaps Sent</div>' : ''}
-      ${sort !== 'projects' ? '<div class="lb-stat lb-meta">Projects</div>' : ''}
-      <div class="lb-stat lb-meta">Bounties</div>
-    </div>`;
-
-    el.innerHTML = `<div class="lb-table">${headerRow}` + data.map(u => {
-      const badgePills = u.badges.map(b =>
-        `<span class="lb-badge-pill" title="${b.replace(/_/g,' ')}">${BADGE_MAP[b] || '🏅'}</span>`
-      ).join('');
-      const avatarHtml = u.avatar
-        ? `<img class="lb-avatar" src="${esc(u.avatar)}" alt="" onerror="this.style.display='none'">`
-        : `<div class="lb-avatar lb-avatar-placeholder">${esc((u.name||'?')[0].toUpperCase())}</div>`;
-      const tierClass = u.rank === 1 ? 'lb-rank-gold' : u.rank === 2 ? 'lb-rank-silver' : u.rank === 3 ? 'lb-rank-bronze' : '';
-      const selfClass = (myId && u.user_id === myId) ? 'lb-row-self' : '';
-      const barPct = Math.round((Number(u.sort_val) / maxVal) * 100);
-      return `
-        <div class="lb-row ${tierClass} ${selfClass}" onclick="location.href='/profile/${esc(u.user_id)}'" style="cursor:pointer">
-          <div class="lb-rank">${rankEl(u.rank)}</div>
-          <div class="lb-avatar-wrap">${avatarHtml}</div>
-          <div class="lb-name-col">
-            <a href="/profile/${esc(u.user_id)}" class="lb-name">${esc(u.name)}</a>
-            <div class="lb-badges">${badgePills}</div>
-          </div>
-          <div class="lb-bar-wrap"><div class="lb-bar-fill" style="width:${barPct}%"></div></div>
-          <div class="lb-stat lb-sats">${primaryStat(u)}</div>
-          ${sort === 'earners' ? `<div class="lb-stat lb-meta" title="Zaps sent">🤙 ${getLeaderboardCountDisplay(u.zaps_sent)}</div>` : ''}
-          ${sort !== 'projects' ? `<div class="lb-stat lb-meta">📦 ${getLeaderboardCountDisplay(u.projects_count)}</div>` : ''}
-          <div class="lb-stat lb-meta">🏆 ${getLeaderboardWonDisplay(u.bounties_won)}</div>
-        </div>`;
-    }).join('') + `</div>`;
+    el.innerHTML = renderLeaderboardRows(data, sort, myId);
+    updateLeaderboardControls({
+      total,
+      results: data,
+      has_more: !!payload?.has_more,
+      my_rank: payload?.my_rank || null,
+    }, sort);
   } catch {
+    updateLeaderboardControls({ total: 0, results: [], has_more: false, my_rank: null }, sort);
     el.innerHTML = `<div class="error-state"><span>⚠️</span><p>Failed to load leaderboard.</p><button onclick="loadLeaderboard()">Retry</button></div>`;
   }
 }
@@ -2071,28 +2213,40 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProjectDecksDropdown();
 });
 
-// Load leaderboard lazily when sidebar tab is clicked
-let _lbLoaded = false;
 document.querySelectorAll('.sidebar-link').forEach(link => {
   if (link.dataset.view === 'leaderboard') {
     link.addEventListener('click', () => {
-      if (!_lbLoaded) { _lbLoaded = true; loadLeaderboard('earners'); }
+      if (!_lbLoaded) {
+        _lbLoaded = true;
+        loadLeaderboard('earners', { mode: 'top' });
+      }
     });
   }
 });
 
-// Leaderboard sort tab clicks
 document.addEventListener('click', e => {
   const tab = e.target.closest('.lb-tab');
-  if (!tab) return;
-  const sort = tab.dataset.sort;
-  if (sort && sort !== _lbCurrentSort) loadLeaderboard(sort);
+  if (tab) {
+    const sort = tab.dataset.sort;
+    if (sort) loadLeaderboard(sort);
+    return;
+  }
+
+  const browseToggle = e.target.closest('#lbBrowseToggle');
+  if (browseToggle) {
+    loadLeaderboard(_lbCurrentSort, { mode: _lbExpanded ? 'top' : 'full' });
+    return;
+  }
+
+  const loadMoreBtn = e.target.closest('#lbLoadMoreBtn');
+  if (loadMoreBtn) {
+    loadLeaderboard(_lbCurrentSort, { append: true });
+  }
 });
 
-// Deep-link: auto-load leaderboard if hash is set
 if (window.location.hash === '#leaderboard' && !_lbLoaded) {
   _lbLoaded = true;
-  loadLeaderboard('earners');
+  loadLeaderboard('earners', { mode: 'top' });
 }
 </script>
 <script src="/js/auth.js"></script>
