@@ -116,6 +116,46 @@
   </div>
 </div>
 
+<!-- Edit Bounty Modal -->
+<div class="modal-overlay" id="editBountyModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeEditBountyModal()">&times;</button>
+    <div class="modal-title">Edit Bounty</div>
+    <input type="hidden" id="editBountyId" value="">
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" id="editBountyTitle" placeholder="What needs to be built?">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="editBountyDescription" placeholder="Describe the requirements, deliverables, and success criteria..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Reward (sats)</label>
+        <input type="number" id="editBountySats" min="1" placeholder="50000">
+      </div>
+      <div class="form-group">
+        <label>Deadline (optional)</label>
+        <input type="date" id="editBountyDeadline">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Tags (comma-separated)</label>
+      <input type="text" id="editBountyTags" placeholder="frontend, bitcoin, tool">
+    </div>
+    <div class="form-group">
+      <label>Link to Event (optional)</label>
+      <select id="editBountyEvent"><option value="">None</option></select>
+    </div>
+    <div id="editBountyNotice" style="display:none;font-size:0.78rem;color:var(--muted2);margin-bottom:14px;padding:10px 12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--glass)"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEditBountyModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBountyEdits(document.getElementById('editBountyId').value)">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <footer class="footer"><div class="footer-brand">LunarPad — Build. Ship. Earn sats.</div><div class="footer-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://github.com/satsdisco/lunarpad" target="_blank" rel="noopener">Docs</a><a href="https://github.com/satsdisco/lunarpad/issues" target="_blank" rel="noopener">Changelog</a><a href="https://github.com/satsdisco/lunarpad" target="_blank" rel="noopener">GitHub</a></div></footer>
 
 <script>
@@ -186,15 +226,19 @@ function renderTimeline(status, hasSubmissions) {
 
 // ─── Render Page ──────────────────────────────────────────────────────────
 
+let _editableBounty = null;
+let _bountyEvents = [];
+
 async function loadBounty() {
   const id = window.location.pathname.split('/').pop();
   if (!id) { document.getElementById('bountyContent').innerHTML = '<div class="error-state"><span>⚠️</span><p>Bounty not found.</p></div>'; return; }
 
   try {
-    const [bRes, meRes, lnCfgRes] = await Promise.all([
+    const [bRes, meRes, lnCfgRes, eventsRes] = await Promise.all([
       fetch('/api/bounties/' + id),
       fetch('/api/me'),
       fetch('/api/config/lightning'),
+      fetch('/api/events').catch(() => null),
     ]);
 
     if (!bRes.ok) {
@@ -205,6 +249,7 @@ async function loadBounty() {
     const b = await bRes.json();
     const me = await meRes.json();
     const lnCfg = await lnCfgRes.json();
+    const events = eventsRes && eventsRes.ok ? await eventsRes.json() : [];
 
     // Fetch submissions, winner LN address, and payments in parallel
     const [projRes, winnerRes, paymentsRes] = await Promise.all([
@@ -223,6 +268,8 @@ async function loadBounty() {
     const participants = b.participants || [];
     const alreadyJoined = me.user && participants.some(p => p.user_name === me.user.name || p.user_id === me.user.id);
     const isAdmin = !!(me.user && me.user.is_admin);
+    const canEditBounty = !!(me.user && (isAdmin || (b.created_by && b.created_by === me.user.id)));
+    const linkedEvent = b.event_id ? events.find(ev => ev.id === b.event_id) : null;
     const isWinner = me.user && b.winner_id && b.winner_id === me.user.id;
     const hasSubmitted = me.user && submissions.some(p => p.user_id === me.user.id);
 
@@ -416,6 +463,20 @@ async function loadBounty() {
     const daysSince = Math.floor((Date.now() - createdAt) / 86400000);
     const daysSinceLabel = daysSince === 0 ? 'today' : daysSince === 1 ? '1 day ago' : daysSince + ' days ago';
 
+    _editableBounty = {
+      ...b,
+      tags: tags.join(', '),
+      can_change_amount: confirmedPayments.length === 0,
+    };
+    _bountyEvents = Array.isArray(events) ? events : [];
+
+    const linkedEventHtml = linkedEvent
+      ? `<a class="deadline-chip normal" href="/event/${esc(linkedEvent.id)}" style="text-decoration:none">🎤 ${esc(linkedEvent.name)}</a>`
+      : '';
+    const editBountyBtn = canEditBounty
+      ? `<button class="btn" style="padding:9px 16px;font-size:0.82rem" onclick="openEditBountyModal()">✏️ Edit Bounty</button>`
+      : '';
+
     // Build full page
     document.getElementById('bountyContent').innerHTML = `
       ${timeline}
@@ -424,6 +485,7 @@ async function loadBounty() {
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
           <div style="display:flex;align-items:flex-start;gap:10px;flex:1;min-width:0">
             <h1 class="bounty-hero-title" style="flex:1;min-width:0">${esc(b.title)}</h1>
+            ${editBountyBtn}
             <button class="bounty-share-btn" id="shareBountyBtn" onclick="shareBounty()" title="Copy link">
               &#x1F517; Share
             </button>
@@ -435,6 +497,7 @@ async function loadBounty() {
         ${fundingProgressHtml}
         <div class="bounty-hero-meta">
           ${dl ? `<span class="deadline-chip ${dl.tone || (dl.overdue ? 'overdue' : 'normal')}">⏰ ${esc(dl.label)}</span>` : ''}
+          ${linkedEventHtml}
           <span style="font-size:0.75rem;color:var(--muted2)">Posted ${esc(new Date(b.created_at).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'}))}</span>
         </div>
       </div>
@@ -500,6 +563,81 @@ function copyAdminLn() {
     const el = document.getElementById('adminLnText');
     if (el) { const r = document.createRange(); r.selectNode(el); window.getSelection().removeAllRanges(); window.getSelection().addRange(r); }
   });
+}
+
+function closeEditBountyModal() {
+  document.getElementById('editBountyModal').classList.remove('open');
+}
+
+async function populateEditBountyEvents(selectedEventId = '') {
+  let events = Array.isArray(_bountyEvents) ? _bountyEvents : [];
+  if (!events.length) {
+    const res = await fetch('/api/events');
+    events = res.ok ? await res.json() : [];
+    _bountyEvents = events;
+  }
+  const sel = document.getElementById('editBountyEvent');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">None</option>';
+  events.forEach(ev => {
+    const opt = document.createElement('option');
+    opt.value = ev.id;
+    opt.textContent = ev.name;
+    if (selectedEventId && ev.id === selectedEventId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+async function openEditBountyModal(bounty) {
+  const current = bounty || _editableBounty;
+  if (!current) return;
+  await populateEditBountyEvents(current.event_id || '');
+  document.getElementById('editBountyId').value = current.id || '';
+  document.getElementById('editBountyTitle').value = current.title || '';
+  document.getElementById('editBountyDescription').value = current.description || '';
+  document.getElementById('editBountySats').value = current.sats_amount || '';
+  document.getElementById('editBountyDeadline').value = current.deadline || '';
+  document.getElementById('editBountyTags').value = current.tags || '';
+  const notice = document.getElementById('editBountyNotice');
+  if (notice) {
+    if (current.can_change_amount === false) {
+      notice.textContent = 'Reward amount is locked because funding has already started. You can still update the copy, deadline, and linked event.';
+      notice.style.display = '';
+      document.getElementById('editBountySats').disabled = true;
+    } else {
+      notice.style.display = 'none';
+      notice.textContent = '';
+      document.getElementById('editBountySats').disabled = false;
+    }
+  }
+  document.getElementById('editBountyModal').classList.add('open');
+}
+
+async function saveBountyEdits(bountyId) {
+  const title = document.getElementById('editBountyTitle').value.trim();
+  const description = document.getElementById('editBountyDescription').value.trim();
+  const sats_amount = parseInt(document.getElementById('editBountySats').value) || 0;
+  const deadline = document.getElementById('editBountyDeadline').value || null;
+  const tags = document.getElementById('editBountyTags').value.trim();
+  const event_id = document.getElementById('editBountyEvent').value || null;
+  if (!title) return alert('Title is required');
+  if (!sats_amount) return alert('Reward amount is required');
+  try {
+    const r = await fetch('/api/bounties/' + bountyId, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ title, description, sats_amount, deadline, tags, event_id })
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      alert(e.error || 'Failed to save bounty changes');
+      return;
+    }
+    closeEditBountyModal();
+    loadBounty();
+  } catch {
+    alert('Failed to save bounty changes');
+  }
 }
 
 async function joinBounty(id) {

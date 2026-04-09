@@ -192,6 +192,7 @@ db.exec(`
     status      TEXT DEFAULT 'open',
     tags        TEXT,
     event_id    TEXT,
+    created_by  TEXT,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -528,6 +529,9 @@ const MIGRATIONS = [
   { name: 'v024_event_end_times', sql: [
     'ALTER TABLE events ADD COLUMN end_time TEXT',
     'ALTER TABLE events ADD COLUMN ends_at_utc TEXT',
+  ]},
+  { name: 'v025_bounty_creators', sql: [
+    'ALTER TABLE bounties ADD COLUMN created_by TEXT',
   ]},
 ];
 
@@ -1335,12 +1339,12 @@ app.post('/api/bounties', requireAuth, (req, res) => {
   const { title, description, sats_amount, sats, deadline, status, tags, event_id } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: 'title required' });
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, deadline, status, tags, event_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  db.prepare(`INSERT INTO bounties (id, title, description, sats_amount, deadline, status, tags, event_id, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, title.trim(), description || null,
     parseInt(sats_amount || sats) || 0, deadline || null,
     status || 'open', Array.isArray(tags) ? tags.join(',') : (tags || null),
-    event_id || null
+    event_id || null, req.user.id
   );
   res.json({ id });
 });
@@ -1350,6 +1354,32 @@ app.get('/api/bounties/:id', (req, res) => {
   if (!row) return res.status(404).json({ error: 'Not found' });
   row.participants = db.prepare('SELECT id, user_id, user_name, created_at FROM bounty_participants WHERE bounty_id = ? ORDER BY created_at ASC').all(req.params.id);
   res.json(row);
+});
+
+app.put('/api/bounties/:id', requireAuth, (req, res) => {
+  const bounty = db.prepare('SELECT * FROM bounties WHERE id = ?').get(req.params.id);
+  if (!bounty) return res.status(404).json({ error: 'Not found' });
+  if (!req.user.is_admin && bounty.created_by !== req.user.id) return res.status(403).json({ error: 'Not authorized' });
+  const { title, description, sats_amount, deadline, tags, event_id } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ error: 'title required' });
+  const linkedEvent = event_id ? db.prepare('SELECT id FROM events WHERE id = ?').get(event_id) : null;
+  if (event_id && !linkedEvent) return res.status(400).json({ error: 'Linked event not found' });
+  const nextAmount = parseInt(sats_amount) || 0;
+  if (!nextAmount) return res.status(400).json({ error: 'reward amount required' });
+  const confirmedFunding = db.prepare("SELECT COUNT(*) as c FROM bounty_payments WHERE bounty_id = ? AND payment_type = 'fund' AND status = 'confirmed'").get(req.params.id)?.c || 0;
+  if (confirmedFunding > 0 && nextAmount !== Number(bounty.sats_amount || 0)) {
+    return res.status(409).json({ error: 'Reward amount can no longer change after funding starts' });
+  }
+  db.prepare('UPDATE bounties SET title = ?, description = ?, sats_amount = ?, deadline = ?, tags = ?, event_id = ? WHERE id = ?').run(
+    title.trim(),
+    description || null,
+    nextAmount,
+    deadline || null,
+    Array.isArray(tags) ? tags.join(',') : (tags || null),
+    event_id || null,
+    req.params.id
+  );
+  res.json({ ok: true });
 });
 
 // Join a bounty
