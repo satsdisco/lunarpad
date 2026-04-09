@@ -31,8 +31,14 @@ test('event page calendar link uses provided end time instead of hard-coded dura
   assert.doesNotMatch(eventHtml, /const endDate = new Date\(startDate\.getTime\(\) \+ \(2 \* 60 \* 60 \* 1000\)\);/);
 });
 
-test('main event hero no longer renders the long inline meta row with local-time copy', () => {
+test('event page hero no longer renders the long inline meta row with local-time copy', () => {
   const eventHtml = read('public', 'event.html');
   assert.doesNotMatch(eventHtml, /<div class="event-hero-meta">/);
   assert.doesNotMatch(eventHtml, /🌍 \$\{esc\(localizedViewerTime\)\}/);
+});
+
+test('upcoming events page no longer renders verbose date-time-location meta rows', () => {
+  const buildHtml = read('public', 'build.html');
+  assert.doesNotMatch(buildHtml, /<div class="event-hero-meta">🗓 \$\{esc\(dateStr\)\}/);
+  assert.doesNotMatch(buildHtml, /<div class="event-details" style="margin-top:8px"><span>🗓 \$\{esc\(dateStr\)\}<\/span>/);
 });

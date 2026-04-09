@@ -1165,7 +1165,6 @@ function renderHeroBanner(ev) {
         <div class="event-hero-type-badge ${badgeClass}">${icon} ${typeLabel}</div>
         <div class="event-hero-badge" style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:rgba(57,217,138,0.12);border:1px solid rgba(57,217,138,0.25);border-radius:100px;color:#39d98a;font-size:0.65rem;font-weight:800;margin-bottom:10px"><span style="width:6px;height:6px;border-radius:50%;background:#39d98a;animation:live-pulse 1.5s ease infinite"></span> NEXT UP</div>
         <h2 class="event-hero-title">${esc(ev.name)}</h2>
-        <div class="event-hero-meta">🗓 ${esc(dateStr)}${timeStr ? ` · 🕒 ${esc(timeStr)}` : ''}${ev.location ? ` · 📍 ${esc(ev.location)}` : ''}</div>
         ${desc ? `<p class="event-hero-desc">${esc(desc)}</p>` : ''}
         ${renderHeroAttendeeStack(ev)}
         <div style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Event starts in</div>
@@ -1227,7 +1226,6 @@ function renderEventCard(ev) {
             <div class="event-name" style="margin-top:8px">${esc(ev.name)}</div>
           </div>
         </div>
-        <div class="event-details" style="margin-top:8px"><span>🗓 ${esc(dateStr)}</span>${timeStr ? `<span>🕒 ${esc(timeStr)}</span>` : ''}${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}</div>
         <div style="display:flex;gap:12px;margin-top:10px;font-size:0.78rem;color:var(--muted)">
           <span>👥 ${speakerCount} speaker${speakerCount !== 1 ? 's' : ''}</span>
         </div>
