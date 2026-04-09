@@ -502,6 +502,28 @@
 
 <footer class="footer"><div class="footer-brand">LunarPad — Build. Ship. Earn sats.</div><div class="footer-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://github.com/satsdisco/lunarpad" target="_blank" rel="noopener">Docs</a><a href="https://github.com/satsdisco/lunarpad/issues" target="_blank" rel="noopener">Changelog</a><a href="https://github.com/satsdisco/lunarpad" target="_blank" rel="noopener">GitHub</a></div></footer>
 
+<div class="modal-overlay" id="eventEditModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeEventEditModal()">&times;</button>
+    <div class="modal-title">Edit Event</div>
+    <div class="form-group"><label>Event Name</label><input type="text" id="editEventName" placeholder="Enter event name..."></div>
+    <div class="form-group"><label>Description</label><textarea id="editEventDesc" placeholder="What is this event about?"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label><select id="editEventType"><option value="demo-day">Demo Day</option><option value="hackathon">Hackathon</option><option value="bounty">Bounty Hunt</option><option value="meetup">Meetup</option><option value="workshop">Workshop</option></select></div>
+      <div class="form-group"><label>Date</label><input type="date" id="editEventDate"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Time</label><input type="text" id="editEventTime" inputmode="numeric" placeholder="18:00 or 6:00pm"></div>
+      <div class="form-group"><label>Location</label><input type="text" id="editEventLocation" placeholder="Remote / Dubai / Virtual — Link TBA"></div>
+    </div>
+    <div class="form-group"><label>Virtual Link (optional)</label><input type="url" id="editEventVirtualLink" placeholder="https://..."></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEventEditModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEventEdits()">Save Event</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const eventId = window.location.pathname.split('/').pop();
 let eventData = null;
@@ -509,6 +531,83 @@ let eventData = null;
 function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
 function timeAgo(ds) { const m = Math.floor((Date.now()-new Date(ds).getTime())/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; const h=Math.floor(m/60); if(h<24)return h+'h ago'; return Math.floor(h/24)+'d ago'; }
 function initials(name) { return String(name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(); }
+function canEditEvent(ev, currentUser) {
+  const capabilities = ev?.viewer_event_capabilities || currentUser?.capabilities || {};
+  return !!(currentUser && (currentUser.is_admin || capabilities.event_edit));
+}
+
+function openEventEditModal() {
+  if (!eventData) return;
+  document.getElementById('editEventName').value = eventData.name || '';
+  document.getElementById('editEventDesc').value = eventData.description || '';
+  document.getElementById('editEventType').value = eventData.event_type || eventData.type || 'demo-day';
+  document.getElementById('editEventDate').value = eventData.date || '';
+  document.getElementById('editEventTime').value = eventData.time || '';
+  document.getElementById('editEventLocation').value = eventData.location || '';
+  document.getElementById('editEventVirtualLink').value = eventData.virtual_link || '';
+  document.getElementById('eventEditModal')?.classList.add('open');
+}
+
+function closeEventEditModal() {
+  document.getElementById('eventEditModal')?.classList.remove('open');
+}
+
+function normalizeEventTimeInput(rawValue) {
+  const value = String(rawValue || '').trim().toLowerCase();
+  if (!value) return '';
+  const compact = value.replace(/\s+/g, '');
+  const match = compact.match(/^(\d{1,2})(?::?(\d{2}))?(am|pm)?$/i);
+  if (!match) return '';
+  let hours = Number(match[1]);
+  const minutes = match[2] === undefined || match[2] === '' ? 0 : Number(match[2]);
+  const meridiem = match[3] ? match[3].toLowerCase() : '';
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) return '';
+  if (meridiem) {
+    if (hours < 1 || hours > 12) return '';
+    if (meridiem === 'am') hours = hours === 12 ? 0 : hours;
+    if (meridiem === 'pm') hours = hours === 12 ? 12 : hours + 12;
+  } else if (hours < 0 || hours > 23) {
+    return '';
+  }
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+async function saveEventEdits() {
+  const name = document.getElementById('editEventName').value.trim();
+  const description = document.getElementById('editEventDesc').value.trim();
+  const event_type = document.getElementById('editEventType').value;
+  const date = document.getElementById('editEventDate').value;
+  const timeInput = document.getElementById('editEventTime');
+  const time = normalizeEventTimeInput(timeInput.value);
+  const location = document.getElementById('editEventLocation').value.trim();
+  const virtual_link = document.getElementById('editEventVirtualLink').value.trim();
+  if (timeInput && time) timeInput.value = time;
+  if (!name || !date || !time) return alert('Name, date, and time required');
+  const res = await fetch('/api/events/' + eventId, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description, event_type, date, time, location, virtual_link })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return alert(data.error || 'Failed to update event');
+  closeEventEditModal();
+  loadEvent();
+}
+
+function renderEventOperatorControls(ev, currentUser) {
+  if (!canEditEvent(ev, currentUser)) return '';
+  return `
+    <div class="event-about-section" id="eventOperatorControls">
+      <div class="event-about-heading">Admin controls</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+        <div style="display:grid;gap:6px;min-width:0">
+          <div style="font-size:0.9rem;color:var(--text);font-weight:700">Update the event schedule and details</div>
+          <div style="font-size:0.82rem;color:var(--muted);line-height:1.6">As an admin or organizer, you can update the title, date, time, location, and links here without touching the database directly.</div>
+        </div>
+        <button class="btn btn-primary" id="operatorEditEventBtn">✏️ Edit Event</button>
+      </div>
+    </div>`;
+}
 
 function getEventStartDate(ev) {
   if (!ev?.date || !ev?.time) return null;
@@ -679,6 +778,7 @@ async function loadEvent() {
     const attendeesHtml = renderAttendeesSection(rsvpRes);
     const currentUser = meRes?.user || null;
     const userPresenting = !!(currentUser && speakers.some((sp) => sp.user_id && sp.user_id === currentUser.id));
+    const canEditThisEvent = canEditEvent(ev, currentUser);
 
     const attendingBadge = rsvpCount > 0 ? `<span>👥 ${rsvpCount} attending</span>` : '';
 
@@ -700,6 +800,9 @@ async function loadEvent() {
         : '<button class="btn btn-primary" id="presentToggle" ' + btnStyle + ' aria-pressed="false">🎤 Present</button>';
       heroActionsHtml += '<button class="btn" id="shareBtn" ' + btnStyle + '>Share</button>';
       heroActionsHtml += '<a class="btn" id="addToCalBtn" ' + btnStyle + ' style="display:none;font-size:0.82rem;padding:7px 16px;border-radius:20px">📅 Calendar</a>';
+      if (canEditThisEvent) {
+        heroActionsHtml += '<button class="btn" id="editEventBtn" ' + btnStyle + '>✏️ Edit Event</button>';
+      }
     }
     heroActionsHtml += '<a class="btn" id="goLiveBtn" style="display:none;font-size:0.82rem;padding:7px 16px;border-radius:20px" href="#" target="_blank">🔴 Go Live</a>';
 
@@ -716,6 +819,7 @@ async function loadEvent() {
     const heroColor = heroTypeColors[evTypeRaw] || '#7c5cfc';
     const hasResults = !!(resultsArtifact || ev.result_summary || liveSummary?.results_url);
     const resultsHtml = renderResultsSection(resultsArtifact, liveSummary, speakers);
+    const operatorControlsHtml = renderEventOperatorControls(ev, currentUser);
 
     document.getElementById('eventContent').innerHTML = `
       <div class="event-hero" style="display:flex;align-items:flex-start;gap:24px">
@@ -753,6 +857,7 @@ async function loadEvent() {
       </div>` : ''}
 
       ${attendeesHtml}
+      ${operatorControlsHtml}
 
       ${resultsHtml}
 
@@ -803,6 +908,10 @@ async function loadEvent() {
 
     // Wire up action buttons (avoiding inline onclick with escaping issues)
     const shareBtn = document.getElementById('shareBtn');
+    const editEventBtn = document.getElementById('editEventBtn');
+    const operatorEditEventBtn = document.getElementById('operatorEditEventBtn');
+    if (editEventBtn) editEventBtn.onclick = () => openEventEditModal();
+    if (operatorEditEventBtn) operatorEditEventBtn.onclick = () => openEventEditModal();
     if (shareBtn) shareBtn.onclick = function() {
       if (navigator.share) {
         navigator.share({ title: ev.name + ' — LunarPad', url: window.location.href }).catch(() => {});

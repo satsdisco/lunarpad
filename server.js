@@ -411,6 +411,26 @@ const MIGRATIONS = [
       END`,
     'CREATE INDEX IF NOT EXISTS idx_speakers_event_queue ON speakers(event_id, queue_position, status)',
   ]},
+  { name: 'v022_rsvp_dedup_guards', sql: [
+    `DELETE FROM rsvps
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM rsvps
+        WHERE user_id IS NOT NULL
+        GROUP BY event_id, user_id
+      )
+      AND user_id IS NOT NULL`,
+    `DELETE FROM rsvps
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM rsvps
+        GROUP BY event_id, lower(COALESCE(email, ''))
+      )
+      AND user_id IS NULL
+      AND email IS NOT NULL`,
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_event_user_unique ON rsvps(event_id, user_id) WHERE user_id IS NOT NULL',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_event_email_unique ON rsvps(event_id, lower(email)) WHERE email IS NOT NULL',
+  ]},
 ];
 
 // Run pending migrations
@@ -1292,6 +1312,29 @@ app.post('/api/events', requireAuth, (req, res) => {
     location || null, virtual_link || null
   );
   res.json({ id });
+});
+
+app.put('/api/events/:id', requireAuth, (req, res) => {
+  if (!req.user?.is_admin) return res.status(403).json({ error: 'Admin access required' });
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Not found' });
+  const { name, description, event_type, date, time, location, virtual_link } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  if (!date) return res.status(400).json({ error: 'date required' });
+  if (!time) return res.status(400).json({ error: 'time required' });
+  db.prepare(`UPDATE events
+    SET name = ?, description = ?, event_type = ?, date = ?, time = ?, location = ?, virtual_link = ?
+    WHERE id = ?`).run(
+      name.trim(),
+      description || null,
+      event_type || 'demo-day',
+      date,
+      time,
+      location || null,
+      virtual_link || null,
+      req.params.id
+    );
+  res.json({ ok: true });
 });
 
 // Admin: delete event
@@ -2268,12 +2311,24 @@ app.get('/api/events/:id/speakers', (req, res) => {
 app.post('/api/events/:id/rsvp', requireAuth, (req, res) => {
   const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
-  const existing = db.prepare('SELECT id FROM rsvps WHERE event_id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (existing) return res.status(409).json({ error: 'Already RSVP\'d' });
-  const id = crypto.randomUUID();
   const name = req.user.name || req.user.email || 'Anonymous';
+  const email = req.user.email || null;
+  const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
+  const existing = normalizedEmail
+    ? db.prepare(`SELECT id, user_id FROM rsvps WHERE event_id = ? AND (user_id = ? OR lower(email) = ?) ORDER BY created_at ASC`).get(req.params.id, req.user.id, normalizedEmail)
+    : db.prepare('SELECT id, user_id FROM rsvps WHERE event_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (existing) {
+    if (!existing.user_id) {
+      db.prepare('UPDATE rsvps SET user_id = ?, name = ?, email = ? WHERE id = ?').run(req.user.id, name, email, existing.id);
+      if (normalizedEmail) {
+        db.prepare('DELETE FROM rsvps WHERE event_id = ? AND id <> ? AND (user_id = ? OR lower(email) = ?)').run(req.params.id, existing.id, req.user.id, normalizedEmail);
+      }
+    }
+    return res.status(409).json({ error: 'Already RSVP\'d' });
+  }
+  const id = crypto.randomUUID();
   db.prepare('INSERT INTO rsvps (id, event_id, name, email, user_id) VALUES (?, ?, ?, ?, ?)').run(
-    id, req.params.id, name, req.user.email || null, req.user.id
+    id, req.params.id, name, email, req.user.id
   );
   res.json({ id });
 });
