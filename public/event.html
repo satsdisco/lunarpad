@@ -24,7 +24,14 @@
   margin-bottom: 12px;
 }
 .event-hero-name { font-size: 1.6rem; font-weight: 800; color: var(--text); margin-bottom: 8px; }
-.event-hero-meta { font-size: 0.88rem; color: var(--muted); margin-bottom: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+.event-hero-description {
+  max-width: 720px;
+  font-size: 0.94rem;
+  color: var(--text2);
+  line-height: 1.72;
+  white-space: pre-wrap;
+  margin-bottom: 22px;
+}
 .event-hero-row { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 20px; }
 .event-hero-actions { display: flex; gap: 8px; }
 .event-hero-countdown { display: flex; gap: 8px; }
@@ -411,7 +418,7 @@
   .event-hero { padding: 20px; }
   .event-hero-name { font-size: 1.2rem; }
   .event-hero-row { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .event-hero-meta { margin-bottom: 16px; gap: 10px; }
+  .event-hero-description { font-size: 0.88rem; margin-bottom: 18px; }
   .event-hero-countdown {
     width: 100%;
     flex-wrap: wrap;
@@ -890,6 +897,7 @@ async function loadEvent() {
           <div class="event-hero-type">${esc(evTypeRaw)}${endedBadge}</div>
           <div class="event-hero-name">${esc(ev.name)}</div>
           ${prizeDiv}
+          ${ev.description ? `<div class="event-hero-description">${esc(ev.description)}</div>` : ''}
           <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px" id="countdownLabel">Event starts in</div>
           <div class="event-hero-countdown">
             <div class="cd-unit"><div class="cd-val" id="cd-d">--</div><div class="cd-label">Days</div></div>
@@ -907,13 +915,6 @@ async function loadEvent() {
           <div style="font-family:var(--font-mono);font-size:0.7rem;font-weight:500;color:var(--muted);margin-top:4px">${calWeekday}</div>
         </div>
       </div>
-
-      <!-- About This Event -->
-      ${ev.description ? `
-      <div class="event-about-section">
-        <div class="event-about-heading">About This Event</div>
-        <div class="event-about-body">${esc(ev.description)}</div>
-      </div>` : ''}
 
       ${attendeesHtml}
       ${operatorControlsHtml}

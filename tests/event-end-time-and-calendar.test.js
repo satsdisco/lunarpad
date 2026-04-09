@@ -37,6 +37,12 @@ test('event page hero no longer renders the long inline meta row with local-time
   assert.doesNotMatch(eventHtml, /🌍 \$\{esc\(localizedViewerTime\)\}/);
 });
 
+test('event description now lives inside the hero instead of a separate about card', () => {
+  const eventHtml = read('public', 'event.html');
+  assert.match(eventHtml, /\$\{ev\.description \? `<div class="event-hero-description">\$\{esc\(ev\.description\)\}<\/div>` : ''\}/);
+  assert.doesNotMatch(eventHtml, /<div class="event-about-heading">About This Event<\/div>/);
+});
+
 test('upcoming events page no longer renders verbose date-time-location meta rows', () => {
   const buildHtml = read('public', 'build.html');
   assert.doesNotMatch(buildHtml, /<div class="event-hero-meta">🗓 \$\{esc\(dateStr\)\}/);
