@@ -536,6 +536,7 @@
 <script>
 const eventId = window.location.pathname.split('/').pop();
 let eventData = null;
+let speakerVotePollInterval = null;
 
 function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
 function timeAgo(ds) { const m = Math.floor((Date.now()-new Date(ds).getTime())/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; const h=Math.floor(m/60); if(h<24)return h+'h ago'; return Math.floor(h/24)+'d ago'; }
@@ -689,6 +690,31 @@ function renderEventOperatorControls(ev, currentUser) {
       </div>
     </div>`;
 }
+
+function stopSpeakerVotePolling() {
+  if (speakerVotePollInterval) {
+    clearInterval(speakerVotePollInterval);
+    speakerVotePollInterval = null;
+  }
+}
+
+function startSpeakerVotePolling(speakers) {
+  stopSpeakerVotePolling();
+  const activeSpeakers = (speakers || []).filter((speaker) => speaker?.id);
+  if (!activeSpeakers.length || document.hidden) return;
+  speakerVotePollInterval = setInterval(() => {
+    hydrateSpeakerVoteState(activeSpeakers).catch(() => {});
+  }, 3000);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopSpeakerVotePolling();
+    return;
+  }
+  startSpeakerVotePolling(eventData?.speakers || []);
+  hydrateSpeakerVoteState(eventData?.speakers || []).catch(() => {});
+});
 
 function renderAttendeesSection(rsvpPayload) {
   const attendees = Array.isArray(rsvpPayload?.rsvps) ? rsvpPayload.rsvps : [];
@@ -965,6 +991,8 @@ async function loadEvent() {
 
     startCountdown();
     loadDecksDropdown();
+    hydrateSpeakerVoteState(speakers).catch(() => {});
+    startSpeakerVotePolling(speakers);
 
     // Wire up action buttons (avoiding inline onclick with escaping issues)
     const editEventBtn = document.getElementById('editEventBtn');
@@ -1047,7 +1075,7 @@ function renderSpeaker(sp, rank) {
     ? `<a href="${profileLink}" class="spk-card-name" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()">${esc(sp.name)}</a>`
     : `<div class="spk-card-name">${esc(sp.name)}</div>`;
   return `
-    <div class="speaker-card" ${sp.deck_id ? `onclick="window.location='/deck/${sp.deck_id}'" style="cursor:pointer"` : ''}>
+    <div class="speaker-card" data-speaker-id="${esc(sp.id)}" ${sp.deck_id ? `onclick="window.location='/deck/${sp.deck_id}'" style="cursor:pointer"` : ''}>
       <div class="spk-avatar" style="background:${avatarBg}">${initials}</div>
       <div class="spk-card-body">
         ${nameEl}
@@ -1063,7 +1091,7 @@ function renderSpeaker(sp, rank) {
       </div>
       <div class="spk-card-right">
         <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--muted2);text-align:center">${rankLabel}</div>
-        <button class="vote-btn" onclick="event.stopPropagation();voteSpeaker('${esc(sp.id)}',this)">
+        <button class="vote-btn" onclick="event.stopPropagation();voteSpeaker('${esc(sp.id)}',this)" title="Audience vote for this presentation.">
           <span class="arrow">▲</span><span class="vc">${sp.votes||0}</span>
         </button>
         ${_currentUser && _currentUser.is_admin && !isPresented ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:3px 8px;border-radius:12px;margin-top:6px" onclick="event.stopPropagation();markSpeakerPresented('${esc(sp.id)}')">Mark Presented</button>` : ''}
@@ -1071,6 +1099,7 @@ function renderSpeaker(sp, rank) {
         ${_currentUser && _currentUser.is_admin && isSkipped ? `<button class="btn btn-ghost" style="padding:6px 10px;font-size:0.72rem" onclick="event.stopPropagation();undoSpeakerSkipped('${esc(sp.id)}')">Undo Skip</button>` : ''}
         ${sp.user_id && _currentUser && (sp.user_id === _currentUser.id || _currentUser.is_admin) && !isPresented ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:3px 8px;border-radius:12px;color:var(--danger);border-color:var(--danger);margin-top:6px" onclick="event.stopPropagation();withdrawSpeaker('${esc(sp.id)}')">Withdraw</button>` : ''}
       </div>
+      <div class="speaker-card-help">Audience vote stays session-specific here: vote for what resonated in this event.</div>
     </div>`;
 }
 
@@ -1175,8 +1204,33 @@ async function submitSpeaker() {
 async function voteSpeaker(id, btn) {
   const r = await fetch('/api/vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'speaker',id})});
   const d = await r.json();
+  if (!r.ok) { alert(d.error || 'Failed to vote'); return; }
   btn.querySelector('.vc').textContent = d.votes;
   btn.classList.toggle('voted', d.voted);
+  const card = document.querySelector(`[data-speaker-id="${id}"]`);
+  if (card) {
+    const count = card.querySelector('.vc');
+    if (count) count.textContent = d.votes;
+  }
+}
+
+async function hydrateSpeakerVoteState(speakers) {
+  const ids = (speakers || []).map((speaker) => speaker.id).filter(Boolean);
+  if (!ids.length) return;
+  try {
+    const state = await fetch('/api/vote/check?type=speaker&ids=' + encodeURIComponent(ids.join(','))).then((r) => r.json());
+    ids.forEach((id) => {
+      const card = document.querySelector(`[data-speaker-id="${id}"]`);
+      const btn = card?.querySelector('.vote-btn');
+      const voteState = state?.[id];
+      if (!btn || !voteState) return;
+      btn.classList.toggle('voted', !!voteState.voted);
+      const count = String(voteState.votes || 0);
+      btn.querySelector('.vc').textContent = count;
+      const mirrored = card.querySelector('.vc');
+      if (mirrored) mirrored.textContent = count;
+    });
+  } catch {}
 }
 
 async function withdrawSpeaker(id) {
