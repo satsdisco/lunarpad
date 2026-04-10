@@ -806,11 +806,13 @@ function renderProjectCard(p) {
   const satsLabel = p.total_sats_received > 0
     ? `<span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--btc-bright);opacity:.85">⚡${Number(p.total_sats_received).toLocaleString()}</span>`
     : '';
-  const visualSrc = p.thumbnail_url || p.banner_url || projectVisual(p.name, p.category, 400, 120);
+  const visualSrc = p.banner_url || p.thumbnail_url || projectVisual(p.name, p.category, 400, 120);
   const statusTone = window.LunarUiRules ? window.LunarUiRules.getProjectStatusTone(p.status) : 'building';
   return `
     <div class="project-card project-card-${statusTone}" onclick="if(!event.target.closest('.project-upvote')&&!event.target.closest('.spk-link'))window.location='/project/${p.id}'" style="cursor:pointer">
-      <img class="project-card-visual" src="${visualSrc}" alt="">
+      <div class="project-card-media">
+        <img class="project-card-visual" src="${visualSrc}" alt="">
+      </div>
       <div class="project-card-body">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;gap:10px">
           <div class="project-name">${esc(p.name)}</div>

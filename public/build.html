@@ -1605,7 +1605,7 @@ function renderProjectCards(projects) {
     const editBannerBtn = isOwner ? `<button class="proj-banner-edit-btn" onclick="event.stopPropagation(); triggerBannerUpload('${esc(p.id)}')" title="${p.banner_url ? 'Change banner' : 'Add banner'}">📷</button>` : '';
     return `
       <div class="project-card project-card-${statusTone}" id="proj-${esc(p.id)}" onclick="if(!event.target.closest('.project-upvote')&&!event.target.closest('.spk-link')&&!event.target.closest('.proj-zap-btn')&&!event.target.closest('.proj-banner-edit-btn'))window.location='/project/'+this.id.replace('proj-','')" style="cursor:pointer">
-        <div style="position:relative">
+        <div class="project-card-media">
           <img class="project-card-visual" src="${visualSrc}" alt="">
           ${editBannerBtn}
         </div>

@@ -37,11 +37,27 @@ const ADMIN_LN_ADDRESS = 'lunarpad@21m.lol';
 const LNBITS_URL = process.env.LNBITS_URL || 'https://21m.lol';
 const LNBITS_INVOICE_KEY = process.env.LNBITS_INVOICE_KEY || '';
 const LNBITS_ADMIN_KEY = process.env.LNBITS_ADMIN_KEY || '';
-const LNBITS_WEBHOOK_SECRET=process.env.LNBITS_WEBHOOK_SECRET || '';
+const LNBITS_WEBHOOK_SECRET = process.env.LNBITS_WEBHOOK_SECRET || '';
 const EARLY_ADOPTER_CUTOFF_AT = new Date('2026-04-10T23:59:59.999Z');
+const PROJECT_HERO_WIDTH = 1600;
+const PROJECT_HERO_HEIGHT = 900;
 
 for (const dir of [UPLOADS_DIR, THUMBNAILS_DIR, TEMP_DIR, AVATARS_DIR]) {
   fs.mkdirSync(dir, { recursive: true });
+}
+
+async function normalizeProjectHeroImage(filePath) {
+  if (!sharp) return;
+  const processed = await sharp(filePath)
+    .rotate()
+    .resize(PROJECT_HERO_WIDTH, PROJECT_HERO_HEIGHT, {
+      fit: 'cover',
+      position: 'centre',
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 86, mozjpeg: true })
+    .toBuffer();
+  fs.writeFileSync(filePath, processed);
 }
 
 const FALLBACK_EVENT_TIMEZONES = [
@@ -1955,12 +1971,9 @@ app.post('/api/projects/:id/banner', requireAuth, bannerUpload.single('banner'),
       return res.status(500).json({ error: 'Failed to save banner' });
     }
   }
-  if (sharp) {
-    try {
-      const processed = await sharp(destPath).resize(800, 450, { fit: 'cover', position: 'centre' }).toBuffer();
-      fs.writeFileSync(destPath, processed);
-    } catch (_) {}
-  }
+  try {
+    await normalizeProjectHeroImage(destPath);
+  } catch (_) {}
   const bannerUrl = '/avatars/' + filename;
   db.prepare('UPDATE projects SET banner_url = ? WHERE id = ?').run(bannerUrl, req.params.id);
   res.json({ ok: true, banner_url: bannerUrl });
