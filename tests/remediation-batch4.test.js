@@ -53,7 +53,9 @@ test('project presentations tab shows an explicit empty state when no deck exist
   const projectHtml = read('public', 'project.html');
   assert.match(projectHtml, /function renderPresentationsEmptyState/);
   assert.match(projectHtml, /No presentations yet/);
-  assert.match(projectHtml, /Upload the first presentation version to populate this tab/);
+  assert.match(projectHtml, /Add the first presentation now by uploading one or linking a deck you already published/);
+  assert.match(projectHtml, /Upload Presentation/);
+  assert.match(projectHtml, /Link Existing Presentation/);
 });
 
 test('bounty timeline inactive steps and create bounty CTA have stronger visual treatment', () => {

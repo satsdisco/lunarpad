@@ -92,6 +92,27 @@
   </div>
 </div>
 
+<!-- Link Existing Presentation Modal -->
+<div class="modal-overlay" id="linkExistingDeckModal">
+  <div class="modal-content" style="max-width:440px">
+    <button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('open')">&times;</button>
+    <div class="modal-title">Link Existing Presentation</div>
+    <div class="form-group">
+      <label>Choose a deck you've already uploaded</label>
+      <select id="existingDeckSelect"><option value="">Loading decks…</option></select>
+      <div id="existingDeckCopy" style="font-size:0.78rem;color:var(--muted2);margin-top:6px">Attach a deck from the DEX so this project can show it later.</div>
+    </div>
+    <div class="form-group">
+      <label>Version Label <span style="color:var(--muted2);font-weight:400">(optional)</span></label>
+      <input type="text" id="existingDeckLabel" placeholder="e.g. Demo Day v1, Investor Cut…">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" id="linkExistingDeckBtn" onclick="submitExistingDeckLink()">Attach Presentation</button>
+    </div>
+  </div>
+</div>
+
 <!-- Project Zap Modal -->
 <div class="modal-overlay" id="zapModal">
   <div class="modal-content" style="max-width:440px;text-align:center">
@@ -717,15 +738,60 @@ function switchPresentationsView(deckId, entryPoint) {
   if (iframe) iframe.src = `/presentations/${deckId}/${entryPoint}`;
 }
 
+function openProjectDeckActionModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  if (modalId === 'linkExistingDeckModal') loadExistingDeckOptions();
+  modal.classList.add('open');
+}
+
+async function loadExistingDeckOptions() {
+  const sel = document.getElementById('existingDeckSelect');
+  const copy = document.getElementById('existingDeckCopy');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading decks…</option>';
+  try {
+    const res = await fetch('/api/decks?limit=48');
+    const data = await res.json();
+    const decks = data.decks || [];
+    sel.innerHTML = '';
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = decks.length ? 'Choose a presentation…' : 'No uploaded decks available';
+    sel.appendChild(defaultOption);
+    decks.forEach((deck) => {
+      const option = document.createElement('option');
+      option.value = deck.id;
+      option.textContent = deck.title || deck.filename || deck.id;
+      sel.appendChild(option);
+    });
+    if (copy) {
+      copy.textContent = decks.length
+        ? 'Pick a deck from the DEX to attach it as the current project presentation.'
+        : 'Upload a deck to the DEX first, then come back here to attach it.';
+    }
+  } catch {
+    sel.innerHTML = '<option value="">Unable to load decks</option>';
+    if (copy) copy.textContent = 'Could not load your available decks right now.';
+  }
+}
+
 function renderPresentationsEmptyState(canManage) {
   const manageCopy = canManage
-    ? 'Upload the first presentation version to populate this tab.'
+    ? 'Add the first presentation now by uploading one or linking a deck you already published.'
     : 'This project has not added any presentation decks yet.';
+  const actionRow = canManage
+    ? `<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px">
+        <button class="btn btn-sm" onclick="openProjectDeckActionModal('uploadVersionModal')">Upload Presentation</button>
+        <button class="btn btn-sm" onclick="openProjectDeckActionModal('linkExistingDeckModal')">Link Existing Presentation</button>
+      </div>`
+    : '';
   return `
     <div class="empty-state" style="padding:36px 20px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--glass)">
       <div class="icon">🪐</div>
       <h3>No presentations yet</h3>
       <p>${manageCopy}</p>
+      ${actionRow}
     </div>`;
 }
 
@@ -825,8 +891,11 @@ async function loadDeckVersions(project) {
       if (overviewEmbed) overviewEmbed.innerHTML = `<div style="margin-bottom:20px">${embedHtml}</div>`;
     }
 
-    const uploadBtn = canManage
-      ? `<button class="btn btn-sm" style="font-size:0.7rem" onclick="document.getElementById('uploadVersionModal').classList.add('open')">+ New Version</button>`
+    const manageButtons = canManage
+      ? `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn btn-sm" style="font-size:0.7rem" onclick="openProjectDeckActionModal('uploadVersionModal')">Upload Presentation</button>
+          <button class="btn btn-sm" style="font-size:0.7rem" onclick="openProjectDeckActionModal('linkExistingDeckModal')">Link Existing Presentation</button>
+        </div>`
       : '';
 
     const count = versions.length || (project.deck_id ? 1 : 0);
@@ -834,7 +903,7 @@ async function loadDeckVersions(project) {
       <div style="margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <span style="font-family:var(--font-mono);font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent)">Version History (${count})</span>
-          ${uploadBtn}
+          ${manageButtons}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">${items}</div>
       </div>`;
@@ -867,15 +936,39 @@ async function submitVersionUpload() {
     document.getElementById('uploadVersionModal').classList.remove('open');
     fileInput.value = ''; document.getElementById('versionLabel').value = '';
     document.getElementById('versionFileName').textContent = 'Drop file or click to browse';
-    loadDeckVersions(currentProject);
+    loadProject();
   } catch(e) { alert('Upload failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = 'Upload'; document.getElementById('versionUploadProgress').style.display = 'none'; }
+}
+
+async function submitExistingDeckLink() {
+  const deckId = document.getElementById('existingDeckSelect').value;
+  const label = document.getElementById('existingDeckLabel').value.trim();
+  if (!deckId) return alert('Please choose a presentation');
+  const btn = document.getElementById('linkExistingDeckBtn');
+  btn.disabled = true; btn.textContent = 'Attaching…';
+  try {
+    const r = await fetch('/api/projects/' + projectId + '/decks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deck_id: deckId, label: label || null })
+    });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); alert(e.error || 'Attach failed'); return; }
+    document.getElementById('linkExistingDeckModal').classList.remove('open');
+    document.getElementById('existingDeckSelect').value = '';
+    document.getElementById('existingDeckLabel').value = '';
+    loadProject();
+  } catch(e) {
+    alert('Attach failed: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Attach Presentation';
+  }
 }
 
 async function setCurrentVersion(projId, versionId) {
   try {
     const r = await fetch('/api/projects/' + projId + '/decks/' + versionId + '/set-current', { method: 'PATCH' });
-    if (r.ok) loadDeckVersions(currentProject);
+    if (r.ok) loadProject();
     else { const e = await r.json().catch(()=>({})); alert(e.error || 'Failed'); }
   } catch { alert('Failed to set version'); }
 }

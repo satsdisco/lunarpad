@@ -1042,6 +1042,9 @@ function canManageProject(project, user) {
   return !!project.user_id && user.id === project.user_id;
 }
 
+function syncProjectDeckPointer(projectId, deckId) {
+  db.prepare('UPDATE projects SET deck_id = ? WHERE id = ?').run(deckId || null, projectId);
+}
 
 function requireAdmin(req, res, next) {
   if (req.user && req.user.is_admin) return next();
@@ -3031,6 +3034,7 @@ app.post('/api/projects/:id/decks', requireAuth, (req, res) => {
   const id = crypto.randomUUID();
   db.prepare('INSERT INTO project_decks (id, project_id, deck_id, version, label, is_current) VALUES (?, ?, ?, ?, ?, 1)')
     .run(id, req.params.id, deck_id, version, resolvedLabel);
+  syncProjectDeckPointer(req.params.id, deck_id);
 
   // Mark deck hidden so it won't appear in gallery
   db.prepare('UPDATE decks SET hidden = 1 WHERE id = ?').run(deck_id);
@@ -3088,6 +3092,7 @@ app.post('/api/projects/:id/decks/upload', requireAuth, upload.single('file'), a
     const versionId = crypto.randomUUID();
     db.prepare('INSERT INTO project_decks (id, project_id, deck_id, version, label, is_current) VALUES (?, ?, ?, ?, ?, 1)')
       .run(versionId, req.params.id, deckId, version, resolvedLabel);
+    syncProjectDeckPointer(req.params.id, deckId);
 
     generateThumbnail(deckId, entryPoint).catch(err => {
       console.warn(`[thumb] ${deckId}: ${err.message}`);
@@ -3123,7 +3128,10 @@ app.delete('/api/projects/:id/decks/:version_id', requireAuth, (req, res) => {
   if (entry.is_current) {
     const prev = db.prepare('SELECT * FROM project_decks WHERE project_id = ? ORDER BY version DESC LIMIT 1')
       .get(req.params.id);
-    if (prev) db.prepare('UPDATE project_decks SET is_current = 1 WHERE id = ?').run(prev.id);
+    if (prev) {
+      db.prepare('UPDATE project_decks SET is_current = 1 WHERE id = ?').run(prev.id);
+      syncProjectDeckPointer(req.params.id, prev.deck_id);
+    }
   }
 
   res.json({ ok: true });
@@ -3143,6 +3151,7 @@ app.patch('/api/projects/:id/decks/:version_id/set-current', requireAuth, (req, 
 
   db.prepare('UPDATE project_decks SET is_current = 0 WHERE project_id = ?').run(req.params.id);
   db.prepare('UPDATE project_decks SET is_current = 1 WHERE id = ?').run(req.params.version_id);
+  syncProjectDeckPointer(req.params.id, entry.deck_id);
 
   res.json({ ok: true });
 });
