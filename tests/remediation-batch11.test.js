@@ -32,6 +32,9 @@ test('build page onboarding stays focused on the two real setup tasks', () => {
   assert.match(html, /function handleOnboardingAction/);
   assert.match(html, /profileStatus\.hidden = !state\.profileReady/);
   assert.match(html, /projectStatus\.hidden = !state\.hasProject/);
+  assert.match(html, /const profileReady = !!\(user && \(user\.bio \|\| user\.website_url \|\| user\.github_url \|\| user\.lightning_address\)\);/);
+  assert.doesNotMatch(html, /Add a bio, links, lightning, or availability/);
+  assert.match(html, /Add a bio, links, or lightning so people know who you are\./);
   assert.match(html, /viewName === 'project'/);
   assert.doesNotMatch(html, /Explore the live flow/);
   assert.doesNotMatch(html, /Browse build flow/);
@@ -40,7 +43,7 @@ test('build page onboarding stays focused on the two real setup tasks', () => {
   assert.match(css, /\.onboarding-progress \{/);
   assert.match(css, /\.onboarding-steps \{/);
   assert.match(css, /\.onboarding-step-actions \{/);
-  assert.match(css, /\.onboarding-step-status \{/);
+  assert.match(css, /\.onboarding-task-btn \{/);
   assert.match(css, /\.onboarding-shortcuts \{/);
   assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(css, /@media \(max-width: 768px\) \{[\s\S]*\.onboarding-progress \{/);

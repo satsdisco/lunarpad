@@ -27,12 +27,14 @@ test('profile page renders an onboarding-aware setup card with direct setup acti
   assert.match(html, /Edit bio/);
   assert.match(html, /Add links/);
   assert.match(html, /Add lightning/);
-  assert.match(html, /Set availability/);
+  assert.match(html, /const checklist = getProfileOnboardingChecklist\(user\);/);
+  assert.doesNotMatch(html, /key: 'availability'[\s\S]*actionLabel: 'Set availability'/);
+  assert.doesNotMatch(html, /3\/4 profile basics done/);
   assert.match(html, /\$\{onboardingCard\}/);
 
-  assert.match(css, /\.profile-onboarding-card \{/);
-  assert.match(css, /\.profile-onboarding-head \{/);
-  assert.match(css, /\.profile-onboarding-steps \{/);
-  assert.match(css, /\.profile-onboarding-step \{/);
-  assert.match(css, /\.profile-onboarding-actions \{/);
+  assert.match(html, /class="profile-onboarding-card"/);
+  assert.match(html, /class="profile-onboarding-head"/);
+  assert.match(html, /class="profile-onboarding-steps"/);
+  assert.match(html, /profile-onboarding-step\$\{item\.done \? ' done' : ''\}/);
+  assert.match(html, /class="profile-onboarding-actions"/);
 });

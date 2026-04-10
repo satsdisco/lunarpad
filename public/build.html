@@ -258,7 +258,7 @@
             <span class="onboarding-step-index">1</span>
             <div class="onboarding-step-copy">
               <strong>Set up your profile</strong>
-              <span id="onboardingProfileCopy">Add a bio, links, lightning, or availability so people know who you are.</span>
+              <span id="onboardingProfileCopy">Add a bio, links, or lightning so people know who you are.</span>
             </div>
             <div class="onboarding-step-actions">
               <span class="onboarding-step-status" id="onboardingProfileStatus" hidden></span>
@@ -763,7 +763,7 @@ function writeOnboardingProgress(progress) {
 }
 
 function getOnboardingChecklistState(user = onboardingState.user, projectCount = onboardingState.projectCount) {
-  const profileReady = !!(user && (user.bio || user.website_url || user.github_url || user.lightning_address || user.skills || user.available_hours !== null && user.available_hours !== undefined && user.available_hours !== ''));
+  const profileReady = !!(user && (user.bio || user.website_url || user.github_url || user.lightning_address));
   const hasProject = Number(projectCount || 0) > 0;
   const completedCount = [profileReady, hasProject].filter(Boolean).length;
   return { profileReady, hasProject, completedCount, total: 2, allDone: completedCount === 2 };
@@ -795,7 +795,7 @@ function renderOnboardingChecklist() {
     projectStatus.textContent = state.hasProject ? 'Done' : '';
     projectStatus.hidden = !state.hasProject;
   }
-  if (profileCopy) profileCopy.textContent = state.profileReady ? 'Your profile has enough signal now that people can tell who you are.' : 'Add a bio, links, lightning, or availability so people know who you are.';
+  if (profileCopy) profileCopy.textContent = state.profileReady ? 'Your profile has enough signal now that people can tell who you are.' : 'Add a bio, links, or lightning so people know who you are.';
   if (projectCopy) projectCopy.textContent = state.hasProject ? `You already have ${onboardingState.projectCount} project${onboardingState.projectCount === 1 ? '' : 's'} on the board.` : 'Ship something small so people can see what you are building.';
   [
     [profileCard, state.profileReady],

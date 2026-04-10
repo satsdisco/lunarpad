@@ -124,13 +124,6 @@ function getProfileOnboardingChecklist(user) {
       actionLabel: 'Add lightning',
       action: 'lightning',
     },
-    {
-      key: 'availability',
-      label: 'Availability',
-      done: !!(String(user?.skills || '').trim() || user?.available_hours !== null && user?.available_hours !== undefined && user?.available_hours !== ''),
-      actionLabel: 'Set availability',
-      action: 'availability',
-    },
   ];
 }
 
