@@ -3354,92 +3354,141 @@ app.get('/api/users/:id/activity-chart', (req, res) => {
 
 // ─── Unified Vote API ─────────────────────────────────────────────────────────
 
-// POST /api/vote — body: { type: 'deck'|'speaker'|'project'|'comment', id }
-app.post('/api/vote', requireAuth, (req, res) => {
-  const { type, id } = req.body;
-  if (!['deck', 'speaker', 'project', 'comment', 'idea'].includes(type) || !id) {
-    return res.status(400).json({ error: 'type (deck|speaker|project|comment) and id required' });
+function isContentVoteType(type) {
+  return ['deck', 'project'].includes(type);
+}
+
+function isEventSessionVoteType(type) {
+  return type === 'speaker';
+}
+
+function isSupportedVoteType(type) {
+  return isContentVoteType(type) || isEventSessionVoteType(type) || ['comment', 'idea'].includes(type);
+}
+
+function getVoteActorId(req) {
+  return req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+}
+
+function getVoteState(type, id, voter) {
+  return {
+    votes: stmts.getVoteCount.get(type, id).c,
+    voted: !!stmts.hasVoted.get(type, id, voter),
+  };
+}
+
+function getVoteStateMap(type, ids, voter) {
+  const result = {};
+  for (const id of ids) result[id] = getVoteState(type, id, voter);
+  return result;
+}
+
+function assertEventSessionVoteAllowed(type, id) {
+  if (!isEventSessionVoteType(type)) return;
+  const speakerVotingState = db.prepare(`
+    SELECT ls.voting_open, ls.is_active, ls.current_speaker_id, ls.status, COALESCE(s.status, 'scheduled') AS speaker_status
+    FROM speakers s
+    LEFT JOIN live_sessions ls ON ls.event_id = s.event_id
+    WHERE s.id = ?
+  `).get(id);
+  if (speakerVotingState?.is_active) {
+    const finalVotingSession = speakerVotingState.status === 'voting' && !speakerVotingState.current_speaker_id;
+    const finalVotingOpen = Number(speakerVotingState.voting_open || 0)
+      && finalVotingSession
+      && speakerVotingState.speaker_status !== 'skipped';
+    if (!finalVotingOpen) throw new Error('Voting is closed for this speaker right now');
   }
-  if (type === 'speaker') {
-    const speakerVotingState = db.prepare(`
-      SELECT ls.voting_open, ls.is_active, ls.current_speaker_id, ls.status, COALESCE(s.status, 'scheduled') AS speaker_status
-      FROM speakers s
-      LEFT JOIN live_sessions ls ON ls.event_id = s.event_id
-      WHERE s.id = ?
-    `).get(id);
-    if (speakerVotingState?.is_active) {
-      const currentSpeakerVoting = Number(speakerVotingState.voting_open || 0) && speakerVotingState.current_speaker_id === id;
-      const finalVotingSession = speakerVotingState.status === 'voting' && !speakerVotingState.current_speaker_id;
-      const finalVotingOpen = Number(speakerVotingState.voting_open || 0)
-        && finalVotingSession
-        && speakerVotingState.speaker_status !== 'skipped';
-      const votingAllowed = finalVotingOpen;
-      if (!votingAllowed) {
-        return res.status(409).json({ error: 'Voting is closed for this speaker right now' });
-      }
-    }
+}
+
+function notifyVoteTarget(type, id, req) {
+  const actorName = req.user.name || req.user.email || 'Someone';
+  if (type === 'deck') {
+    const _d = stmts.getById.get(id);
+    if (_d?.uploaded_by) notify(_d.uploaded_by, 'vote', req.user.id, actorName, 'deck', id, _d.title);
+  } else if (type === 'project') {
+    const _p = db.prepare('SELECT user_id, name FROM projects WHERE id = ?').get(id);
+    if (_p?.user_id) notify(_p.user_id, 'vote', req.user.id, actorName, 'project', id, _p.name);
+  } else if (type === 'comment') {
+    const _c = db.prepare('SELECT user_id, content FROM comments WHERE id = ?').get(id);
+    if (_c?.user_id) notify(_c.user_id, 'vote', req.user.id, actorName, 'comment', id, (_c.content || '').substring(0, 50));
+  } else if (type === 'idea') {
+    const _i = db.prepare('SELECT user_id, title FROM ideas WHERE id = ?').get(id);
+    if (_i?.user_id) notify(_i.user_id, 'vote', req.user.id, actorName, 'idea', id, _i.title);
   }
-  const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
-  const existing = stmts.hasVoted.get(type, id, voter);
-  if (existing) {
-    stmts.removeVote.run(type, id, voter);
-  } else {
-    stmts.addVote.run(type, id, voter);
-    // Notify on upvote
-    const actorName = req.user.name || req.user.email || 'Someone';
-    if (type === 'deck') {
-      const _d = stmts.getById.get(id);
-      if (_d?.uploaded_by) notify(_d.uploaded_by, 'vote', req.user.id, actorName, 'deck', id, _d.title);
-    } else if (type === 'project') {
-      const _p = db.prepare('SELECT user_id, name FROM projects WHERE id = ?').get(id);
-      if (_p?.user_id) notify(_p.user_id, 'vote', req.user.id, actorName, 'project', id, _p.name);
-    } else if (type === 'comment') {
-      const _c = db.prepare('SELECT user_id, content FROM comments WHERE id = ?').get(id);
-      if (_c?.user_id) notify(_c.user_id, 'vote', req.user.id, actorName, 'comment', id, (_c.content || '').substring(0, 50));
-    } else if (type === 'idea') {
-      const _i = db.prepare('SELECT user_id, title FROM ideas WHERE id = ?').get(id);
-      if (_i?.user_id) notify(_i.user_id, 'vote', req.user.id, actorName, 'idea', id, _i.title);
-    }
-  }
-  const count = stmts.getVoteCount.get(type, id).c;
-  if (type === 'project' && !existing) {
+}
+
+function handleVoteSideEffects(type, id, wasExisting) {
+  if (type === 'project' && !wasExisting) {
     const proj = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(id);
     if (proj?.user_id) cachedBadgeCheck(proj.user_id);
   }
-  if (type === 'idea' && !existing) {
+  if (type === 'idea' && !wasExisting) {
     const idea = db.prepare('SELECT user_id FROM ideas WHERE id = ?').get(id);
     if (idea?.user_id) cachedBadgeCheck(idea.user_id);
   }
-  res.json({ votes: count, voted: !existing });
+}
+
+function toggleContentVote(type, id, voter, req) {
+  const existing = stmts.hasVoted.get(type, id, voter);
+  if (existing) stmts.removeVote.run(type, id, voter);
+  else {
+    stmts.addVote.run(type, id, voter);
+    notifyVoteTarget(type, id, req);
+  }
+  handleVoteSideEffects(type, id, !!existing);
+  const nextState = getVoteState(type, id, voter);
+  return { ...nextState, voted: !existing };
+}
+
+function toggleEventSessionVote(type, id, voter, req) {
+  assertEventSessionVoteAllowed(type, id);
+  const existing = stmts.hasVoted.get(type, id, voter);
+  if (existing) stmts.removeVote.run(type, id, voter);
+  else {
+    stmts.addVote.run(type, id, voter);
+    notifyVoteTarget(type, id, req);
+  }
+  const nextState = getVoteState(type, id, voter);
+  return { ...nextState, voted: !existing };
+}
+
+// POST /api/vote — body: { type: 'deck'|'speaker'|'project'|'comment', id }
+app.post('/api/vote', requireAuth, (req, res) => {
+  const { type, id } = req.body;
+  if (!isSupportedVoteType(type) || !id) {
+    return res.status(400).json({ error: 'type (deck|speaker|project|comment|idea) and id required' });
+  }
+  const voter = getVoteActorId(req);
+  try {
+    const voteResult = isEventSessionVoteType(type)
+      ? toggleEventSessionVote(type, id, voter, req)
+      : toggleContentVote(type, id, voter, req);
+    res.json(voteResult);
+  } catch (error) {
+    res.status(409).json({ error: error.message || 'Voting is unavailable right now' });
+  }
 });
 
 // GET /api/vote/count?type=X&id=Y
 app.get('/api/vote/count', (req, res) => {
   const { type, id } = req.query;
-  if (!['deck', 'speaker', 'project', 'comment', 'idea'].includes(type) || !id) {
+  if (!isSupportedVoteType(type) || !id) {
     return res.status(400).json({ error: 'type and id required' });
   }
-  const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
-  const count = stmts.getVoteCount.get(type, id).c;
-  const voted = !!stmts.hasVoted.get(type, id, voter);
-  res.json({ votes: count, voted });
+  const voter = getVoteActorId(req);
+  const voteState = getVoteState(type, id, voter);
+  res.json(voteState);
 });
 
 // GET /api/vote/check?type=X&ids=id1,id2,id3
 app.get('/api/vote/check', (req, res) => {
   const { type, ids } = req.query;
-  if (!['deck', 'speaker', 'project', 'comment', 'idea'].includes(type) || !ids) {
+  if (!isSupportedVoteType(type) || !ids) {
     return res.status(400).json({ error: 'type and ids required' });
   }
-  const voter = req.user ? req.user.id : (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  const voter = getVoteActorId(req);
   const idList = ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, 100);
-  const result = {};
-  for (const id of idList) {
-    result[id] = {
-      votes: stmts.getVoteCount.get(type, id).c,
-      voted: !!stmts.hasVoted.get(type, id, voter),
-    };
-  }
+  const result = getVoteStateMap(type, idList, voter);
   res.json(result);
 });
 
