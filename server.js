@@ -1091,6 +1091,7 @@ app.get('/build',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'publ
 app.get('/events',      requireAuth, (_, res) => res.redirect('/#events'));
 app.get('/projects',    requireAuth, (_, res) => res.redirect('/#projects'));
 app.get('/bounties',    requireAuth, (_, res) => res.redirect('/#bounties'));
+app.get('/bounties/completed', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'bounties-completed.html')));
 app.get('/leaderboard', requireAuth, (_, res) => res.redirect('/#leaderboard'));
 app.get('/speakers',    requireAuth, (_, res) => res.redirect('/#speakers'));
 // Catch bare routes without IDs — redirect to Build in Public

@@ -159,6 +159,77 @@ a:hover { color: var(--accent); }
 .sort-select:focus { border-color: var(--accent); }
 .sort-select option { background: var(--bg); }
 
+.bounty-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bounty-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(124,92,252,0.14);
+  background: rgba(124,92,252,0.05);
+}
+
+.bounty-filter-copy {
+  font-size: 0.78rem;
+  color: var(--text2);
+}
+
+.bounty-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bounty-page-shell {
+  padding: 32px 0 64px;
+}
+
+.bounty-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.bounty-page-title-wrap h1 {
+  font-family: var(--font-mono);
+  font-size: 1.45rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.bounty-page-title-wrap p {
+  color: var(--text2);
+  font-size: 0.82rem;
+  max-width: 620px;
+}
+
+@media (max-width: 760px) {
+  .bounty-filter-toolbar {
+    align-items: stretch;
+  }
+  .bounty-filter-controls,
+  .bounty-section-actions {
+    width: 100%;
+  }
+  .bounty-filter-controls .sort-select {
+    flex: 1 1 160px;
+  }
+}
+
 /* ─── Tags ───────────────────────────────────────────────────────────────── */
 .tag-bar-wrap {
   position: relative;
@@ -5233,12 +5304,143 @@ body::after {
   .fab,
   #contextualFab { display: none !important; }
 }
+@media (max-width: 768px) {
+  .header-actions .notif-bell {
+    width: 36px;
+    height: 36px;
+  }
+  .header-actions .notif-bell svg {
+    width: 18px;
+    height: 18px;
+  }
+  .header-actions .user-pill {
+    min-height: 36px;
+  }
+  .footer-links {
+    gap: 10px;
+  }
+  .footer-links a {
+    padding: 0 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .section-header {
+    align-items: stretch;
+  }
+  .section-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .build-content {
+    padding-top: 8px;
+  }
+  .onboarding-panel {
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .onboarding-panel-head {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .onboarding-copy {
+    font-size: 0.76rem;
+    line-height: 1.5;
+  }
+  .onboarding-progress {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .onboarding-progress-copy {
+    display: none;
+  }
+  .onboarding-step {
+    gap: 8px;
+    padding: 10px;
+  }
+  .onboarding-step-copy span {
+    display: none;
+  }
+  .toolbar {
+    padding: 12px 0 8px;
+    gap: 8px;
+  }
+  .decks-tag-overflow-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .decks-tag-overflow-hint::before {
+    content: '↔';
+    color: var(--accent);
+    font-size: 0.82rem;
+    line-height: 1;
+  }
+  .card-meta {
+    gap: 8px;
+  }
+  .card-meta-primary,
+  .card-meta-secondary {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .card-tags {
+    margin-top: 10px;
+  }
+  .foyer-header {
+    margin-bottom: 14px;
+  }
+  .foyer-layout {
+    gap: 8px;
+  }
+  .foyer-empty-card {
+    padding: 20px 14px;
+    gap: 10px;
+  }
+  .foyer-empty-cta {
+    width: 100%;
+    justify-content: center;
+  }
+  .foyer-sidebar {
+    padding: 12px;
+  }
+  .activity-feed {
+    min-height: auto;
+    padding: 12px;
+  }
+  .foyer-activity-empty {
+    display: grid;
+    gap: 4px;
+    padding: 0;
+    font-size: 0.76rem;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .foyer-activity-empty strong {
+    color: var(--text2);
+    font-size: 0.78rem;
+  }
+}
+
 @media (max-width: 480px) {
   .header { padding-left: 0.875rem; padding-right: 0.875rem; }
   .build-sidebar-shell,
   .build-content,
   .container { padding-left: 0.875rem; padding-right: 0.875rem; }
+  .nav-tab {
+    padding-left: 9px;
+    padding-right: 9px;
+    font-size: 0.7rem;
+  }
   .onboarding-title { font-size: 1.02rem; }
+  .onboarding-dismiss {
+    min-height: 30px;
+    padding: 0 10px;
+  }
   .card-meta-primary,
   .card-meta-secondary { flex-wrap: wrap; }
   .tag-overflow-hint { font-size: 0.62rem; }

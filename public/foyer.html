@@ -290,7 +290,10 @@ async function loadActivity() {
     const res = await fetch('/api/foyer/activity');
     const items = await res.json();
     const feed = document.getElementById('activityFeed');
-    if (!items.length) { feed.innerHTML = '<div class="foyer-empty" style="font-size:0.75rem">No activity yet</div>'; return; }
+    if (!items.length) {
+      feed.innerHTML = '<div class="foyer-activity-empty"><strong>No activity yet</strong><span>Once someone posts an idea or joins a thread, the latest foyer movement will show up here.</span></div>';
+      return;
+    }
     feed.innerHTML = items.map(a => {
       const icon = { zap: '⚡', join: '👥', new_idea: '💡', conversion: '🚀' }[a.type] || '•';
       const actor = esc(a.actor_name || 'Someone');

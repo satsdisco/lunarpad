@@ -35,7 +35,7 @@ test('decks filters and project deck attachment affordances are more discoverabl
   const css = read('public', 'css', 'style.css');
 
   assert.match(decksHtml, /decksTagBarWrap/);
-  assert.match(decksHtml, /Scroll for more deck filters →/);
+  assert.match(decksHtml, /(?:Scroll|Swipe) to (?:browse )?more deck filters →/);
   assert.match(buildHtml, /recommended if you already uploaded a deck/);
   assert.match(buildHtml, /Pick one of your \$\{decks\.length\} uploaded presentation/);
   assert.match(css, /\.decks-tag-overflow-hint \{/);

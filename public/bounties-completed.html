@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Completed Bounties — LunarPad</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="header">
+  <a href="/" class="logo">Lunar <span class="logo-slash"> \ </span><span class="logo-accent">Pad</span></a>
+  <nav class="nav-tabs">
+    <a href="/" class="nav-tab active">Build in Public</a>
+    <a href="/decks" class="nav-tab">Decks</a>
+    <a href="/foyer" class="nav-tab">The Foyer</a>
+  </nav>
+  <div class="header-actions" id="authArea"><div id="userArea"></div></div>
+</header>
+
+<main class="container bounty-page-shell">
+  <a href="/build#bounties" class="bounty-back">← Back to active bounties</a>
+  <div class="bounty-page-header">
+    <div class="bounty-page-title-wrap">
+      <h1>Completed Bounties</h1>
+      <p>Closed bounty work lives here after a winner is selected. Filter by label, status, or sats amount to review finished work.</p>
+    </div>
+    <a class="btn btn-sm btn-primary" href="/build#bounties">View active bounties</a>
+  </div>
+  <div class="bounty-filter-toolbar">
+    <div class="bounty-filter-copy" id="completedBountySummary">Loading completed bounties…</div>
+    <div class="bounty-filter-controls">
+      <select id="completedBountyLabelFilter" class="sort-select" aria-label="Filter completed bounties by label">
+        <option value="all">All labels</option>
+      </select>
+      <select id="completedBountyStatusFilter" class="sort-select" aria-label="Filter completed bounties by status">
+        <option value="all">All completed statuses</option>
+      </select>
+      <select id="completedBountySatsFilter" class="sort-select" aria-label="Filter completed bounties by sats amount">
+        <option value="all">All sats amounts</option>
+        <option value="under-50000">Under 50k sats</option>
+        <option value="50000-250000">50k–250k sats</option>
+        <option value="250000-plus">250k+ sats</option>
+      </select>
+    </div>
+  </div>
+  <div class="bounty-grid" id="completedBountyGrid">
+    <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:10px"></div><div class="skeleton sk-line sk-w-100" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:22px;margin-top:8px;border-radius:100px"></div></div>
+    <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:10px"></div><div class="skeleton sk-line sk-w-100" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:22px;margin-top:8px;border-radius:100px"></div></div>
+  </div>
+</main>
+
+<footer class="footer"><div class="footer-brand">LunarPad — Build. Ship. Earn sats.</div><div class="footer-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://github.com/satsdisco/lunarpad" target="_blank" rel="noopener">Docs</a><a href="https://github.com/satsdisco/lunarpad/issues" target="_blank" rel="noopener">Changelog</a><a href="https://github.com/satsdisco/lunarpad" target="_blank" rel="noopener">GitHub</a></div></footer>
+
+<script>
+'use strict';
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+function formatBountyDeadlineState(deadline) {
+  if (!deadline) return null;
+  const dueDate = new Date(deadline + 'T23:59:59');
+  if (Number.isNaN(dueDate.getTime())) return null;
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOfDueDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const diffDays = Math.round((startOfDueDate - startOfToday) / 86400000);
+  const prettyDate = dueDate.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  if (diffDays < 0) return { label: `Deadline passed: ${prettyDate}`, tone: 'overdue' };
+  if (diffDays === 0) return { label: 'Due today', tone: 'urgent' };
+  if (diffDays <= 3) return { label: `${diffDays} day${diffDays === 1 ? '' : 's'} left · ${prettyDate}`, tone: 'soon' };
+  return { label: `Deadline ${prettyDate}`, tone: 'normal' };
+}
+
+let completedBountyCollection = [];
+
+function isCompletedBountyStatus(status) {
+  return status === 'claimed' || status === 'completed';
+}
+
+function getCompletedBountyFilters() {
+  return {
+    label: document.getElementById('completedBountyLabelFilter')?.value || 'all',
+    status: document.getElementById('completedBountyStatusFilter')?.value || 'all',
+    sats: document.getElementById('completedBountySatsFilter')?.value || 'all',
+  };
+}
+
+function getCompletedBountyTotalSats(bounty) {
+  return Number(bounty?.final_payout_amount_sats || 0) || (Number(bounty?.sats_amount || 0) + Number(bounty?.funded_amount || 0));
+}
+
+function matchesCompletedBountySats(totalSats, filterValue) {
+  if (filterValue === 'under-50000') return totalSats < 50000;
+  if (filterValue === '50000-250000') return totalSats >= 50000 && totalSats <= 250000;
+  if (filterValue === '250000-plus') return totalSats > 250000;
+  return true;
+}
+
+function renderCompletedBountyFilters(bounties) {
+  const labelSelect = document.getElementById('completedBountyLabelFilter');
+  const statusSelect = document.getElementById('completedBountyStatusFilter');
+  const summary = document.getElementById('completedBountySummary');
+  if (!labelSelect || !statusSelect) return;
+  const current = getCompletedBountyFilters();
+  const labels = [...new Set(bounties.flatMap((b) => String(b.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b));
+  const statuses = [...new Set(bounties.map((b) => String(b.status || '').trim()).filter(Boolean))];
+  labelSelect.innerHTML = ['<option value="all">All labels</option>'].concat(labels.map((label) => `<option value="${esc(label)}">${esc(label)}</option>`)).join('');
+  statusSelect.innerHTML = ['<option value="all">All completed statuses</option>'].concat(statuses.map((status) => `<option value="${esc(status)}">${esc(status.replace(/_/g, ' '))}</option>`)).join('');
+  labelSelect.value = labels.includes(current.label) ? current.label : 'all';
+  statusSelect.value = statuses.includes(current.status) ? current.status : 'all';
+  if (summary) summary.textContent = `Showing ${bounties.length} completed bount${bounties.length === 1 ? 'y' : 'ies'}.`;
+}
+
+function renderCompletedBountyCards(bounties) {
+  return bounties.map((b) => {
+    const statusClass = b.status === 'claimed' ? 'claimed' : 'completed';
+    const statusLabel = b.status === 'claimed' ? 'Winner selected' : 'Resolved';
+    const tags = typeof b.tags === 'string' ? b.tags.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 3).map((tag) => `<span class="card-tag">${esc(tag)}</span>`).join('') : '';
+    const deadlineState = formatBountyDeadlineState(b.deadline);
+    const deadline = deadlineState ? `<span class="bounty-deadline ${deadlineState.tone}">⏳ ${esc(deadlineState.label)}</span>` : '';
+    const participantCount = Array.isArray(b.participants) ? b.participants.length : (b.participant_count || 0);
+    const totalSats = getCompletedBountyTotalSats(b);
+    const winner = b.winner_name ? `<div class="bc-winner">🏆 ${esc(b.winner_name)}</div>` : '';
+    return `
+      <div class="bounty-card status-${statusClass}" onclick="window.location.href='/bounty/${esc(b.id)}'" style="cursor:pointer">
+        <div class="bc-top">
+          <span class="bounty-status ${statusClass}">${statusLabel}</span>
+          ${deadline}
+        </div>
+        <div class="bc-title">${esc(b.title)}</div>
+        <div class="bc-prize-hero">
+          <span class="bc-prize-icon">⚡</span>
+          <span class="bc-prize-num">${totalSats.toLocaleString()}</span>
+          <span class="bc-prize-unit">sats</span>
+        </div>
+        ${winner}
+        <div class="bc-footer">
+          <span class="bc-builders">👥 ${participantCount} ${participantCount === 1 ? 'hunter' : 'hunters'}</span>
+          ${tags ? `<div class="bc-tags">${tags}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function filterCompletedBounties(bounties, filters = getCompletedBountyFilters()) {
+  return (Array.isArray(bounties) ? bounties : []).filter((bounty) => {
+    const status = String(bounty?.status || '');
+    if (!isCompletedBountyStatus(status)) return false;
+    if (filters.status !== 'all' && status !== filters.status) return false;
+    const tags = String(bounty?.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean);
+    if (filters.label !== 'all' && !tags.includes(filters.label)) return false;
+    return matchesCompletedBountySats(getCompletedBountyTotalSats(bounty), filters.sats);
+  });
+}
+
+function applyCompletedBountyFilters() {
+  const grid = document.getElementById('completedBountyGrid');
+  if (!grid) return;
+  const filtered = filterCompletedBounties(completedBountyCollection);
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚡</div><h3>No matching completed bounties</h3><p>Try a different label, status, or sats amount filter.</p></div>`;
+    return;
+  }
+  const sorted = [...filtered].sort((a, b) => getCompletedBountyTotalSats(b) - getCompletedBountyTotalSats(a));
+  grid.innerHTML = renderCompletedBountyCards(sorted);
+}
+
+async function loadCompletedBounties() {
+  const grid = document.getElementById('completedBountyGrid');
+  try {
+    const res = await fetch('/api/bounties');
+    const bounties = await res.json();
+    completedBountyCollection = (Array.isArray(bounties) ? bounties : []).filter((bounty) => isCompletedBountyStatus(String(bounty?.status || '')));
+    renderCompletedBountyFilters(completedBountyCollection);
+    if (!completedBountyCollection.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚡</div><h3>No completed bounties yet</h3><p>Once a bounty has a winner, it will move here.</p></div>`;
+      return;
+    }
+    applyCompletedBountyFilters();
+  } catch {
+    grid.innerHTML = `<div class="error-state" style="grid-column:1/-1"><span>⚠️</span><p>Failed to load completed bounties.</p><button onclick="loadCompletedBounties()">Retry</button></div>`;
+  }
+}
+
+document.addEventListener('change', (event) => {
+  if (event.target && ['completedBountyLabelFilter', 'completedBountyStatusFilter', 'completedBountySatsFilter'].includes(event.target.id)) {
+    applyCompletedBountyFilters();
+  }
+});
+</script>
+<script src="/js/auth.js"></script>
+<script>
+initAuth(() => {});
+loadCompletedBounties();
+</script>
+</body>
+</html>

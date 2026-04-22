@@ -355,7 +355,27 @@
         <div class="section-block" id="section-bounties">
           <div class="section-header">
             <span class="section-title">Bounties</span>
-            <button class="btn btn-sm btn-primary create-bounty-cta" id="createBountyBtn" style="display:none" onclick="document.getElementById('bountyCreateModal').classList.add('open')">+ Create Bounty</button>
+            <div class="bounty-section-actions">
+              <a class="btn btn-sm btn-ghost" href="/bounties/completed">Completed Bounties ↗</a>
+              <button class="btn btn-sm btn-primary create-bounty-cta" id="createBountyBtn" style="display:none" onclick="document.getElementById('bountyCreateModal').classList.add('open')">+ Create Bounty</button>
+            </div>
+          </div>
+          <div class="bounty-filter-toolbar">
+            <div class="bounty-filter-copy" id="bountyFilterSummary">Open bounties only. Filter by label, status, or sats amount.</div>
+            <div class="bounty-filter-controls">
+              <select id="bountyLabelFilter" class="sort-select" aria-label="Filter bounties by label">
+                <option value="all">All labels</option>
+              </select>
+              <select id="bountyStatusFilter" class="sort-select" aria-label="Filter bounties by status">
+                <option value="all">All active statuses</option>
+              </select>
+              <select id="bountySatsFilter" class="sort-select" aria-label="Filter bounties by sats amount">
+                <option value="all">All sats amounts</option>
+                <option value="under-50000">Under 50k sats</option>
+                <option value="50000-250000">50k–250k sats</option>
+                <option value="250000-plus">250k+ sats</option>
+              </select>
+            </div>
           </div>
           <div class="bounty-grid" id="bountiesGrid">
             <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:10px"></div><div class="skeleton sk-line sk-w-100" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:22px;margin-top:8px;border-radius:100px"></div></div>
@@ -551,7 +571,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
-      <button class="btn btn-primary" onclick="createEvent()">Create Event</button>
+      <button class="btn btn-primary" onclick="submitEventCreation()">Create Event</button>
     </div>
   </div>
 </div>
@@ -882,62 +902,139 @@ if (hashView && document.getElementById('view-' + hashView)) {
 }
 
 // ─── Bounties ─────────────────────────────────────────────────────────────
+let bountyCollection = [];
+
+function isCompletedBountyStatus(status) {
+  return status === 'claimed' || status === 'completed';
+}
+
+function getBountyTotalSats(bounty) {
+  return Number(bounty?.final_payout_amount_sats || 0) || (Number(bounty?.sats_amount || 0) + Number(bounty?.funded_amount || 0));
+}
+
+function matchesBountySatsFilter(totalSats, filterValue) {
+  if (filterValue === 'under-50000') return totalSats < 50000;
+  if (filterValue === '50000-250000') return totalSats >= 50000 && totalSats <= 250000;
+  if (filterValue === '250000-plus') return totalSats > 250000;
+  return true;
+}
+
+function getBountyFilterValues() {
+  return {
+    label: document.getElementById('bountyLabelFilter')?.value || 'all',
+    status: document.getElementById('bountyStatusFilter')?.value || 'all',
+    sats: document.getElementById('bountySatsFilter')?.value || 'all',
+  };
+}
+
+function renderBountyFilters(bounties) {
+  const labelSelect = document.getElementById('bountyLabelFilter');
+  const statusSelect = document.getElementById('bountyStatusFilter');
+  const summary = document.getElementById('bountyFilterSummary');
+  if (!labelSelect || !statusSelect) return;
+  const current = getBountyFilterValues();
+  const labels = [...new Set(bounties.flatMap((b) => String(b.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b));
+  const statuses = [...new Set(bounties.map((b) => String(b.status || 'open').trim()).filter(Boolean))];
+  labelSelect.innerHTML = ['<option value="all">All labels</option>'].concat(labels.map((label) => `<option value="${esc(label)}">${esc(label)}</option>`)).join('');
+  statusSelect.innerHTML = ['<option value="all">All active statuses</option>'].concat(statuses.map((status) => `<option value="${esc(status)}">${esc(status.replace(/_/g, ' '))}</option>`)).join('');
+  labelSelect.value = labels.includes(current.label) ? current.label : 'all';
+  statusSelect.value = statuses.includes(current.status) ? current.status : 'all';
+  if (summary) summary.textContent = `Showing ${bounties.length} active bount${bounties.length === 1 ? 'y' : 'ies'}. Filter by label, status, or sats amount.`;
+}
+
+function filterBountiesForView(bounties, filters = getBountyFilterValues()) {
+  return (Array.isArray(bounties) ? bounties : []).filter((bounty) => {
+    const status = String(bounty?.status || 'open');
+    if (isCompletedBountyStatus(status)) return false;
+    if (filters.status !== 'all' && status !== filters.status) return false;
+    const tags = String(bounty?.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean);
+    if (filters.label !== 'all' && !tags.includes(filters.label)) return false;
+    const totalSats = getBountyTotalSats(bounty);
+    if (!matchesBountySatsFilter(totalSats, filters.sats)) return false;
+    return true;
+  });
+}
+
+function renderBountyCards(bounties) {
+  return bounties.map(b => {
+    const statusClass = { funding_pending: 'claimed', open: 'open', claimed: 'claimed', completed: 'completed' }[b.status] || 'open';
+    const statusLabel = { funding_pending: 'Funding pending', open: 'Open', claimed: 'Winner selected', completed: 'Resolved' }[b.status] || b.status;
+    const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
+    const deadlineState = formatBountyDeadlineState(b.deadline);
+    const deadline = deadlineState ? `<span class="bounty-deadline ${deadlineState.tone}">⏳ ${esc(deadlineState.label)}</span>` : '';
+    const participantCount = Array.isArray(b.participants) ? b.participants.length : (b.participant_count || 0);
+    const participantLabel = participantCount === 1 ? 'hunter' : 'hunters';
+    const baseAmt = Number(b.sats_amount || 0);
+    const crowdAmt = Number(b.funded_amount || 0);
+    const totalAmt = getBountyTotalSats(b);
+    const hasCrowd = crowdAmt > 0;
+    const winner = b.winner_name ? `<div class="bc-winner">🏆 ${esc(b.winner_name)}</div>` : '';
+    const boostAction = b.status === 'completed'
+      ? ''
+      : `<a class="bc-boost-btn" href="/bounty/${esc(b.id)}" onclick="event.stopPropagation()">⚡ Boost</a>`;
+    return `
+      <div class="bounty-card status-${statusClass}" onclick="window.location.href='/bounty/${esc(b.id)}'" style="cursor:pointer">
+        <div class="bc-top">
+          <span class="bounty-status ${statusClass}">${statusLabel}</span>
+          ${deadline}
+        </div>
+        <div class="bc-title">${esc(b.title)}</div>
+        <div class="bc-prize-hero">
+          <span class="bc-prize-icon">⚡</span>
+          <span class="bc-prize-num">${totalAmt.toLocaleString()}</span>
+          <span class="bc-prize-unit">sats</span>
+        </div>
+        ${hasCrowd ? `
+        <div class="bc-prize-breakdown">
+          <span class="bc-bd-base">${baseAmt.toLocaleString()} base</span>
+          <span class="bc-bd-sep">+</span>
+          <span class="bc-bd-pool">⚡ ${crowdAmt.toLocaleString()} community</span>
+        </div>` : ''}
+        ${winner}
+        <div class="bc-footer">
+          <span class="bc-builders">👥 ${participantCount} ${participantLabel}</span>
+          ${tags ? `<div class="bc-tags">${tags}</div>` : ''}
+          ${boostAction}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function applyBountyFilters() {
+  const grid = document.getElementById('bountiesGrid');
+  if (!grid) return;
+  const filtered = filterBountiesForView(bountyCollection);
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚡</div><h3>No matching active bounties</h3><p>Try a different label, status, or sats amount filter.</p></div>`;
+    return;
+  }
+  const sortedBounties = [...filtered].sort((a, b) => getBountyTotalSats(b) - getBountyTotalSats(a));
+  grid.innerHTML = renderBountyCards(sortedBounties);
+}
+
 async function loadBounties() {
   const grid = document.getElementById('bountiesGrid');
   try {
     const res = await fetch('/api/bounties');
     const bounties = await res.json();
-    if (!bounties.length) {
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚡</div><h3>No active bounties</h3><p>Check back soon for new opportunities</p></div>`;
+    bountyCollection = Array.isArray(bounties) ? bounties : [];
+    const activeBounties = bountyCollection.filter((bounty) => !isCompletedBountyStatus(String(bounty?.status || 'open')));
+    renderBountyFilters(activeBounties);
+    if (!activeBounties.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚡</div><h3>No active bounties</h3><p>Completed work now lives on the completed bounties page.</p></div>`;
       return;
     }
-    const sortedBounties = [...bounties].sort((a, b) => Number(b.sats_amount || 0) - Number(a.sats_amount || 0));
-    grid.innerHTML = sortedBounties.map(b => {
-      const statusClass = { open: 'open', claimed: 'claimed', completed: 'completed' }[b.status] || 'open';
-      const statusLabel = { open: 'Open', claimed: 'Claimed', completed: 'Completed' }[b.status] || b.status;
-      const tags = typeof b.tags === 'string' ? b.tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
-      const deadlineState = formatBountyDeadlineState(b.deadline);
-      const deadline = deadlineState ? `<span class="bounty-deadline ${deadlineState.tone}">⏳ ${esc(deadlineState.label)}</span>` : '';
-      const participantCount = Array.isArray(b.participants) ? b.participants.length : (b.participant_count || 0);
-      const participantLabel = participantCount === 1 ? 'hunter' : 'hunters';
-      const baseAmt = Number(b.sats_amount || 0);
-      const crowdAmt = Number(b.funded_amount || 0);
-      const totalAmt = baseAmt + crowdAmt;
-      const hasCrowd = crowdAmt > 0;
-      const winner = b.winner_name ? `<div class="bc-winner">🏆 ${esc(b.winner_name)}</div>` : '';
-      const boostAction = b.status === 'completed'
-        ? ''
-        : `<a class="bc-boost-btn" href="/bounty/${esc(b.id)}" onclick="event.stopPropagation()">⚡ Boost</a>`;
-      return `
-        <div class="bounty-card status-${statusClass}" onclick="window.location.href='/bounty/${esc(b.id)}'" style="cursor:pointer">
-          <div class="bc-top">
-            <span class="bounty-status ${statusClass}">${statusLabel}</span>
-            ${deadline}
-          </div>
-          <div class="bc-title">${esc(b.title)}</div>
-          <div class="bc-prize-hero">
-            <span class="bc-prize-icon">⚡</span>
-            <span class="bc-prize-num">${(hasCrowd ? totalAmt : baseAmt).toLocaleString()}</span>
-            <span class="bc-prize-unit">sats</span>
-          </div>
-          ${hasCrowd ? `
-          <div class="bc-prize-breakdown">
-            <span class="bc-bd-base">${baseAmt.toLocaleString()} base</span>
-            <span class="bc-bd-sep">+</span>
-            <span class="bc-bd-pool">⚡ ${crowdAmt.toLocaleString()} community</span>
-          </div>` : ''}
-          ${winner}
-          <div class="bc-footer">
-            <span class="bc-builders">👥 ${participantCount} ${participantLabel}</span>
-            ${tags ? `<div class="bc-tags">${tags}</div>` : ''}
-            ${boostAction}
-          </div>
-        </div>`;
-    }).join('');
+    applyBountyFilters();
   } catch {
     grid.innerHTML = `<div class="error-state" style="grid-column:1/-1"><span>⚠️</span><p>Failed to load bounties.</p><button onclick="loadBounties()">Retry</button></div>`;
   }
 }
+
+document.addEventListener('change', (event) => {
+  if (event.target && ['bountyLabelFilter', 'bountyStatusFilter', 'bountySatsFilter'].includes(event.target.id)) {
+    applyBountyFilters();
+  }
+});
 
 // ─── Events ───────────────────────────────────────────────────────────────
 function shouldShowEventRecap(ev) {
@@ -1952,7 +2049,7 @@ async function loadProjectDecksDropdown() {
 }
 
 // ─── Create Event ───
-async function createEvent() {
+async function submitEventCreation() {
   const name = document.getElementById('newEventName').value.trim();
   const description = document.getElementById('newEventDesc').value.trim();
   const event_type = document.getElementById('newEventType').value;
