@@ -3428,32 +3428,30 @@ function handleVoteSideEffects(type, id, wasExisting) {
     if (idea?.user_id) cachedBadgeCheck(idea.user_id);
   }
 }
-
 function toggleContentVote(type, id, voter, req) {
   const existing = stmts.hasVoted.get(type, id, voter);
-  if (existing) stmts.removeVote.run(type, id, voter);
-  else {
-    stmts.addVote.run(type, id, voter);
-    notifyVoteTarget(type, id, req);
+  if (existing) {
+    return { ...getVoteState(type, id, voter), voted: true };
   }
-  handleVoteSideEffects(type, id, !!existing);
+  stmts.addVote.run(type, id, voter);
+  notifyVoteTarget(type, id, req);
+  handleVoteSideEffects(type, id, false);
   const nextState = getVoteState(type, id, voter);
-  return { ...nextState, voted: !existing };
+  return { ...nextState, voted: true };
 }
 
 function toggleEventSessionVote(type, id, voter, req) {
   assertEventSessionVoteAllowed(type, id);
   const existing = stmts.hasVoted.get(type, id, voter);
-  if (existing) stmts.removeVote.run(type, id, voter);
-  else {
-    stmts.addVote.run(type, id, voter);
-    notifyVoteTarget(type, id, req);
+  if (existing) {
+    return { ...getVoteState(type, id, voter), voted: true };
   }
+  stmts.addVote.run(type, id, voter);
+  notifyVoteTarget(type, id, req);
   const nextState = getVoteState(type, id, voter);
-  return { ...nextState, voted: !existing };
+  return { ...nextState, voted: true };
 }
 
-// POST /api/vote — body: { type: 'deck'|'speaker'|'project'|'comment', id }
 app.post('/api/vote', requireAuth, (req, res) => {
   const { type, id } = req.body;
   if (!isSupportedVoteType(type) || !id) {
