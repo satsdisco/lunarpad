@@ -12,6 +12,8 @@ test("projects view exposes search, sort, quick filters, and summary UI", () => 
   assert.match(buildHtml, /id="projectQuickFilters"/);
   assert.match(buildHtml, /id="projectResultsSummary"/);
   assert.match(buildHtml, /function resetProjectFilters\(\)/);
+  assert.match(buildHtml, /id="projectTagBarWrap" style="display:none"/);
+  assert.match(buildHtml, /id="projectTagOverflowHint" style="display:none"/);
 });
 
 test("projects filtering logic supports Lunar-adjacent discovery and label filtering", () => {
