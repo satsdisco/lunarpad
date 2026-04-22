@@ -42,6 +42,139 @@
   content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
   pointer-events: none;
 }
+
+.projects-toolbar {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid rgba(124,92,252,0.14);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(124,92,252,0.06), rgba(13,15,26,0.68));
+}
+.projects-toolbar-main {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.projects-search-box {
+  min-width: 260px;
+}
+.projects-search-box input {
+  background: rgba(255,255,255,0.02);
+}
+.projects-quick-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.projects-results-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.projects-results-summary {
+  font-size: 0.76rem;
+  color: var(--text2);
+}
+.project-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.project-card-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.project-card-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--muted2);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.project-card-stat-accent {
+  color: var(--accent);
+  border-color: rgba(124,92,252,0.22);
+  background: rgba(124,92,252,0.08);
+}
+.project-chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  font-size: 0.68rem;
+  line-height: 1;
+}
+.project-chip-category {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.project-chip-bounty {
+  color: var(--btc-bright);
+  border-color: rgba(242,177,52,0.22);
+  background: rgba(242,177,52,0.08);
+  font-weight: 700;
+}
+.project-chip-tag {
+  color: var(--text2);
+}
+.project-card-links-row {
+  margin-bottom: 10px;
+}
+.proj-zap-btn {
+  padding: 6px 12px;
+  border: 1px solid rgba(242,177,52,0.3);
+  border-radius: 100px;
+  background: transparent;
+  color: var(--btc-bright);
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: .82;
+  transition: opacity .15s, border-color .15s, transform .15s;
+}
+.proj-zap-btn:hover {
+  opacity: 1;
+  border-color: rgba(242,177,52,0.55);
+  transform: translateY(-1px);
+}
+@media (max-width: 760px) {
+  .projects-toolbar-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .projects-search-box,
+  #projectSort {
+    width: 100%;
+  }
+  .projects-results-row {
+    align-items: flex-start;
+  }
+}
 /* Event type themed hero */
 .event-hero-banner.type-demo-day {
   background: linear-gradient(135deg, rgba(124,92,252,0.15), rgba(124,92,252,0.04), rgba(13,15,26,0.95));
@@ -335,10 +468,30 @@
             <span class="section-title">Projects</span>
             <button class="btn btn-sm" onclick="document.getElementById('projectModal').classList.add('open')">+ Submit</button>
           </div>
+          <div class="projects-toolbar" id="projectsToolbar">
+            <div class="projects-toolbar-main">
+              <label class="search-box projects-search-box" aria-label="Search projects">
+                <span class="search-box-icon">⌕</span>
+                <input type="text" id="projectSearch" placeholder="Search projects, builders, labels, or Lunar-related ideas...">
+              </label>
+              <select class="sort-select" id="projectSort" aria-label="Sort projects">
+                <option value="signal" selected>Most signal</option>
+                <option value="zaps">Most zaps</option>
+                <option value="votes">Most upvotes</option>
+                <option value="newest">Newest</option>
+                <option value="name">A–Z</option>
+              </select>
+            </div>
+            <div class="projects-quick-filters" id="projectQuickFilters"></div>
+            <div class="projects-results-row">
+              <div class="projects-results-summary" id="projectResultsSummary">Loading projects…</div>
+              <button class="btn btn-sm btn-ghost" id="projectFiltersReset" type="button" onclick="resetProjectFilters()" style="display:none">Reset filters</button>
+            </div>
+          </div>
           <div class="tag-bar-wrap" id="projectTagBarWrap">
             <div class="tag-bar" id="projectTagBar"></div>
           </div>
-          <div class="tag-overflow-hint" id="projectTagOverflowHint">Scroll for more filters →</div>
+          <div class="tag-overflow-hint" id="projectTagOverflowHint">Scroll for more labels →</div>
           <div class="project-grid" id="projectsGrid">
             <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:8px"></div><div class="skeleton sk-line sk-w-80" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:11px"></div></div>
             <div class="skeleton-card"><div class="skeleton sk-line sk-w-60" style="height:16px;margin-bottom:8px"></div><div class="skeleton sk-line sk-w-80" style="height:11px;margin-bottom:6px"></div><div class="skeleton sk-line sk-w-40" style="height:11px"></div></div>
@@ -1625,19 +1778,140 @@ async function loadProjects() {
 
 let allProjects = [];
 let activeProjectTag = null;
+let activeProjectQuickFilter = 'all';
+let activeProjectSort = 'signal';
+let activeProjectSearch = '';
+const PROJECT_LUNAR_KEYWORDS = ['lunar', 'bitcoin', 'btc', 'lightning', 'lnbits', 'lnurl', 'nostr', 'sats', 'zap', 'wallet', 'cashu', 'fedi'];
+const PROJECT_QUICK_FILTERS = [
+  { id: 'all', label: 'All projects' },
+  { id: 'fun', label: 'Fun' },
+  { id: 'lunar', label: 'Lunar / BTC' },
+  { id: 'building', label: 'Building' },
+  { id: 'shipped', label: 'Shipped' },
+];
+const PROJECT_CATEGORY_META = {
+  tool: { icon: '🛠', label: 'Tool' },
+  game: { icon: '🎮', label: 'Game' },
+  fun: { icon: '✨', label: 'Fun' },
+  productivity: { icon: '📈', label: 'Productivity' },
+  finance: { icon: '₿', label: 'Finance' },
+  social: { icon: '🫂', label: 'Social' },
+  privacy: { icon: '🕶', label: 'Privacy' },
+  education: { icon: '📚', label: 'Education' },
+  infrastructure: { icon: '🧱', label: 'Infrastructure' },
+  other: { icon: '🌙', label: 'Other' },
+};
+const PROJECT_STATUS_META = {
+  idea: { label: 'Idea', tone: 'idea' },
+  building: { label: 'Building', tone: 'building' },
+  shipped: { label: 'Shipped', tone: 'shipped' },
+};
+
+function normalizeProjectTag(tag) {
+  const value = String(tag || '').trim();
+  if (!value) return '';
+  const lower = value.toLowerCase();
+  const special = { ai: 'AI', api: 'API', btc: 'BTC', ux: 'UX', ui: 'UI', sdk: 'SDK', lnd: 'LND', lnbits: 'LNbits', nostr: 'Nostr' };
+  if (special[lower]) return special[lower];
+  return value.split(/[-_\s]+/).filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+
+function getProjectCategoryMeta(category) {
+  return PROJECT_CATEGORY_META[String(category || '').toLowerCase()] || { icon: '🌙', label: normalizeProjectTag(category || 'Project') };
+}
+
+function getProjectStatusMeta(status) {
+  return PROJECT_STATUS_META[String(status || '').toLowerCase()] || { label: normalizeProjectTag(status || 'Project'), tone: 'idea' };
+}
+
+function getProjectTagList(project) {
+  if (Array.isArray(project.tags)) return project.tags.map(tag => String(tag || '').trim()).filter(Boolean);
+  if (typeof project.tags === 'string') return project.tags.split(',').map(tag => tag.trim()).filter(Boolean);
+  return [];
+}
+
+function isLunarProject(project) {
+  const haystack = [project.name, project.description, project.category, ...(getProjectTagList(project)), project.bounty_title]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return PROJECT_LUNAR_KEYWORDS.some(keyword => haystack.includes(keyword));
+}
+
+function getProjectSignalScore(project) {
+  return (Number(project.total_sats_received || 0) * 1000) + (Number(project.votes || 0) * 25) + (new Date(project.created_at || 0).getTime() / 1e10);
+}
+
+function sortProjects(projects) {
+  const sorted = [...projects];
+  if (activeProjectSort === 'zaps') {
+    sorted.sort((a, b) => Number(b.total_sats_received || 0) - Number(a.total_sats_received || 0) || Number(b.votes || 0) - Number(a.votes || 0));
+  } else if (activeProjectSort === 'votes') {
+    sorted.sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0) || Number(b.total_sats_received || 0) - Number(a.total_sats_received || 0));
+  } else if (activeProjectSort === 'name') {
+    sorted.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  } else if (activeProjectSort === 'newest') {
+    sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  } else {
+    sorted.sort((a, b) => getProjectSignalScore(b) - getProjectSignalScore(a));
+  }
+  return sorted;
+}
+
+function applyProjectFilters(projects) {
+  return projects.filter(project => {
+    const tags = getProjectTagList(project);
+    const normalizedSearch = activeProjectSearch.trim().toLowerCase();
+    if (normalizedSearch) {
+      const haystack = [project.name, project.builder, project.description, project.category, project.bounty_title, ...tags]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(normalizedSearch)) return false;
+    }
+    if (activeProjectQuickFilter === 'fun' && String(project.category || '').toLowerCase() !== 'fun') return false;
+    if (activeProjectQuickFilter === 'lunar' && !isLunarProject(project)) return false;
+    if (activeProjectQuickFilter === 'building' && String(project.status || '').toLowerCase() !== 'building') return false;
+    if (activeProjectQuickFilter === 'shipped' && String(project.status || '').toLowerCase() !== 'shipped') return false;
+    if (activeProjectTag) {
+      const matchesTag = String(project.category || '').toLowerCase() === String(activeProjectTag).toLowerCase()
+        || tags.some(tag => tag.toLowerCase() === String(activeProjectTag).toLowerCase());
+      if (!matchesTag) return false;
+    }
+    return true;
+  });
+}
+
+function getProjectFilterSummary(count, total) {
+  const parts = [];
+  if (activeProjectQuickFilter !== 'all') {
+    const selected = PROJECT_QUICK_FILTERS.find(filter => filter.id === activeProjectQuickFilter);
+    if (selected) parts.push(selected.label);
+  }
+  if (activeProjectTag) parts.push(`Label: ${normalizeProjectTag(activeProjectTag)}`);
+  if (activeProjectSearch.trim()) parts.push(`Search: “${esc(activeProjectSearch.trim())}”`);
+  const sortLabel = ({ signal: 'Most signal', zaps: 'Most zaps', votes: 'Most upvotes', newest: 'Newest', name: 'A–Z' })[activeProjectSort] || 'Most signal';
+  return `${count} of ${total} projects · Sorted by ${sortLabel}${parts.length ? ' · ' + parts.join(' · ') : ''}`;
+}
+
+function renderProjectQuickFilters() {
+  const wrap = document.getElementById('projectQuickFilters');
+  if (!wrap) return;
+  wrap.innerHTML = PROJECT_QUICK_FILTERS.map(filter => `<button class="comment-filter ${activeProjectQuickFilter === filter.id ? 'active' : ''}" type="button" onclick="setProjectQuickFilter('${filter.id}')">${filter.label}</button>`).join('');
+}
+
 function renderProjectTags(projects) {
   const tagBar = document.getElementById('projectTagBar');
   const hint = document.getElementById('projectTagOverflowHint');
   if (!tagBar) return;
   const tagSet = new Set();
-  projects.forEach(p => {
-    if (p.category) tagSet.add(p.category);
-    if (typeof p.tags === 'string') p.tags.split(',').forEach(t => { if(t.trim()) tagSet.add(t.trim()); });
+  projects.forEach(project => {
+    if (project.category) tagSet.add(String(project.category).trim());
+    getProjectTagList(project).forEach(tag => tagSet.add(tag));
   });
-  const tags = [...tagSet].sort();
-  tagBar.innerHTML = `<div class="tag-chip ${!activeProjectTag ? 'active' : ''}" onclick="filterProjects(null)">All</div>` +
-    tags.map(t => `<div class="tag-chip ${activeProjectTag === t ? 'active' : ''}" onclick="filterProjects('${t}')">${t}</div>`).join('');
-  if (hint) hint.style.display = tags.length > 5 ? '' : 'none';
+  const tags = [...tagSet].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  tagBar.innerHTML = `<div class="tag-chip ${!activeProjectTag ? 'active' : ''}" onclick="filterProjects(null)">All labels</div>` + tags.map(tag => `<div class="tag-chip ${String(activeProjectTag || '').toLowerCase() === tag.toLowerCase() ? 'active' : ''}" onclick="filterProjects('${esc(tag)}')">${esc(normalizeProjectTag(tag))}</div>`).join('');
+  if (hint) hint.style.display = tags.length > 6 ? '' : 'none';
 }
 
 function renderProjectsSparseCta(projectCount) {
@@ -1662,66 +1936,91 @@ function renderProjectsSparseCta(projectCount) {
 
 function filterProjects(tag) {
   activeProjectTag = tag;
-  const filtered = tag ? allProjects.filter(p => {
-    const ptags = typeof p.tags === 'string' ? p.tags.split(',').map(t=>t.trim()) : [];
-    return p.category === tag || ptags.includes(tag);
-  }) : allProjects;
-  renderProjectCards(filtered);
-  renderProjectTags(allProjects);
+  renderProjects(allProjects);
+}
+
+function setProjectQuickFilter(filterId) {
+  activeProjectQuickFilter = filterId || 'all';
+  renderProjects(allProjects);
+}
+
+function resetProjectFilters() {
+  activeProjectTag = null;
+  activeProjectQuickFilter = 'all';
+  activeProjectSort = 'signal';
+  activeProjectSearch = '';
+  const searchInput = document.getElementById('projectSearch');
+  const sortSelect = document.getElementById('projectSort');
+  if (searchInput) searchInput.value = '';
+  if (sortSelect) sortSelect.value = 'signal';
+  renderProjects(allProjects);
 }
 
 function renderProjects(projects) {
   allProjects = projects;
+  const filtered = sortProjects(applyProjectFilters(projects));
+  renderProjectQuickFilters();
   renderProjectTags(projects);
-  renderProjectCards(projects);
+  renderProjectCards(filtered, projects.length);
   renderProjectsSparseCta(projects.length);
+  const summary = document.getElementById('projectResultsSummary');
+  if (summary) summary.textContent = getProjectFilterSummary(filtered.length, projects.length);
+  const reset = document.getElementById('projectFiltersReset');
+  if (reset) reset.style.display = (activeProjectTag || activeProjectQuickFilter !== 'all' || activeProjectSort !== 'signal' || activeProjectSearch.trim()) ? '' : 'none';
 }
 
-function renderProjectCards(projects) {
+function renderProjectCards(projects, totalProjectCount = projects.length) {
   const grid = document.getElementById('projectsGrid');
   if (!projects.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🛠</div><h3>No projects yet</h3><p>Submit yours and build in public!</p></div>`;
+    const hasFilters = !!(activeProjectTag || activeProjectQuickFilter !== 'all' || activeProjectSearch.trim());
+    grid.innerHTML = hasFilters
+      ? `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🌙</div><h3>No projects match these filters</h3><p>Try a different label, clear the search, or reset the quick filters.</p></div>`
+      : `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🛠</div><h3>No projects yet</h3><p>Submit yours and build in public!</p></div>`;
     return;
   }
-  grid.innerHTML = projects.map(p => {
-    const statusMap = { idea: ['open','Idea'], building: ['open','Building'], shipped: ['completed','Shipped'] };
-    const [statusCls, statusLabel] = statusMap[p.status] || ['open', p.status];
-    const tags = typeof p.tags === 'string' ? p.tags.split(',').map(t => t.trim()).filter(Boolean).map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : Array.isArray(p.tags) ? p.tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join('') : '';
-    const bountyTag = p.bounty_title ? `<span class="bounty-status open" style="font-size:0.6rem">⚡ ${esc(p.bounty_title)}</span>` : '';
-    const catTag = p.category ? `<span class="card-tag cat-${esc(p.category)}">${esc(p.category)}</span>` : '';
+  grid.innerHTML = projects.map(project => {
+    const statusMeta = getProjectStatusMeta(project.status);
+    const categoryMeta = getProjectCategoryMeta(project.category);
+    const projectTags = getProjectTagList(project).slice(0, 4);
+    const tags = projectTags.map(tag => `<span class="project-chip project-chip-tag">${esc(normalizeProjectTag(tag))}</span>`).join('');
+    const bountyTag = project.bounty_title ? `<span class="project-chip project-chip-bounty">⚡ ${esc(project.bounty_title)}</span>` : '';
+    const catTag = project.category ? `<span class="project-chip project-chip-category cat-${esc(project.category)}">${esc(categoryMeta.icon)} ${esc(categoryMeta.label)}</span>` : '';
     const links = [
-      (p.repo_url||p.repo) ? `<a href="${esc(p.repo_url||p.repo)}" target="_blank" rel="noopener" class="spk-link project-card-link" onclick="event.stopPropagation()">Repository ↗</a>` : '',
-      (p.demo_url||p.demo) ? `<a href="${esc(p.demo_url||p.demo)}" target="_blank" rel="noopener" class="spk-link project-card-link" onclick="event.stopPropagation()">Live Demo ↗</a>` : ''
+      (project.repo_url || project.repo) ? `<a href="${esc(project.repo_url || project.repo)}" target="_blank" rel="noopener" class="spk-link project-card-link" onclick="event.stopPropagation()">Repository ↗</a>` : '',
+      (project.demo_url || project.demo) ? `<a href="${esc(project.demo_url || project.demo)}" target="_blank" rel="noopener" class="spk-link project-card-link" onclick="event.stopPropagation()">Live Demo ↗</a>` : ''
     ].filter(Boolean).join('');
-    const satsLabel = p.total_sats_received > 0
-      ? `<span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--btc-bright);opacity:.85">⚡${Number(p.total_sats_received).toLocaleString()}</span>`
-      : '';
-    const visualSrc = p.banner_url || p.thumbnail_url || projectVisual(p.name, p.category, 400, 120);
-    const statusTone = getProjectStatusTone(p.status);
-    const isOwner = _currentUser && (p.user_id === _currentUser.id || _currentUser.is_admin);
-    const editBannerBtn = isOwner ? `<button class="proj-banner-edit-btn" onclick="event.stopPropagation(); triggerBannerUpload('${esc(p.id)}')" title="${p.banner_url ? 'Change banner' : 'Add banner'}">📷</button>` : '';
+    const visualSrc = project.banner_url || project.thumbnail_url || projectVisual(project.name, project.category, 400, 120);
+    const statusTone = getProjectStatusTone(project.status);
+    const isOwner = _currentUser && (project.user_id === _currentUser.id || _currentUser.is_admin);
+    const editBannerBtn = isOwner ? `<button class="proj-banner-edit-btn" onclick="event.stopPropagation(); triggerBannerUpload('${esc(project.id)}')" title="${project.banner_url ? 'Change banner' : 'Add banner'}">📷</button>` : '';
+    const statsRow = `
+      <div class="project-card-stats">
+        <span class="project-card-stat">⚡ ${Number(project.total_sats_received || 0).toLocaleString()}</span>
+        <span class="project-card-stat">▲ ${Number(project.votes || 0).toLocaleString()}</span>
+        ${isLunarProject(project) ? '<span class="project-card-stat project-card-stat-accent">🌙 Lunar-adjacent</span>' : ''}
+      </div>`;
     return `
-      <div class="project-card project-card-${statusTone}" id="proj-${esc(p.id)}" onclick="if(!event.target.closest('.project-upvote')&&!event.target.closest('.spk-link')&&!event.target.closest('.proj-zap-btn')&&!event.target.closest('.proj-banner-edit-btn'))window.location='/project/'+this.id.replace('proj-','')" style="cursor:pointer">
+      <div class="project-card project-card-${statusTone}" id="proj-${esc(project.id)}" onclick="if(!event.target.closest('.project-upvote')&&!event.target.closest('.spk-link')&&!event.target.closest('.proj-zap-btn')&&!event.target.closest('.proj-banner-edit-btn'))window.location='/project/'+this.id.replace('proj-','')" style="cursor:pointer">
         <div style="position:relative">
           <img class="project-card-visual" src="${visualSrc}" alt="">
           ${editBannerBtn}
         </div>
         <div class="project-card-body">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;gap:10px">
-            <div class="project-name">${esc(p.name)}</div>
-            <span class="project-status-pill project-status-pill-${statusTone}">${statusLabel}</span>
-          </div>
-          <div class="project-builder">by ${p.user_id ? `<a href="/profile/${esc(p.user_id)}" class="profile-link" onclick="event.stopPropagation()">${esc(p.builder)}</a>` : esc(p.builder)}</div>
-          <div class="project-desc">${esc(p.description)}</div>
-          <div class="card-tags" style="margin-bottom:10px">${catTag}${bountyTag}${tags}</div>
-          ${links ? `<div class="spk-links" style="margin-bottom:8px">${links}</div>` : ''}
-          <div class="project-footer">
-            <div style="display:flex;align-items:center;gap:6px">
-              <button class="proj-zap-btn" onclick="event.stopPropagation(); openProjZapModal('${esc(p.id)}')" style="padding:4px 10px;border:1px solid rgba(242,177,52,.3);border-radius:100px;background:transparent;color:var(--btc-bright);font-size:0.72rem;cursor:pointer;opacity:.75;transition:opacity .15s" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=.75">⚡ Zap</button>
-              ${satsLabel}
+          <div class="project-card-head">
+            <div>
+              <div class="project-name">${esc(project.name)}</div>
+              <div class="project-builder">by ${project.user_id ? `<a href="/profile/${esc(project.user_id)}" class="profile-link" onclick="event.stopPropagation()">${esc(project.builder)}</a>` : esc(project.builder)}</div>
             </div>
-            <button class="project-upvote" id="proj-vote-${esc(p.id)}" onclick="event.stopPropagation(); voteProject('${esc(p.id)}')">
-              ▲ <span id="proj-count-${esc(p.id)}">${p.votes || 0}</span>
+            <span class="project-status-pill project-status-pill-${statusMeta.tone}">${esc(statusMeta.label)}</span>
+          </div>
+          ${statsRow}
+          <div class="project-desc">${esc(project.description || '')}</div>
+          <div class="project-chip-row">${catTag}${bountyTag}${tags}</div>
+          ${links ? `<div class="spk-links project-card-links-row">${links}</div>` : ''}
+          <div class="project-footer">
+            <button class="proj-zap-btn" onclick="event.stopPropagation(); openProjZapModal('${esc(project.id)}')">⚡ Zap</button>
+            <button class="project-upvote" id="proj-vote-${esc(project.id)}" onclick="event.stopPropagation(); voteProject('${esc(project.id)}')">
+              ▲ <span id="proj-count-${esc(project.id)}">${Number(project.votes || 0).toLocaleString()}</span>
             </button>
           </div>
         </div>
@@ -2325,6 +2624,20 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProjects();
   loadBounties();
   checkAdmin();
+  const projectSearchInput = document.getElementById('projectSearch');
+  const projectSortSelect = document.getElementById('projectSort');
+  if (projectSearchInput) {
+    projectSearchInput.addEventListener('input', (event) => {
+      activeProjectSearch = event.target.value || '';
+      renderProjects(allProjects);
+    });
+  }
+  if (projectSortSelect) {
+    projectSortSelect.addEventListener('change', (event) => {
+      activeProjectSort = event.target.value || 'signal';
+      renderProjects(allProjects);
+    });
+  }
   loadProjectDecksDropdown();
 });
 
