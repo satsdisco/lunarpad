@@ -106,3 +106,10 @@ test('projects sparse states and project detail explain status and support actio
   assert.match(projectHtml, /Upvote signals interest/);
   assert.match(projectHtml, /Zap sats sends bitcoin support/);
 });
+
+test('create event button uses a non-native handler name so inline click does not collide with document.createEvent', () => {
+  const buildHtml = read('public', 'build.html');
+  assert.match(buildHtml, /onclick="submitEventCreation\(\)"/);
+  assert.match(buildHtml, /async function submitEventCreation\(\)/);
+  assert.doesNotMatch(buildHtml, /onclick="createEvent\(\)"/);
+});

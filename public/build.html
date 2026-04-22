@@ -551,7 +551,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
-      <button class="btn btn-primary" onclick="createEvent()">Create Event</button>
+      <button class="btn btn-primary" onclick="submitEventCreation()">Create Event</button>
     </div>
   </div>
 </div>
@@ -1952,7 +1952,7 @@ async function loadProjectDecksDropdown() {
 }
 
 // ─── Create Event ───
-async function createEvent() {
+async function submitEventCreation() {
   const name = document.getElementById('newEventName').value.trim();
   const description = document.getElementById('newEventDesc').value.trim();
   const event_type = document.getElementById('newEventType').value;
