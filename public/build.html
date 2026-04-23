@@ -2200,9 +2200,9 @@ async function expandBounty(id) {
       } catch(_) {}
     }
 
-    // Admin: build participant options for approve-winner dropdown
-    const participantOptions = participants.map(p =>
-      '<option value="' + esc(p.user_id || '') + '|' + esc(p.user_name) + '">' + esc(p.user_name) + '</option>'
+    // Admin: build submission options for approve-winner dropdown
+    const participantOptions = (Array.isArray(b.submission_candidates) ? b.submission_candidates : []).map((p) =>
+      '<option value="' + esc(p.submission_id || '') + '" data-user-id="' + esc(p.user_id || '') + '" data-user-name="' + esc(p.user_name || '') + '">' + esc(p.title || 'Untitled solution') + ' · ' + esc(p.user_name || 'Anonymous') + '</option>'
     ).join('');
 
     // Winner info badge (shown when claimed/completed)
@@ -2211,12 +2211,13 @@ async function expandBounty(id) {
       : '';
 
     // Admin: approve winner section (only if open and has participants)
-    const adminApproveSection = isAdmin && b.status === 'open' && participants.length
+    const adminApproveSection = isAdmin && b.status === 'open' && participantOptions
       ? '<div style="margin-top:16px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)">' +
-        '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);margin-bottom:10px">Admin — Approve Winner</div>' +
+        '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);margin-bottom:10px">Admin — Approve Winner from Submission</div>' +
+        '<div style="font-size:0.8rem;color:var(--muted2);margin-bottom:10px">Only submitted solutions can win.</div>' +
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
         '<select id="winnerSelect" style="flex:1;min-width:160px;font-size:0.82rem;padding:6px 10px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">' +
-        '<option value="">Select participant…</option>' + participantOptions + '</select>' +
+        '<option value="">Select submitted solution…</option>' + participantOptions + '</select>' +
         '<button class="btn btn-primary" style="font-size:0.8rem;padding:7px 16px" onclick="adminApproveWinner(\'' + esc(b.id) + '\')">Approve Winner</button>' +
         '</div></div>'
       : '';
@@ -2274,13 +2275,14 @@ async function expandBounty(id) {
 
 async function adminApproveWinner(bountyId) {
   const sel = document.getElementById('winnerSelect');
-  if (!sel || !sel.value) return alert('Please select a participant');
-  const [winnerId, winnerName] = sel.value.split('|');
-  if (!winnerId || !winnerName) return alert('Invalid selection');
+  if (!sel || !sel.value) return alert('Please select a submission');
+  const selectedSubmissionId = sel.value;
+  const winnerId = sel.options[sel.selectedIndex]?.dataset?.userId || '';
+  const winnerName = sel.options[sel.selectedIndex]?.dataset?.userName || '';
   try {
     const r = await fetch('/api/bounties/' + bountyId + '/approve-winner', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ winner_id: winnerId, winner_name: winnerName }),
+      body: JSON.stringify({ submission_id: selectedSubmissionId, winner_id: winnerId, winner_name: winnerName }),
     });
     if (r.ok) { expandBounty(bountyId); loadBounties(); }
     else { const e = await r.json(); alert(e.error || 'Failed'); }

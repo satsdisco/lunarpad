@@ -44,7 +44,7 @@
 <!-- Zap animation overlay -->
 <div id="zapOverlay" class="zap-overlay">⚡</div>
 
-<!-- Project Submit Modal -->
+<!-- Generic Solution Submit Modal -->
 <div class="modal-overlay" id="projectModal">
   <div class="modal-content">
     <button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('open')">&times;</button>
@@ -53,66 +53,56 @@
     <input type="hidden" id="projBountyId" value="">
     <div class="form-row">
       <div class="form-group">
-        <label>Project Name</label>
-        <input type="text" id="projName" placeholder="My cool project">
+        <label>Solution Title</label>
+        <input type="text" id="solutionTitle" placeholder="Context pack for sponsor onboarding">
       </div>
       <div class="form-group">
-        <label>Builder Name</label>
-        <input type="text" id="projBuilder" placeholder="Your name" readonly style="opacity:0.7;cursor:default">
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Description</label>
-      <textarea id="projDesc" placeholder="What are you building and why?"></textarea>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Category</label>
-        <select id="projCategory">
-          <option value="">Select category...</option>
-          <option value="tool">Tool</option>
-          <option value="game">Game</option>
-          <option value="fun">Fun / Creative</option>
-          <option value="productivity">Productivity</option>
-          <option value="finance">Finance</option>
-          <option value="social">Social</option>
-          <option value="privacy">Privacy</option>
-          <option value="education">Education</option>
-          <option value="infrastructure">Infrastructure</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Status</label>
-        <select id="projStatus">
-          <option value="idea">Idea</option>
-          <option value="building" selected>Building</option>
-          <option value="shipped">Shipped</option>
+        <label>Submission Type</label>
+        <select id="solutionType">
+          <option value="mixed" selected>Mixed Evidence</option>
+          <option value="markdown">Markdown/Context File</option>
+          <option value="link">Links / PR / Repo</option>
+          <option value="project">Project-backed Solution</option>
         </select>
       </div>
     </div>
     <div class="form-group">
-      <label>Tags (comma-separated)</label>
-      <input type="text" id="projTags" placeholder="web, bitcoin, dashboard">
+      <label>Summary</label>
+      <textarea id="solutionSummary" placeholder="What did you submit and why should reviewers open it first?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Markdown / Detailed Solution</label>
+      <textarea id="solutionMarkdown" placeholder="Paste the markdown, context, or write-up here"></textarea>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label>Repo URL (optional)</label>
-        <input type="url" id="projRepo" placeholder="https://github.com/…">
+        <input type="url" id="solutionRepo" placeholder="https://github.com/…">
       </div>
       <div class="form-group">
-        <label>Demo URL (optional)</label>
-        <input type="url" id="projDemo" placeholder="https://…">
+        <label>Demo / Doc URL (optional)</label>
+        <input type="url" id="solutionDemo" placeholder="https://…">
       </div>
     </div>
     <div class="form-group">
       <label>Attach Presentation (optional)</label>
       <select id="projDeckId"><option value="">None</option></select>
     </div>
+    <div style="font-size:0.78rem;color:var(--muted2);line-height:1.5;margin-bottom:14px">
+      For lightweight bounties, markdown plus a short summary is enough. For project-style bounties, include repo/demo links or a presentation.
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitProject()">Submit Solution</button>
+      <button class="btn btn-primary" onclick="submitSolution()">Submit Solution</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="submissionReviewModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeSubmissionReview()">&times;</button>
+    <div class="modal-title">Review Submission</div>
+    <div id="submissionReviewBody"></div>
   </div>
 </div>
 
@@ -193,7 +183,6 @@ function formatDeadline(deadline) {
 // ─── Timeline ─────────────────────────────────────────────────────────────
 
 function renderTimeline(status, hasSubmissions) {
-  // Steps: open → in_review (has submissions) → claimed → completed
   const steps = [
     { key: 'open',      label: 'Open' },
     { key: 'in_review', label: 'In Review' },
@@ -201,7 +190,6 @@ function renderTimeline(status, hasSubmissions) {
     { key: 'completed', label: 'Sats Paid ⚡' },
   ];
 
-  // Map status to step index
   let currentIdx = 0;
   if (status === 'open' && hasSubmissions) currentIdx = 1;
   else if (status === 'claimed') currentIdx = 2;
@@ -252,13 +240,13 @@ async function loadBounty() {
     const events = eventsRes && eventsRes.ok ? await eventsRes.json() : [];
 
     // Fetch submissions, winner LN address, and payments in parallel
-    const [projRes, winnerRes, paymentsRes] = await Promise.all([
-      fetch('/api/projects?bounty_id=' + encodeURIComponent(id)),
+    const [submissionsRes, winnerRes, paymentsRes] = await Promise.all([
+      fetch('/api/bounties/' + id + '/submissions'),
       b.winner_id ? fetch('/api/bounties/' + id + '/winner').catch(() => null) : Promise.resolve(null),
       fetch('/api/bounties/' + id + '/payments').catch(() => null),
     ]);
 
-    const submissions = projRes.ok ? await projRes.json() : [];
+    const submissions = submissionsRes.ok ? await submissionsRes.json() : [];
     const winnerData = winnerRes && winnerRes.ok ? await winnerRes.json() : null;
     const winnerLn = winnerData ? winnerData.lightning_address || null : null;
     const payments = paymentsRes && paymentsRes.ok ? await paymentsRes.json() : [];
@@ -272,6 +260,8 @@ async function loadBounty() {
     const linkedEvent = b.event_id ? events.find(ev => ev.id === b.event_id) : null;
     const isWinner = me.user && b.winner_id && b.winner_id === me.user.id;
     const hasSubmitted = me.user && submissions.some(p => p.user_id === me.user.id);
+    window._bountySubmissions = submissions;
+    window._bountyViewerIsAdmin = isAdmin;
 
     // Update page title
     document.title = esc(b.title) + ' — LunarPad';
@@ -303,12 +293,17 @@ async function loadBounty() {
 
     // Submissions section
     const submissionsHtml = submissions.length
-      ? `<div class="submission-grid">${submissions.map(p => `
-          <a href="/project/${esc(p.id)}" class="submission-card">
-            <div class="submission-card-name">${esc(p.name)}</div>
-            <div class="submission-card-builder">by ${esc(p.builder)}</div>
-            <span class="submission-card-status">${esc(p.status || 'building')}</span>
-          </a>`).join('')}</div>`
+      ? `<div class="submission-grid">${submissions.map((submission, index) => `
+          <article class="submission-card">
+            <div class="submission-card-name">${esc(submission.title || 'Untitled solution')}</div>
+            <div class="submission-card-builder">${esc(submissionTypeLabel(submission.submission_type))} · by ${esc(submission.submitter_name || 'Anonymous')}</div>
+            <div style="font-size:0.8rem;color:var(--text2);line-height:1.5;margin:10px 0 12px">${esc(summarizeSubmissionPreview(submission))}</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <span class="submission-card-status">${esc(submission.status || 'submitted')}</span>
+              <button class="btn" style="padding:7px 12px;font-size:0.74rem" onclick="openSubmissionReview(${index})">Review Submission</button>
+              ${renderSubmissionLinks(submission)}
+            </div>
+          </article>`).join('')}</div>`
       : `<div class="empty-cta" style="padding:24px 0;text-align:center">
           <div style="font-size:1.5rem;margin-bottom:8px">📝</div>
           <div style="font-size:0.85rem;color:var(--muted);margin-bottom:4px">No submissions yet</div>
@@ -323,7 +318,7 @@ async function loadBounty() {
     // Winner section (shown when bounty is claimed/completed)
     let winnerSection = '';
     if (b.winner_name && (b.status === 'claimed' || b.status === 'completed')) {
-      const winnerProject = submissions.find(p => p.user_id === b.winner_id);
+      const winningSubmission = submissions.find(p => p.user_id === b.winner_id);
       const paidBadge = b.paid_out
         ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(60,203,218,.1);border:1px solid rgba(60,203,218,.3);border-radius:100px;font-size:0.75rem;font-weight:700;color:var(--cyan);margin-left:10px">⚡ Paid</span>`
         : `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(242,177,52,.08);border:1px solid rgba(242,177,52,.2);border-radius:100px;font-size:0.75rem;font-weight:700;color:var(--btc-bright);margin-left:10px">⏳ Awaiting payment</span>`;
@@ -331,7 +326,7 @@ async function loadBounty() {
         <div class="winner-card">
           <div class="winner-card-header">🏆 Winner: ${b.winner_id ? `<a href="/profile/${esc(b.winner_id)}" class="profile-link">${esc(b.winner_name)}</a>` : esc(b.winner_name)} ${paidBadge}</div>
           ${winnerLn ? `<div style="font-size:0.82rem;color:var(--text2);margin-bottom:8px">Lightning address: <span style="font-family:var(--font-mono);color:var(--btc-bright)">${esc(maskLn(winnerLn))}</span></div>` : ''}
-          ${winnerProject ? `<div style="font-size:0.82rem;color:var(--text2)">Winning project: <a href="/project/${esc(winnerProject.id)}" style="color:var(--accent)">${esc(winnerProject.name)}</a></div>` : ''}
+          ${winningSubmission ? `<div style="font-size:0.82rem;color:var(--text2)">Winning submission: <strong style="color:var(--accent)">${esc(winningSubmission.title || 'Untitled solution')}</strong></div>` : ''}
         </div>`;
     }
 
@@ -368,17 +363,18 @@ async function loadBounty() {
     // Admin controls
     let adminSection = '';
     if (isAdmin) {
-      const participantOptions = participants.map(p =>
-        `<option value="${esc(p.user_id || '')}|${esc(p.user_name)}">${esc(p.user_name)}</option>`
+      const participantOptions = (b.submission_candidates || []).map(submission =>
+        `<option value="${esc(submission.submission_id || '')}" data-user-id="${esc(submission.user_id || '')}" data-user-name="${esc(submission.user_name || '')}">${esc(submission.title || 'Untitled solution')} · ${esc(submissionTypeLabel(submission.submission_type))} · ${esc(submission.user_name || 'Anonymous')}</option>`
       ).join('');
 
-      if (b.status === 'open' && participants.length) {
+      if (b.status === 'open' && participantOptions) {
         adminSection += `
           <div class="admin-panel">
-            <div class="admin-panel-label">Admin — Approve Winner</div>
+            <div class="admin-panel-label">Admin — Approve Winner from Submission</div>
+            <div style="font-size:0.8rem;color:var(--muted2);margin-bottom:8px">Only submitted solutions can win.</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <select id="winnerSelect" style="flex:1;min-width:160px;font-size:0.82rem;padding:6px 10px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
-                <option value="">Select participant…</option>${participantOptions}
+                <option value="">Select submitted solution…</option>${participantOptions}
               </select>
               <button class="btn btn-primary" style="font-size:0.8rem;padding:7px 16px" onclick="adminApproveWinner('${esc(b.id)}')">Approve Winner</button>
             </div>
@@ -662,28 +658,27 @@ function openSubmitModal(bountyId, bountyTitle) {
   document.getElementById('projectModal').classList.add('open');
 }
 
-async function submitProject() {
-  const name = document.getElementById('projName').value.trim();
-  const builder = document.getElementById('projBuilder').value.trim();
-  const description = document.getElementById('projDesc').value.trim();
-  const status = document.getElementById('projStatus').value;
-  const category = document.getElementById('projCategory').value;
-  const tags = document.getElementById('projTags').value.trim();
-  const repo_url = document.getElementById('projRepo').value.trim() || null;
-  const demo_url = document.getElementById('projDemo').value.trim() || null;
+async function submitSolution() {
+  const title = document.getElementById('solutionTitle').value.trim();
+  const summary = document.getElementById('solutionSummary').value.trim();
+  const content_markdown = document.getElementById('solutionMarkdown').value.trim();
+  const submission_type = document.getElementById('solutionType').value;
+  const repo_url = document.getElementById('solutionRepo').value.trim();
+  const demo_url = document.getElementById('solutionDemo').value.trim();
   const deck_id = document.getElementById('projDeckId').value || null;
   const bounty_id = document.getElementById('projBountyId').value || null;
-  if (!name) return alert('Project name is required');
-  if (!builder) return alert('Builder name is required');
+  const links = [];
+  if (repo_url) links.push({ label: 'Repo', url: repo_url });
+  if (demo_url) links.push({ label: 'Demo / Doc', url: demo_url });
+  if (!title) return alert('Solution title is required');
   try {
-    const r = await fetch('/api/projects', {
+    const r = await fetch('/api/bounties/' + bounty_id + '/submissions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ name, builder, description, status, category, tags, repo_url, demo_url, deck_id, bounty_id }),
+      body: JSON.stringify({ title, summary, content_markdown, submission_type, links, deck_id }),
     });
     if (!r.ok) { const e = await r.json().catch(()=>({})); alert(e.error || 'Submission failed'); return; }
-    ['projName','projBuilder','projDesc','projTags','projRepo','projDemo'].forEach(id => { document.getElementById(id).value = ''; });
-    document.getElementById('projStatus').value = 'building';
-    document.getElementById('projCategory').value = '';
+    ['solutionTitle','solutionSummary','solutionMarkdown','solutionRepo','solutionDemo'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('solutionType').value = 'mixed';
     document.getElementById('projBountyId').value = '';
     document.getElementById('projBountyLabel').style.display = 'none';
     document.getElementById('projectModal').classList.remove('open');
@@ -693,13 +688,14 @@ async function submitProject() {
 
 async function adminApproveWinner(bountyId) {
   const sel = document.getElementById('winnerSelect');
-  if (!sel || !sel.value) return alert('Please select a participant');
-  const [winnerId, winnerName] = sel.value.split('|');
-  if (!winnerId || !winnerName) return alert('Invalid selection');
+  if (!sel || !sel.value) return alert('Please select a submission');
+  const selectedSubmissionId = sel.value;
+  const winnerId = sel.options[sel.selectedIndex]?.dataset?.userId || '';
+  const winnerName = sel.options[sel.selectedIndex]?.dataset?.userName || '';
   try {
     const r = await fetch('/api/bounties/' + bountyId + '/approve-winner', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ winner_id: winnerId, winner_name: winnerName }),
+      body: JSON.stringify({ submission_id: selectedSubmissionId, winner_id: winnerId, winner_name: winnerName }),
     });
     if (r.ok) loadBounty();
     else { const e = await r.json(); alert(e.error || 'Failed'); }
@@ -923,10 +919,7 @@ async function openPayWinnerModal(bountyId, satsAmount) {
 </script>
 
 <script src="/js/auth.js"></script>
-<script>initAuth(function(user) {
-  var bi = document.getElementById('projBuilder');
-  if (bi && !bi.value) bi.value = user.name || user.email || '';
-});</script>
+<script>initAuth(function() {});</script>
 
 <script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
 </body>

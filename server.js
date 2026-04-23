@@ -205,6 +205,25 @@ db.exec(`
     FOREIGN KEY (bounty_id) REFERENCES bounties(id)
   );
 
+  CREATE TABLE IF NOT EXISTS bounty_submissions (
+    id               TEXT PRIMARY KEY,
+    bounty_id        TEXT NOT NULL,
+    user_id          TEXT,
+    submitter_name   TEXT NOT NULL,
+    submission_type  TEXT NOT NULL DEFAULT 'mixed',
+    title            TEXT NOT NULL,
+    summary          TEXT,
+    content_markdown TEXT,
+    links_json       TEXT,
+    project_id       TEXT,
+    deck_id          TEXT,
+    status           TEXT NOT NULL DEFAULT 'submitted',
+    review_notes     TEXT,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (bounty_id) REFERENCES bounties(id)
+  );
+
   CREATE TABLE IF NOT EXISTS events (
     id             TEXT PRIMARY KEY,
     name           TEXT NOT NULL,
@@ -532,6 +551,27 @@ const MIGRATIONS = [
   ]},
   { name: 'v025_bounty_creators', sql: [
     'ALTER TABLE bounties ADD COLUMN created_by TEXT',
+  ]},
+  { name: 'v026_bounty_submissions', sql: [
+    `CREATE TABLE IF NOT EXISTS bounty_submissions (
+      id TEXT PRIMARY KEY,
+      bounty_id TEXT NOT NULL,
+      user_id TEXT,
+      submitter_name TEXT NOT NULL,
+      submission_type TEXT NOT NULL DEFAULT 'mixed',
+      title TEXT NOT NULL,
+      summary TEXT,
+      content_markdown TEXT,
+      links_json TEXT,
+      project_id TEXT,
+      deck_id TEXT,
+      status TEXT NOT NULL DEFAULT 'submitted',
+      review_notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_bounty_submissions_bounty ON bounty_submissions(bounty_id, created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_bounty_submissions_user ON bounty_submissions(user_id, bounty_id, created_at)',
   ]},
 ];
 
@@ -1350,11 +1390,146 @@ app.post('/api/bounties', requireAuth, (req, res) => {
   res.json({ id });
 });
 
+function parseJsonOrDefault(value, fallback) {
+  if (!value) return fallback;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+function serializeBountySubmission(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    links: parseJsonOrDefault(row.links_json, []),
+    linked_project: row.project_id ? {
+      id: row.project_id,
+      name: row.project_name || null,
+      slug: row.project_slug || null,
+    } : null,
+    linked_deck: row.deck_id ? {
+      id: row.deck_id,
+      title: row.deck_title || null,
+    } : null,
+  };
+}
+
+function getBountySubmissionRows(bountyId) {
+  return db.prepare(`
+    SELECT bs.*,
+           p.name as project_name,
+           p.slug as project_slug,
+           d.title as deck_title
+    FROM bounty_submissions bs
+    LEFT JOIN projects p ON p.id = bs.project_id
+    LEFT JOIN decks d ON d.id = bs.deck_id
+    WHERE bs.bounty_id = ?
+    ORDER BY bs.created_at ASC
+  `).all(bountyId).map(serializeBountySubmission);
+}
+
+function getBountySubmissionCandidates(bountyId) {
+  return db.prepare(`
+    SELECT bs.id as submission_id,
+           bs.user_id,
+           bs.submitter_name as user_name,
+           bs.title,
+           bs.submission_type
+    FROM bounty_submissions bs
+    WHERE bs.bounty_id = ? AND bs.user_id IS NOT NULL
+    ORDER BY bs.created_at ASC
+  `).all(bountyId);
+}
+
 app.get('/api/bounties/:id', (req, res) => {
   const row = db.prepare('SELECT * FROM bounties WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   row.participants = db.prepare('SELECT id, user_id, user_name, created_at FROM bounty_participants WHERE bounty_id = ? ORDER BY created_at ASC').all(req.params.id);
+  row.submission_candidates = getBountySubmissionCandidates(req.params.id);
   res.json(row);
+});
+
+app.get('/api/bounties/:id/submissions', (req, res) => {
+  const bounty = db.prepare('SELECT id FROM bounties WHERE id = ?').get(req.params.id);
+  if (!bounty) return res.status(404).json({ error: 'Not found' });
+  res.json(getBountySubmissionRows(req.params.id));
+});
+
+app.get('/api/bounty-submissions/:id', (req, res) => {
+  const row = db.prepare(`
+    SELECT bs.*,
+           p.name as project_name,
+           p.slug as project_slug,
+           d.title as deck_title
+    FROM bounty_submissions bs
+    LEFT JOIN projects p ON p.id = bs.project_id
+    LEFT JOIN decks d ON d.id = bs.deck_id
+    WHERE bs.id = ?
+    LIMIT 1
+  `).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(serializeBountySubmission(row));
+});
+
+app.post('/api/bounties/:id/submissions', requireAuth, (req, res) => {
+  const bounty = db.prepare('SELECT id, status FROM bounties WHERE id = ?').get(req.params.id);
+  if (!bounty) return res.status(404).json({ error: 'Bounty not found' });
+  if (bounty.status !== 'open') return res.status(409).json({ error: 'Bounty is not open for submissions' });
+  const joined = db.prepare('SELECT id FROM bounty_participants WHERE bounty_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!joined) return res.status(403).json({ error: 'Join the bounty before submitting a solution' });
+
+  const title = String(req.body.title || '').trim();
+  const summary = String(req.body.summary || '').trim();
+  const content_markdown = String(req.body.content_markdown || '').trim();
+  const submission_type = ['project', 'markdown', 'link', 'mixed'].includes(req.body.submission_type) ? req.body.submission_type : 'mixed';
+  const links = Array.isArray(req.body.links) ? req.body.links.map((entry) => {
+    if (!entry) return null;
+    if (typeof entry === 'string') return entry.trim() ? { label: '', url: entry.trim() } : null;
+    const url = String(entry.url || '').trim();
+    if (!url) return null;
+    return { label: String(entry.label || '').trim(), url };
+  }).filter(Boolean) : [];
+  const deck_id = req.body.deck_id || null;
+
+  if (!title) return res.status(400).json({ error: 'title required' });
+  if (!summary && !content_markdown && !links.length && !deck_id) {
+    return res.status(400).json({ error: 'Add markdown, a deck, or at least one link before submitting' });
+  }
+
+  const submissionId = crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO bounty_submissions (
+      id, bounty_id, user_id, submitter_name, submission_type, title, summary, content_markdown, links_json, deck_id, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted')
+  `).run(
+    submissionId,
+    req.params.id,
+    req.user.id,
+    req.user.name || req.user.email || 'Anonymous',
+    submission_type,
+    title,
+    summary || null,
+    content_markdown || null,
+    links.length ? JSON.stringify(links) : null,
+    deck_id
+  );
+
+  const created = db.prepare(`
+    SELECT bs.*, d.title as deck_title
+    FROM bounty_submissions bs
+    LEFT JOIN decks d ON d.id = bs.deck_id
+    WHERE bs.id = ?
+    LIMIT 1
+  `).get(submissionId);
+  res.json(serializeBountySubmission(created));
+});
+
+app.post('/api/bounty-submissions/:id/review', requireAuth, requireAdmin, (req, res) => {
+  const submission = db.prepare('SELECT id FROM bounty_submissions WHERE id = ?').get(req.params.id);
+  if (!submission) return res.status(404).json({ error: 'Not found' });
+  const status = ['submitted', 'under_review', 'approved', 'rejected', 'winner_selected'].includes(req.body.status) ? req.body.status : 'under_review';
+  const review_notes = String(req.body.review_notes || '').trim();
+  db.prepare('UPDATE bounty_submissions SET status = ?, review_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, review_notes || null, req.params.id);
+  const updated = db.prepare('SELECT * FROM bounty_submissions WHERE id = ?').get(req.params.id);
+  res.json(serializeBountySubmission(updated));
 });
 
 app.put('/api/bounties/:id', requireAuth, (req, res) => {
@@ -1518,13 +1693,25 @@ app.get('/api/bounties/:id/winner', (req, res) => {
 
 // POST /api/bounties/:id/approve-winner — admin sets winner, status → claimed
 app.post('/api/bounties/:id/approve-winner', requireAuth, requireAdmin, (req, res) => {
-  const { winner_id, winner_name } = req.body;
-  if (!winner_id || !winner_name) return res.status(400).json({ error: 'winner_id and winner_name required' });
+  const { submission_id, winner_id, winner_name } = req.body;
+  if (!submission_id && (!winner_id || !winner_name)) return res.status(400).json({ error: 'submission_id or winner_id and winner_name required' });
   const bounty = db.prepare('SELECT id FROM bounties WHERE id = ?').get(req.params.id);
   if (!bounty) return res.status(404).json({ error: 'Not found' });
-  db.prepare("UPDATE bounties SET winner_id = ?, winner_name = ?, status = 'claimed' WHERE id = ?").run(winner_id, winner_name, req.params.id);
-  checkAndAwardBadges(winner_id);
-  res.json({ ok: true });
+  let winningSubmission = null;
+  if (submission_id) {
+    winningSubmission = db.prepare('SELECT * FROM bounty_submissions WHERE id = ? AND bounty_id = ? LIMIT 1').get(submission_id, req.params.id);
+  } else if (winner_id) {
+    winningSubmission = db.prepare('SELECT * FROM bounty_submissions WHERE bounty_id = ? AND user_id = ? ORDER BY created_at ASC LIMIT 1').get(req.params.id, winner_id);
+  }
+  if (!winningSubmission) return res.status(400).json({ error: 'Winner must be a submitted solution for this bounty' });
+  const resolvedWinnerId = winningSubmission.user_id || winner_id;
+  const resolvedWinnerName = winningSubmission.submitter_name || winner_name;
+  if (!resolvedWinnerId || !resolvedWinnerName) return res.status(400).json({ error: 'Winning submission must have a linked user' });
+  db.prepare("UPDATE bounty_submissions SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE bounty_id = ? AND status = 'winner_selected'").run(req.params.id);
+  db.prepare("UPDATE bounty_submissions SET status = 'winner_selected', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(winningSubmission.id);
+  db.prepare("UPDATE bounties SET winner_id = ?, winner_name = ?, status = 'claimed' WHERE id = ?").run(resolvedWinnerId, resolvedWinnerName, req.params.id);
+  checkAndAwardBadges(resolvedWinnerId);
+  res.json({ ok: true, submission_id: winningSubmission.id });
 });
 
 // POST /api/bounties/:id/mark-paid — admin marks payout done, status → completed
