@@ -1542,6 +1542,11 @@ function scrollCarousel(dir) {
 // ─── Mini Calendar ───
 let calMonth, calYear;
 
+function shiftMonth(year, month, offset) {
+  const d = new Date(year, month + offset, 1);
+  return { year: d.getFullYear(), month: d.getMonth(), date: d };
+}
+
 function getEventIcon(type) {
   const icons = {
     'demo-day': '<svg class="cal-icon cal-icon-demo" viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="9" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="8" y1="11" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.2"/><line x1="5.5" y1="13.5" x2="10.5" y2="13.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><polygon points="6.5,5 10.5,6.5 6.5,8" fill="currentColor"/></svg>',
@@ -1552,32 +1557,31 @@ function getEventIcon(type) {
   return icons[type] || icons['demo-day'];
 }
 
-function renderMiniCal() {
-  const now = new Date();
-  if (!calMonth) { calMonth = now.getMonth(); calYear = now.getFullYear(); }
-  const el = document.getElementById('miniCal');
-  const first = new Date(calYear, calMonth, 1);
-  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  let startDay = first.getDay() - 1; if (startDay < 0) startDay = 6;
-  const monthName = first.toLocaleString('en', { month: 'long', year: 'numeric' });
+function renderMiniCalMonth(monthDate, now) {
+  const month = monthDate.getMonth();
+  const year = monthDate.getFullYear();
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let startDay = first.getDay() - 1;
+  if (startDay < 0) startDay = 6;
 
-  // Map event dates to event data
   const eventDateMap = {};
   eventsData.forEach(ev => {
     if (!ev.date) return;
     const d = new Date(ev.date);
-    if (d.getMonth() === calMonth && d.getFullYear() === calYear) {
+    if (d.getMonth() === month && d.getFullYear() === year) {
       const day = d.getDate();
       if (!eventDateMap[day]) eventDateMap[day] = [];
       eventDateMap[day].push(ev);
     }
   });
 
+  const isCurrentMonth = now.getMonth() === month && now.getFullYear() === year;
   const todayDate = now.getDate();
-  const isCurrentMonth = now.getMonth() === calMonth && now.getFullYear() === calYear;
+  const prevMonthDays = new Date(year, month, 0).getDate();
+  const monthName = first.toLocaleString('en', { month: 'long', year: 'numeric' });
+  const evTypeColors = { 'demo-day': '#7c5cfc', 'hackathon': '#39d98a', 'bounty': '#d4a843', 'workshop': '#3CCBDA', 'meetup': '#f472b6' };
 
-  // Previous month trailing days
-  const prevMonthDays = new Date(calYear, calMonth, 0).getDate();
   let days = '';
   for (let i = startDay - 1; i >= 0; i--) {
     days += `<div class="cal-cell other-month"><div class="cal-cell-num">${prevMonthDays - i}</div></div>`;
@@ -1592,17 +1596,17 @@ function renderMiniCal() {
     const eventCls = hasEvent ? ' has-event' : '';
 
     let content = '';
-    const evTypeColors = { 'demo-day': '#7c5cfc', 'hackathon': '#39d98a', 'bounty': '#d4a843', 'workshop': '#3CCBDA', 'meetup': '#f472b6' };
     let evColor = '';
     let titleAttr = '';
     if (hasEvent) {
       const evType = events[0].type || events[0].event_type || 'demo-day';
       evColor = evTypeColors[evType] || '#7c5cfc';
-      const icons = events.map(ev => getEventIcon(ev.type || ev.event_type || 'demo-day')).join('');
+      const icons = events.slice(0, 2).map(ev => getEventIcon(ev.type || ev.event_type || 'demo-day')).join('');
+      const extraCount = events.length > 2 ? `<span class="cal-event-count">+${events.length - 2}</span>` : '';
       const markers = events.slice(0, 3).map(ev => `<span class="cal-event-dot" style="--ev-color:${evTypeColors[ev.type || ev.event_type || 'demo-day'] || '#7c5cfc'}"></span>`).join('');
       const label = events.map(ev => ev.name).join(' · ');
       titleAttr = ` title="${esc(label)}" aria-label="${esc(label)}"`;
-      content = `<div class="cal-cell-content">${icons}</div><div class="cal-event-markers">${markers}</div>`;
+      content = `<div class="cal-cell-content">${icons}${extraCount}</div><div class="cal-event-markers">${markers}</div>`;
     }
 
     days += `<div class="cal-cell${todayCls}${eventCls}"${click}${titleAttr}${evColor ? ` style="--ev-color:${evColor}"` : ''}>
@@ -1611,25 +1615,45 @@ function renderMiniCal() {
     </div>`;
   }
 
-  // Next month leading days — fill remaining cells in the last row
   const totalCells = startDay + daysInMonth;
   const remaining = (7 - (totalCells % 7)) % 7;
   for (let i = 1; i <= remaining; i++) {
     days += `<div class="cal-cell other-month"><div class="cal-cell-num">${i}</div></div>`;
   }
 
+  return `
+    <section class="mini-cal-month-panel">
+      <div class="mini-cal-month-title">${monthName}</div>
+      <div class="cal-grid">
+        <div class="cal-day-label">Mo</div><div class="cal-day-label">Tu</div><div class="cal-day-label">We</div>
+        <div class="cal-day-label">Th</div><div class="cal-day-label">Fr</div><div class="cal-day-label">Sa</div><div class="cal-day-label">Su</div>
+        ${days}
+      </div>
+    </section>`;
+}
+
+function renderMiniCal() {
+  const now = new Date();
+  if (typeof calMonth !== 'number' || typeof calYear !== 'number') {
+    calMonth = now.getMonth();
+    calYear = now.getFullYear();
+  }
+  const el = document.getElementById('miniCal');
+  const first = new Date(calYear, calMonth, 1);
+  const next = shiftMonth(calYear, calMonth, 1);
+  const title = `${first.toLocaleString('en', { month: 'short' })} / ${next.date.toLocaleString('en', { month: 'short', year: 'numeric' })}`;
+
   el.innerHTML = `
     <div class="mini-cal-header">
-      <div class="mini-cal-title">${monthName}</div>
+      <div class="mini-cal-title">${title}</div>
       <div class="mini-cal-nav">
         <button onclick="calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderMiniCal()">‹</button>
         <button onclick="calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderMiniCal()">›</button>
       </div>
     </div>
-    <div class="cal-grid">
-      <div class="cal-day-label">Mo</div><div class="cal-day-label">Tu</div><div class="cal-day-label">We</div>
-      <div class="cal-day-label">Th</div><div class="cal-day-label">Fr</div><div class="cal-day-label">Sa</div><div class="cal-day-label">Su</div>
-      ${days}
+    <div class="mini-cal-months">
+      ${renderMiniCalMonth(first, now)}
+      ${renderMiniCalMonth(next.date, now)}
     </div>`;
 }
 
