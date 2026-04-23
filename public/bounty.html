@@ -441,7 +441,7 @@ async function loadBounty() {
           <article class="submission-card">
             <div class="submission-card-name">${esc(submission.title || 'Untitled solution')}</div>
             <div class="submission-card-builder">${esc(submissionTypeLabel(submission.submission_type))} · by ${esc(submission.submitter_name || 'Anonymous')}</div>
-            <div style="font-size:0.8rem;color:var(--text2);line-height:1.5;margin:10px 0 12px">${esc(summarizeSubmissionPreview(submission))}</div>
+            <div style="font-size:0.8rem;color:var(--text2);line-height:1.5;margin:10px 0 12px;max-height:3.6em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical">${esc(summarizeSubmissionPreview(submission))}</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <span class="submission-card-status">${esc(submission.status || 'submitted')}</span>
               <button class="btn" style="padding:7px 12px;font-size:0.74rem" onclick="openSubmissionReview(${index})">Review Submission</button>
