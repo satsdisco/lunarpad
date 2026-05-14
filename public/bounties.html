@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bounties | LunarPad</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        .bounty-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .bounty-card {
+            background: rgba(124, 92, 252, 0.1);
+            border: 1px solid rgba(124, 92, 252, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .bounty-card:hover {
+            border-color: #7c5cfc;
+            background: rgba(124, 92, 252, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .bounty-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        .bounty-description {
+            color: #a3a3a3;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 15px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .bounty-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #737373;
+        }
+
+        .bounty-amount {
+            background: linear-gradient(135deg, #d4a843, #f4c75a);
+            color: #0d0f1a;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .bounty-participants {
+            color: #a3a3a3;
+        }
+
+        .bounty-status {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-open {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .status-claimed {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+
+        .status-completed {
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+        }
+
+        .bounty-deadline {
+            color: #a3a3a3;
+            font-size: 12px;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .deadline-urgent {
+            color: #ef4444;
+        }
+
+        .deadline-soon {
+            color: #f59e0b;
+        }
+
+        .deadline-open {
+            color: #22c55e;
+        }
+
+        .create-bounty-btn {
+            background: linear-gradient(135deg, #7c5cfc, #9333ea);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 20px;
+        }
+
+        .create-bounty-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(124, 92, 252, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="nav-bar">
+            <div class="nav-brand">
+                <h1>LunarPad</h1>
+            </div>
+            <div class="nav-links">
+                <a href="/">Decks</a>
+                <a href="/projects">Projects</a>
+                <a href="/bounties" class="active">Bounties</a>
+                <a href="/events">Events</a>
+            </div>
+            <div class="nav-user">
+                <span id="user-name">Loading...</span>
+                <button id="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Bounties</h2>
+                <p>Earn sats by completing challenges and tasks</p>
+            </div>
+
+            <button class="create-bounty-btn" onclick="window.location.href='/bounty/new'">Create New Bounty</button>
+
+            <div id="bounties-container">
+                <div class="bounty-grid" id="bounties-grid">
+                    <!-- Bounties will be loaded here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/auth.js"></script>
+    <script>
+        async function loadBounties() {
+            try {
+                const response = await fetch('/api/bounties');
+                const bounties = await response.json();
+                
+                const grid = document.getElementById('bounties-grid');
+                
+                if (bounties.length === 0) {
+                    grid.innerHTML = '<p style="color: #737373; text-align: center; grid-column: 1 / -1;">No bounties available yet.</p>';
+                    return;
+                }
+                
+                grid.innerHTML = bounties.map(bounty => {
+                    const statusClass = bounty.status === 'open' ? 'status-open' : 
+                                       bounty.status === 'claimed' ? 'status-claimed' : 'status-completed';
+                    
+                    const participantCount = bounty.participants || 0;
+                    const participantText = participantCount === 1 ? '1 participant' : `${participantCount} participants`;
+                    
+                    // Format deadline
+                    let deadlineHtml = '';
+                    let deadlineClass = 'deadline-open';
+                    let deadlineText = 'No deadline';
+                    
+                    if (bounty.deadline) {
+                        const deadline = new Date(bounty.deadline);
+                        const now = new Date();
+                        const timeLeft = deadline - now;
+                        const daysLeft = Math.ceil(timeLeft / (1000 * 60 * 60 * 24));
+                        
+                        if (timeLeft < 0) {
+                            deadlineText = 'Expired';
+                            deadlineClass = 'deadline-urgent';
+                        } else if (daysLeft <= 1) {
+                            deadlineText = daysLeft === 1 ? '1 day left' : 'Due today';
+                            deadlineClass = 'deadline-urgent';
+                        } else if (daysLeft <= 7) {
+                            deadlineText = `${daysLeft} days left`;
+                            deadlineClass = 'deadline-soon';
+                        } else {
+                            deadlineText = `Due ${deadline.toLocaleDateString()}`;
+                            deadlineClass = 'deadline-open';
+                        }
+                    }
+                    
+                    deadlineHtml = `<div class="bounty-deadline ${deadlineClass}">
+                        <span>🕒</span>
+                        <span>${deadlineText}</span>
+                    </div>`;
+                    
+                    return `
+                        <div class="bounty-card" onclick="window.location.href='/bounty/${bounty.id}'">
+                            <div class="bounty-status ${statusClass}">${bounty.status}</div>
+                            <div class="bounty-title">${bounty.title}</div>
+                            <div class="bounty-description">${bounty.description}</div>
+                            ${deadlineHtml}
+                            <div class="bounty-meta">
+                                <span class="bounty-amount">${bounty.amount} sats</span>
+                                <span class="bounty-participants">${participantText}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading bounties:', error);
+                document.getElementById('bounties-grid').innerHTML = 
+                    '<p style="color: #ef4444; text-align: center; grid-column: 1 / -1;">Error loading bounties. Please try again.</p>';
+            }
+        }
+
+        // Load bounties when page loads
+        loadBounties();
+    </script>
+</body>
+</html>
