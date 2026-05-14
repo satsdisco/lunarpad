@@ -613,6 +613,20 @@ const MIGRATIONS = [
              OR (bs.bounty_id = p.bounty_id AND bs.user_id = p.user_id AND bs.submission_type = 'project')
        )`,
   ]},
+  { name: 'v029_event_audience_votes', sql: [
+    `CREATE TABLE IF NOT EXISTS event_audience_votes (
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      speaker_id TEXT NOT NULL,
+      voter_user_id TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_event_audience_votes_event ON event_audience_votes(event_id, speaker_id)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_event_audience_votes_one_per_user ON event_audience_votes(event_id, voter_user_id)',
+    'ALTER TABLE events ADD COLUMN audience_voting_open INTEGER DEFAULT 0',
+    'ALTER TABLE events ADD COLUMN audience_voting_opened_at TEXT',
+    'ALTER TABLE events ADD COLUMN audience_voting_closed_at TEXT',
+  ]},
 ];
 
 // Run pending migrations
@@ -657,6 +671,7 @@ const BADGES = {
   popular:        { id: 'popular',        emoji: '🌟', name: 'Popular Project',    desc: 'Received 10+ votes on a project' },
   early_adopter:  { id: 'early_adopter',  emoji: '🚀', name: 'Early Adopter',      desc: 'Joined in the first month' },
   presenter:      { id: 'presenter',      emoji: '🎤', name: 'Presenter',          desc: 'Presented at a demo day' },
+  audience_favorite: { id: 'audience_favorite', emoji: '🏆', name: 'Audience Favorite', desc: 'Won an audience vote at demo day' },
   bounty_hunter:  { id: 'bounty_hunter',  emoji: '🎯', name: 'Bounty Hunter',      desc: 'Completed 3+ bounties' },
 };
 
@@ -677,11 +692,38 @@ function checkAndAwardBadges(userId) {
   }
   if (!has('demo_champ')) {
     const champ = db.prepare(`
-      SELECT b.id FROM bounties b
-      JOIN events e ON b.event_id = e.id
-      WHERE b.winner_id = ? AND e.event_type = 'demo-day'
+      SELECT 1
+      FROM (
+        SELECT b.winner_id as winner_user_id, e.event_type as event_type
+        FROM bounties b
+        JOIN events e ON b.event_id = e.id
+        WHERE b.winner_id IS NOT NULL
+
+        UNION ALL
+
+        SELECT s.user_id as winner_user_id, e.event_type as event_type
+        FROM event_results er
+        JOIN speakers s ON s.id = er.winner_speaker_id
+        JOIN events e ON e.id = er.event_id
+        WHERE er.winner_speaker_id IS NOT NULL
+      ) winners
+      WHERE winners.winner_user_id = ? AND winners.event_type = 'demo-day'
+      LIMIT 1
     `).get(userId);
     if (champ) badges.push('demo_champ');
+  }
+  if (!has('audience_favorite')) {
+    const favorite = db.prepare(`
+      SELECT 1
+      FROM event_results er
+      JOIN speakers s ON s.id = er.winner_speaker_id
+      JOIN events e ON e.id = er.event_id
+      WHERE s.user_id = ?
+        AND e.event_type = 'demo-day'
+        AND er.results_json LIKE '%"winner_source":"audience_vote"%'
+      LIMIT 1
+    `).get(userId);
+    if (favorite) badges.push('audience_favorite');
   }
   if (!has('streak')) {
     const ev = db.prepare(`
@@ -1156,7 +1198,7 @@ app.get('/profile', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'publi
 app.get('/profile/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'profile.html')));
 app.get('/notifications', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'notifications.html')));
 app.get('/vote',     requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'vote.html')));
-app.get('/admin',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
+app.get('/admin',    requireAuth, requireAdmin, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
 app.get('/bounty/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'bounty.html')));
 app.get('/live/:eventId', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'live.html')));
 
@@ -2699,13 +2741,46 @@ app.get('/api/events/:id', (req, res) => {
     total_votes: Number(eventResults.total_votes || 0),
     total_zaps: Number(eventResults.total_zaps || 0),
   } : null;
+  const audience_vote_state = getAudienceVoteState(req.params.id, req.user || null);
   res.json({
     ...event,
     speakers,
     live_summary,
     result_summary,
     event_results: eventResults?.results || null,
+    audience_vote_state,
   });
+});
+
+app.post('/api/events/:id/audience-vote/open', requireAuth, requireAdmin, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  res.json({ ok: true, audience_vote_state: setAudienceVoteOpenState(req.params.id, true) });
+});
+
+app.post('/api/events/:id/audience-vote/close', requireAuth, requireAdmin, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  const finalized = finalizeAudienceVoteWinner(req.params.id);
+  res.json({
+    ok: true,
+    audience_vote_state: finalized.audienceVoteState,
+    winner: finalized.audienceVoteState?.winner || null,
+    event_results: finalized.eventResults?.results || null,
+  });
+});
+
+app.post('/api/events/:id/audience-vote', requireAuth, (req, res) => {
+  const speakerId = String(req.body?.speaker_id || '').trim();
+  if (!speakerId) return res.status(400).json({ error: 'speaker_id required' });
+  try {
+    const audienceVoteState = castAudienceVote(req.params.id, speakerId, req.user.id);
+    res.json({ ok: true, audience_vote_state: audienceVoteState });
+  } catch (error) {
+    const message = error?.message || 'Audience vote failed';
+    const status = /not found/i.test(message) ? 404 : 409;
+    res.status(status).json({ error: message });
+  }
 });
 
 // ─── Speakers API ─────────────────────────────────────────────────────────────
@@ -3954,6 +4029,195 @@ function getRecommendedWinner(eventId, providedSpeakers = null) {
       || String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] || null;
 }
 
+function getAudienceVoteLeaderboard(eventId, providedSpeakers = null) {
+  const speakers = providedSpeakers || getOrderedEventSpeakers(eventId);
+  const audienceRows = new Map(getAudienceVoteRows(eventId).map((speaker) => [speaker.id, speaker]));
+  return speakers.map((speaker) => ({
+    ...speaker,
+    audience_vote_count: Number(audienceRows.get(speaker.id)?.audience_vote_count || 0),
+  }));
+}
+
+function getAudienceVoteWinner(eventId, providedSpeakers = null) {
+  return getAudienceVoteLeaderboard(eventId, providedSpeakers)
+    .filter((speaker) => speaker.status !== 'skipped')
+    .slice()
+    .sort((a, b) => Number(b.audience_vote_count || 0) - Number(a.audience_vote_count || 0)
+      || Number(b.zap_total || 0) - Number(a.zap_total || 0)
+      || Number(a.queue_position || 2147483647) - Number(b.queue_position || 2147483647)
+      || String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] || null;
+}
+
+function getAudienceVoteRows(eventId) {
+  return db.prepare(`
+    SELECT s.id,
+           s.event_id,
+           s.user_id,
+           s.name,
+           s.project_title,
+           COALESCE(s.status, 'scheduled') AS status,
+           s.presented_at,
+           COUNT(eav.id) AS audience_vote_count
+      FROM speakers s
+      LEFT JOIN event_audience_votes eav ON eav.speaker_id = s.id AND eav.event_id = s.event_id
+     WHERE s.event_id = ?
+     GROUP BY s.id, s.event_id, s.user_id, s.name, s.project_title, s.status, s.presented_at
+     ORDER BY audience_vote_count DESC, s.created_at ASC
+  `).all(eventId).map((row) => ({
+    ...row,
+    audience_vote_count: Number(row.audience_vote_count || 0),
+  }));
+}
+
+function getAudienceVoteState(eventId, viewer = null) {
+  const event = db.prepare(`
+    SELECT audience_voting_open, audience_voting_opened_at, audience_voting_closed_at
+    FROM events WHERE id = ?
+  `).get(eventId);
+  const speakers = getAudienceVoteRows(eventId);
+  const leaderboard = getAudienceVoteLeaderboard(eventId);
+  const winner = getAudienceVoteWinner(eventId, leaderboard);
+  const storedResults = getStoredEventResults(eventId);
+  const viewerVote = viewer?.id
+    ? db.prepare('SELECT speaker_id, created_at FROM event_audience_votes WHERE event_id = ? AND voter_user_id = ? LIMIT 1').get(eventId, viewer.id)
+    : null;
+  const totalVotes = speakers.reduce((sum, speaker) => sum + Number(speaker.audience_vote_count || 0), 0);
+  const confirmedWinnerId = storedResults?.winner_speaker_id || leaderboard.find((speaker) => speaker.status === 'winner')?.id || null;
+  const resolvedWinner = confirmedWinnerId
+    ? leaderboard.find((speaker) => speaker.id === confirmedWinnerId) || winner
+    : (Number(event?.audience_voting_open || 0) ? null : winner);
+  return {
+    status: Number(event?.audience_voting_open || 0) ? 'open' : 'closed',
+    is_open: !!Number(event?.audience_voting_open || 0),
+    opened_at: event?.audience_voting_opened_at || null,
+    closed_at: event?.audience_voting_closed_at || null,
+    total_votes: totalVotes,
+    viewer_vote: viewerVote ? {
+      speaker_id: viewerVote.speaker_id,
+      created_at: viewerVote.created_at,
+    } : null,
+    winner: resolvedWinner && Number(resolvedWinner.audience_vote_count || 0) > 0 ? {
+      id: resolvedWinner.id,
+      user_id: resolvedWinner.user_id || null,
+      name: resolvedWinner.name,
+      project_title: resolvedWinner.project_title || 'Untitled',
+      audience_vote_count: Number(resolvedWinner.audience_vote_count || 0),
+      zap_total: Number(resolvedWinner.zap_total || 0),
+    } : null,
+    speakers: leaderboard.map((speaker) => ({
+      id: speaker.id,
+      event_id: speaker.event_id,
+      user_id: speaker.user_id || null,
+      name: speaker.name,
+      project_title: speaker.project_title,
+      status: speaker.status || 'scheduled',
+      presented_at: speaker.presented_at || null,
+      audience_vote_count: Number(speaker.audience_vote_count || 0),
+      zap_total: Number(speaker.zap_total || 0),
+      queue_position: Number(speaker.queue_position || 0) || null,
+      deck_id: speaker.deck_id || speaker.deck_id_real || null,
+    })),
+  };
+}
+
+function castAudienceVote(eventId, speakerId, voterUserId) {
+  if (!eventId || !speakerId || !voterUserId) throw new Error('event, speaker, and voter are required');
+  const event = db.prepare('SELECT audience_voting_open FROM events WHERE id = ?').get(eventId);
+  if (!event) throw new Error('Event not found');
+  if (!Number(event.audience_voting_open || 0)) throw new Error('Audience voting is not open for this event');
+  const speaker = db.prepare(`
+    SELECT id, event_id, COALESCE(status, 'scheduled') AS status
+    FROM speakers
+    WHERE id = ? AND event_id = ?
+  `).get(speakerId, eventId);
+  if (!speaker) throw new Error('Speaker not found for this event');
+  if (speaker.status === 'skipped') throw new Error('Skipped presentations are not eligible for audience voting');
+  const existing = db.prepare('SELECT id FROM event_audience_votes WHERE event_id = ? AND voter_user_id = ? LIMIT 1').get(eventId, voterUserId);
+  if (existing) throw new Error('You have already voted in this event');
+  db.prepare(`
+    INSERT INTO event_audience_votes (id, event_id, speaker_id, voter_user_id)
+    VALUES (?, ?, ?, ?)
+  `).run(crypto.randomUUID(), eventId, speakerId, voterUserId);
+  return getAudienceVoteState(eventId, { id: voterUserId });
+}
+
+function finalizeAudienceVoteWinner(eventId) {
+  const speakers = getOrderedEventSpeakers(eventId);
+  if (!speakers.length) return { winner: null, eventResults: null, audienceVoteState: getAudienceVoteState(eventId) };
+
+  const winner = getAudienceVoteWinner(eventId, speakers);
+  const winningVoteCount = Number(winner?.audience_vote_count || 0);
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(`
+      UPDATE events
+         SET audience_voting_open = 0,
+             audience_voting_closed_at = datetime('now')
+       WHERE id = ?
+    `).run(eventId);
+
+    db.prepare(`
+      UPDATE speakers
+         SET status = CASE
+           WHEN status = 'winner' THEN 'presented'
+           ELSE status
+         END
+       WHERE event_id = ?
+    `).run(eventId);
+
+    if (winner && winningVoteCount > 0) {
+      db.prepare(`
+        UPDATE speakers
+           SET status = 'winner',
+               presented_at = COALESCE(presented_at, datetime('now'))
+         WHERE id = ?
+      `).run(winner.id);
+    }
+
+    const session = db.prepare('SELECT id FROM live_sessions WHERE event_id = ?').get(eventId);
+    if (session) {
+      db.prepare(`
+        UPDATE live_sessions
+           SET voting_open = 0,
+               current_speaker_id = NULL,
+               current_started_at = NULL,
+               winner_speaker_id = ?,
+               winner_confirmed_at = CASE WHEN ? IS NOT NULL THEN datetime('now') ELSE winner_confirmed_at END,
+               status = CASE WHEN ? IS NOT NULL THEN 'completed' ELSE COALESCE(status, 'idle') END,
+               ended_at = CASE WHEN ? IS NOT NULL THEN COALESCE(ended_at, datetime('now')) ELSE ended_at END,
+               is_active = CASE WHEN ? IS NOT NULL THEN 0 ELSE is_active END,
+               updated_at = datetime('now')
+         WHERE event_id = ?
+      `).run(winner?.id || null, winner?.id || null, winner?.id || null, winner?.id || null, winner?.id || null, eventId)
+    }
+
+    const eventResults = upsertEventResults(eventId);
+    db.exec('COMMIT');
+
+    if (winner?.user_id && winningVoteCount > 0) checkAndAwardBadges(winner.user_id);
+    return {
+      winner: winner && winningVoteCount > 0 ? winner : null,
+      eventResults,
+      audienceVoteState: getAudienceVoteState(eventId),
+    };
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+function setAudienceVoteOpenState(eventId, isOpen) {
+  db.prepare(`
+    UPDATE events
+       SET audience_voting_open = ?,
+           audience_voting_opened_at = CASE WHEN ? = 1 THEN COALESCE(audience_voting_opened_at, datetime('now')) ELSE audience_voting_opened_at END,
+           audience_voting_closed_at = CASE WHEN ? = 1 THEN NULL ELSE datetime('now') END
+     WHERE id = ?
+  `).run(isOpen ? 1 : 0, isOpen ? 1 : 0, isOpen ? 1 : 0, eventId);
+  return getAudienceVoteState(eventId);
+}
+
 function getStoredEventResults(eventId) {
   const row = db.prepare('SELECT * FROM event_results WHERE event_id = ?').get(eventId);
   if (!row) return null;
@@ -3988,9 +4252,16 @@ function buildEventResultsRecord(eventId) {
   const speakers = getOrderedEventSpeakers(eventId);
   if (!speakers.length) return null;
 
-  const rankings = speakers
+  const audienceLeaderboard = getAudienceVoteLeaderboard(eventId, speakers);
+  const hasAudienceVoteTotals = audienceLeaderboard.some((speaker) => Number(speaker.audience_vote_count || 0) > 0);
+  const useAudienceVoteResults = hasAudienceVoteTotals && (!!session?.winner_speaker_id || speakers.some((speaker) => speaker.status === 'winner'));
+  const rankingSource = useAudienceVoteResults ? audienceLeaderboard : speakers;
+
+  const rankings = rankingSource
     .slice()
-    .sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0)
+    .sort((a, b) => (useAudienceVoteResults
+      ? Number(b.audience_vote_count || 0) - Number(a.audience_vote_count || 0)
+      : Number(b.votes || 0) - Number(a.votes || 0))
       || Number(b.zap_total || 0) - Number(a.zap_total || 0)
       || Number(a.queue_position || 2147483647) - Number(b.queue_position || 2147483647)
       || String(a.created_at || '').localeCompare(String(b.created_at || '')))
@@ -4003,7 +4274,8 @@ function buildEventResultsRecord(eventId) {
       description: speaker.description || null,
       status: speaker.status || 'scheduled',
       duration: speaker.duration || null,
-      votes: Number(speaker.votes || 0),
+      votes: useAudienceVoteResults ? Number(speaker.audience_vote_count || 0) : Number(speaker.votes || 0),
+      vote_source: useAudienceVoteResults ? 'audience_vote' : 'lineup_support',
       zap_total: Number(speaker.zap_total || 0),
       deck_id: speaker.deck_id || speaker.deck_id_real || null,
       github_url: speaker.github_url || null,
@@ -4015,7 +4287,9 @@ function buildEventResultsRecord(eventId) {
 
   const winner = rankings.find((speaker) => speaker.id === session?.winner_speaker_id)
     || rankings.find((speaker) => speaker.status === 'winner')
-    || (['winner_pending', 'completed'].includes(session?.normalized_status) ? getRecommendedWinner(eventId, speakers) : null);
+    || (['winner_pending', 'completed'].includes(session?.normalized_status)
+      ? (useAudienceVoteResults ? getAudienceVoteWinner(eventId, audienceLeaderboard) : getRecommendedWinner(eventId, speakers))
+      : null);
 
   const recentSupport = db.prepare(`
     SELECT z.id, z.target_id, z.user_name, z.amount_sats, z.created_at, z.confirmed_at, s.name as speaker_name, s.project_title
@@ -4036,6 +4310,7 @@ function buildEventResultsRecord(eventId) {
 
   const totalVotes = rankings.reduce((sum, speaker) => sum + Number(speaker.votes || 0), 0);
   const totalZaps = rankings.reduce((sum, speaker) => sum + Number(speaker.zap_total || 0), 0);
+  const winnerSource = useAudienceVoteResults ? 'audience_vote' : 'lineup_support';
   const completedCount = rankings.filter((speaker) => speaker.status === 'presented' || speaker.status === 'winner').length;
   const skippedCount = rankings.filter((speaker) => speaker.status === 'skipped').length;
   const payoutStatus = session?.normalized_payout_status || 'pending';
@@ -4047,6 +4322,7 @@ function buildEventResultsRecord(eventId) {
     `Skipped presenters: ${skippedCount}`,
     `Total votes: ${totalVotes}`,
     `Total zaps: ${totalZaps} sats`,
+    `Winner source: ${winnerSource === 'audience_vote' ? 'Audience vote' : 'Lineup support'}`,
     `Payout status: ${payoutStatus}`,
     '',
     '## Rankings',
@@ -4067,6 +4343,7 @@ function buildEventResultsRecord(eventId) {
 
   const results = {
     generated_at: new Date().toISOString(),
+    winner_source: winnerSource,
     event: {
       id: event.id,
       name: event.name,

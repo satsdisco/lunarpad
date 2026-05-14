@@ -211,7 +211,188 @@
   background: rgba(242,177,52,0.08);
   color: var(--btc-bright);
 }
-.event-results-card {
+.audience-vote-card {
+  margin: 0 0 24px;
+  padding: 20px 22px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(124,92,252,0.2);
+  background: linear-gradient(180deg, rgba(18,20,36,0.92), rgba(13,15,26,0.96));
+}
+.audience-vote-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.audience-vote-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 8px;
+}
+.audience-vote-title {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.audience-vote-copy {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+.audience-vote-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.audience-vote-status.live {
+  border-color: rgba(57,217,138,0.25);
+  color: #8df0bf;
+  background: rgba(57,217,138,0.08);
+}
+.audience-vote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.audience-vote-option {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,0.03);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+.audience-vote-option-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.audience-vote-option-meta {
+  font-size: 0.78rem;
+  color: var(--muted2);
+}
+.audience-vote-option-score {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--btc-bright);
+}
+.audience-vote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.winner-toast {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 70;
+  max-width: 360px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(242,177,52,0.32);
+  background: linear-gradient(180deg, rgba(21,24,40,0.98), rgba(12,14,24,0.98));
+  color: var(--text);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.32);
+  transform: translateY(-8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.winner-toast.show { opacity: 1; transform: translateY(0); }
+.winner-toast strong { display: block; margin-bottom: 4px; }
+.winner-confetti-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 60;
+}
+.winner-confetti-piece {
+  position: absolute;
+  top: -8vh;
+  width: 10px;
+  height: 18px;
+  border-radius: 999px;
+  opacity: 0.92;
+  animation: winner-confetti-fall linear forwards;
+}
+@keyframes winner-confetti-fall {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate3d(var(--drift, 0px), 120vh, 0) rotate(760deg); opacity: 0; }
+}
+.audience-vote-winner-card {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(242,177,52,0.3);
+  background: linear-gradient(180deg, rgba(242,177,52,0.12), rgba(124,92,252,0.08));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.audience-vote-winner-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--btc-bright);
+  margin-bottom: 8px;
+}
+.audience-vote-winner-title {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.audience-vote-winner-copy {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.audience-vote-winner-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.audience-vote-winner-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.05);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text2);
+}
+.audience-vote-winner-pill.gold {
+  border-color: rgba(242,177,52,0.28);
+  color: var(--btc-bright);
+  background: rgba(242,177,52,0.08);
+}
+.audience-vote-live-copy {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: #8df0bf;
+  margin-top: 10px;
+}
+event-results-card {
   margin: 0 0 24px;
   padding: 20px 22px;
   border-radius: var(--radius-lg);
@@ -536,6 +717,10 @@
 <script>
 const eventId = window.location.pathname.split('/').pop();
 let eventData = null;
+let audienceVoteCurrentUser = null;
+let audienceVotePollInterval = null;
+let audienceVoteCelebratedWinnerId = null;
+let activeEventTab = 'lineup';
 let speakerVotePollInterval = null;
 
 function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
@@ -698,6 +883,86 @@ function stopSpeakerVotePolling() {
   }
 }
 
+function stopAudienceVotePolling() {
+  if (audienceVotePollInterval) {
+    clearInterval(audienceVotePollInterval);
+    audienceVotePollInterval = null;
+  }
+}
+
+function getAudienceWinnerFromEvent(ev) {
+  return ev?.audience_vote_state?.winner || ev?.event_results?.winner || ev?.live_summary?.winner || null;
+}
+
+function showWinnerToast(message, detail = '') {
+  let toast = document.getElementById('winnerToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'winnerToast';
+    toast.className = 'winner-toast';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<strong>${esc(message)}</strong>${detail ? `<div>${esc(detail)}</div>` : ''}`;
+  toast.classList.add('show');
+  clearTimeout(showWinnerToast._timer);
+  showWinnerToast._timer = setTimeout(() => toast.classList.remove('show'), 4200);
+}
+
+function launchWinnerConfetti() {
+  const layer = document.createElement('div');
+  layer.className = 'winner-confetti-layer';
+  const palette = ['#7c5cfc', '#d4a843', '#39d98a', '#3CCBDA', '#ffffff'];
+  for (let i = 0; i < 56; i += 1) {
+    const piece = document.createElement('span');
+    piece.className = 'winner-confetti-piece';
+    piece.style.left = `${Math.random() * 100}vw`;
+    piece.style.background = palette[i % palette.length];
+    piece.style.animationDuration = `${3 + Math.random() * 1.8}s`;
+    piece.style.animationDelay = `${Math.random() * 0.35}s`;
+    piece.style.setProperty('--drift', `${(Math.random() - 0.5) * 180}px`);
+    layer.appendChild(piece);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 5200);
+}
+
+function celebrateAudienceWinner(winner) {
+  if (!winner?.id || audienceVoteCelebratedWinnerId === winner.id) return;
+  audienceVoteCelebratedWinnerId = winner.id;
+  launchWinnerConfetti();
+  showWinnerToast(`${winner.name} wins demo day`, 'Winner badge locked in. Profile badge awarded if the account is linked.');
+}
+
+async function refreshAudienceVoteState() {
+  try {
+    const snapshot = await fetch('/api/events/' + eventId).then((r) => r.json());
+    if (snapshot?.error || !snapshot?.id) return;
+    const previousWinnerId = getAudienceWinnerFromEvent(eventData)?.id || null;
+    const nextWinner = getAudienceWinnerFromEvent(snapshot);
+    const nextWinnerId = nextWinner?.id || null;
+    const wasOpen = !!eventData?.audience_vote_state?.is_open;
+    const isOpen = !!snapshot?.audience_vote_state?.is_open;
+    const needsFullReload = nextWinnerId !== previousWinnerId || (wasOpen && !isOpen);
+    eventData = { ...eventData, ...snapshot };
+    if (needsFullReload) {
+      await loadEvent({ preserveTab: true, celebrateWinnerId: nextWinnerId || null });
+      return;
+    }
+    const section = document.getElementById('audienceVote');
+    if (section) section.outerHTML = renderAudienceVoteSection(eventData, audienceVoteCurrentUser);
+  } catch {}
+}
+
+function startAudienceVotePolling() {
+  stopAudienceVotePolling();
+  const hasState = !!eventData?.audience_vote_state;
+  const hasWinner = !!getAudienceWinnerFromEvent(eventData);
+  if (!hasState || hasWinner || document.hidden) return;
+  audienceVotePollInterval = setInterval(() => {
+    refreshAudienceVoteState().catch(() => {});
+  }, 3000);
+}
+
 function startSpeakerVotePolling(speakers) {
   stopSpeakerVotePolling();
   const activeSpeakers = (speakers || []).filter((speaker) => speaker?.id);
@@ -710,10 +975,13 @@ function startSpeakerVotePolling(speakers) {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     stopSpeakerVotePolling();
+    stopAudienceVotePolling();
     return;
   }
   startSpeakerVotePolling(eventData?.speakers || []);
   hydrateSpeakerVoteState(eventData?.speakers || []).catch(() => {});
+  startAudienceVotePolling();
+  refreshAudienceVoteState().catch(() => {});
 });
 
 function renderAttendeesSection(rsvpPayload) {
@@ -743,6 +1011,96 @@ function renderAttendeesSection(rsvpPayload) {
       </div>
       <div class="event-attendees-grid">${attendeeHtml}</div>
     </div>`;
+}
+
+function renderAudienceVoteSection(ev, currentUser) {
+  const state = ev?.audience_vote_state || null;
+  if (!state) return '';
+  const canManage = !!(currentUser && currentUser.is_admin);
+  const speakers = Array.isArray(state.speakers) ? state.speakers : [];
+  const voteIsOpen = !!state.is_open;
+  const viewerVoteId = state.viewer_vote?.speaker_id || null;
+  const winner = state.winner || null;
+  const statusLabel = voteIsOpen ? 'Voting open' : (winner ? 'Winner crowned' : 'Voting closed');
+  const statusClass = voteIsOpen ? 'live' : (winner ? 'gold' : '');
+  const optionsHtml = speakers.length
+    ? speakers.map((speaker) => {
+        const selected = viewerVoteId === speaker.id;
+        const isWinner = winner?.id === speaker.id;
+        const disabled = !!viewerVoteId || !voteIsOpen;
+        return `
+        <div class="audience-vote-option">
+          <div>
+            <div class="audience-vote-option-name">${esc(speaker.name || 'Presenter')}</div>
+            <div class="audience-vote-option-meta">${esc(speaker.project_title || 'Untitled project')}</div>
+          </div>
+          <div class="audience-vote-option-score">${Number(speaker.audience_vote_count || 0).toLocaleString()} audience votes${Number(speaker.zap_total || 0) ? ` • ⚡ ${Number(speaker.zap_total || 0).toLocaleString()} sats` : ''}</div>
+          <div class="audience-vote-winner-meta">
+            ${isWinner ? '<span class="audience-vote-winner-pill gold">🏆 Winner</span>' : ''}
+            ${selected ? '<span class="audience-vote-winner-pill">Your vote</span>' : ''}
+          </div>
+          ${voteIsOpen ? `<button class="btn ${selected ? 'btn-confirmed' : 'btn-primary'}" ${disabled ? 'disabled' : ''} onclick="castAudienceVote('${esc(speaker.id)}')">${selected ? 'Your vote' : (viewerVoteId ? 'Vote locked' : 'Vote for this project')}</button>` : ''}
+        </div>`;
+      }).join('')
+    : '<div class="lineup-empty">No presenters are eligible for audience voting yet.</div>';
+  const winnerHtml = winner ? `
+      <div class="audience-vote-winner-card">
+        <div class="audience-vote-winner-kicker">Winner crowned</div>
+        <div class="audience-vote-winner-title">🏆 ${esc(winner.name)} wins the room</div>
+        <div class="audience-vote-winner-copy">${esc(winner.project_title || 'Untitled project')} finished on top of the audience vote. The winner ribbon now lives on this event, and the builder collects a profile badge too.</div>
+        <div class="audience-vote-winner-meta">
+          <span class="audience-vote-winner-pill gold">${Number(winner.audience_vote_count || 0).toLocaleString()} audience votes</span>
+          <span class="audience-vote-winner-pill">⚡ ${Number(winner.zap_total || 0).toLocaleString()} sats support</span>
+          <span class="audience-vote-winner-pill">🏅 Demo Day Champion + Audience Favorite</span>
+        </div>
+      </div>` : '';
+  const viewerCopy = !currentUser
+    ? 'Log in to cast one anonymous winner vote after the event is marked complete.'
+    : (winner
+      ? 'Voting is closed and the winner is locked in. Everyone watching should see the crowned winner update automatically.'
+      : (viewerVoteId
+        ? 'Your vote is in. Audience voting is anonymous publicly and limited to one vote per event.'
+        : (voteIsOpen
+          ? 'Audience winner voting is now open. Pick one presentation; your vote is anonymous publicly and limited to one vote for this event.'
+          : 'Hosts will open audience winner voting after presentations conclude. The upvotes in the lineup do not decide the winner.')));
+  return `
+    <div class="audience-vote-card" id="audienceVote">
+      <div class="audience-vote-head">
+        <div>
+          <div class="audience-vote-kicker">Audience Vote</div>
+          <div class="audience-vote-title">Post-event winner vote</div>
+          <div class="audience-vote-copy">${viewerCopy}</div>
+          ${voteIsOpen ? '<div class="audience-vote-live-copy">Live counts refresh automatically while voting stays open.</div>' : ''}
+        </div>
+        <div class="audience-vote-status ${statusClass}">${statusLabel}</div>
+      </div>
+      ${winnerHtml}
+      ${canManage ? `<div class="audience-vote-actions">
+        <button class="btn btn-primary" onclick="setAudienceVoteOpen(true)">Open winner voting</button>
+        <button class="btn" onclick="setAudienceVoteOpen(false)">Close winner voting</button>
+      </div>` : ''}
+      <div class="audience-vote-grid">${optionsHtml}</div>
+    </div>`;
+}
+
+async function setAudienceVoteOpen(nextOpen) {
+  const endpoint = `/api/events/${eventId}/audience-vote/${nextOpen ? 'open' : 'close'}`;
+  const res = await fetch(endpoint, { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return alert(data.error || 'Failed to update audience voting');
+  const winnerId = !nextOpen ? (data?.winner?.id || null) : null;
+  await loadEvent({ preserveTab: true, celebrateWinnerId: winnerId });
+}
+
+async function castAudienceVote(speakerId) {
+  const res = await fetch(`/api/events/${eventId}/audience-vote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speaker_id: speakerId })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return alert(data.error || 'Failed to cast audience vote');
+  loadEvent();
 }
 
 function renderResultsSection(results, liveSummary, speakers) {
@@ -845,7 +1203,7 @@ function renderResultsSection(results, liveSummary, speakers) {
     </div>`;
 }
 
-async function loadEvent() {
+async function loadEvent(options = {}) {
   try {
     const [evRes, bRes, rsvpRes, meRes] = await Promise.all([
       fetch('/api/events/' + eventId).then(r => r.json()),
@@ -877,6 +1235,7 @@ async function loadEvent() {
     const resultsArtifact = ev.event_results || null;
     const attendeesHtml = renderAttendeesSection(rsvpRes);
     const currentUser = meRes?.user || null;
+    audienceVoteCurrentUser = currentUser;
     const userPresenting = !!(currentUser && speakers.some((sp) => sp.user_id && sp.user_id === currentUser.id));
     const canEditThisEvent = canEditEvent(ev, currentUser);
 
@@ -901,7 +1260,6 @@ async function loadEvent() {
         heroActionsHtml += '<button class="btn" id="editEventBtn" ' + btnStyle + '>✏️ Edit Event</button>';
       }
     }
-    heroActionsHtml += '<a class="btn" id="goLiveBtn" style="display:none;font-size:0.82rem;padding:7px 16px;border-radius:20px" href="#" target="_blank">🔴 Go Live</a>';
 
     const endedBadge = isEnded ? ' <span style="color:var(--muted);font-weight:400">(ended)</span>' : '';
     const prizeDiv = prizePool ? '<div class="event-prize">⚡ ' + prizePool.toLocaleString() + ' sats prize pool</div>' : '';
@@ -993,6 +1351,21 @@ async function loadEvent() {
     loadDecksDropdown();
     hydrateSpeakerVoteState(speakers).catch(() => {});
     startSpeakerVotePolling(speakers);
+    startAudienceVotePolling();
+
+    const celebrateWinnerId = options?.celebrateWinnerId || null;
+    if (celebrateWinnerId) {
+      const winner = getAudienceWinnerFromEvent(eventData);
+      if (winner?.id === celebrateWinnerId) celebrateAudienceWinner(winner);
+    }
+
+    const preferredTab = options?.preserveTab ? activeEventTab : (hasResults ? 'results' : 'lineup');
+    if (preferredTab !== (hasResults ? 'results' : 'lineup')) {
+      const preferredTrigger = document.querySelector(`.event-tab[onclick*="'${preferredTab}'"]`);
+      if (preferredTrigger) switchTab(preferredTab, { currentTarget: preferredTrigger });
+    } else {
+      activeEventTab = preferredTab;
+    }
 
     // Wire up action buttons (avoiding inline onclick with escaping issues)
     const editEventBtn = document.getElementById('editEventBtn');
@@ -1091,7 +1464,7 @@ function renderSpeaker(sp, rank) {
       </div>
       <div class="spk-card-right">
         <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--muted2);text-align:center">${rankLabel}</div>
-        <button class="vote-btn" onclick="event.stopPropagation();voteSpeaker('${esc(sp.id)}',this)" title="Audience vote for this presentation.">
+        <button class="vote-btn" onclick="event.stopPropagation();voteSpeaker('${esc(sp.id)}',this)" title="Upvote for lineup support. This does not decide the event winner.">
           <span class="arrow">▲</span><span class="vc">${sp.votes||0}</span>
         </button>
         ${_currentUser && _currentUser.is_admin && !isPresented ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:3px 8px;border-radius:12px;margin-top:6px" onclick="event.stopPropagation();markSpeakerPresented('${esc(sp.id)}')">Mark Presented</button>` : ''}
@@ -1118,6 +1491,7 @@ function renderBounty(b) {
 }
 
 function switchTab(name, evt) {
+  activeEventTab = name;
   document.querySelectorAll('.event-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.event-tab-view').forEach(v => v.classList.remove('active'));
   const trigger = evt?.currentTarget || evt?.target;
@@ -1278,16 +1652,10 @@ async function loadDecksDropdown() {
   } catch {}
 }
 
-loadEvent();
+loadEvent({ preserveTab: true });
 </script>
 <script src="/js/auth.js"></script>
-<script>initAuth(function(user) {
-  if (user.is_admin) {
-    var eid = window.location.pathname.split('/').pop();
-    var liveBtn = document.getElementById('goLiveBtn');
-    if (liveBtn) { liveBtn.href = '/live/' + eid; liveBtn.style.display = ''; }
-  }
-});</script>
+<script>initAuth(function() {});</script>
 <!-- FAB removed: not contextually relevant on event page -->
 <script>document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(function(m){m.classList.remove("open")})});</script>
 </body>

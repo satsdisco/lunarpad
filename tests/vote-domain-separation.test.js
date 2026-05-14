@@ -23,7 +23,7 @@ test('event presenter rows keep audience-vote wording compact and pin the vote c
 
   assert.match(projectHtml, />▲ Upvote</);
   assert.match(deckHtml, /title="Upvote this deck/);
-  assert.match(eventHtml, /title="Audience vote for this presentation\./);
+  assert.match(eventHtml, /title="Upvote for lineup support\. This does not decide the event winner\./);
   assert.match(eventHtml, /\.spk-card-right \{ display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; \}/);
   assert.doesNotMatch(eventHtml, /Audience vote stays session-specific here: vote for what resonated in this event\./);
   assert.doesNotMatch(eventHtml, /speaker-card-help/);
