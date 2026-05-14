@@ -401,6 +401,7 @@ async function loadBounty() {
     const alreadyJoined = me.user && participants.some(p => p.user_name === me.user.name || p.user_id === me.user.id);
     const isAdmin = !!(me.user && me.user.is_admin);
     const canEditBounty = !!(me.user && (isAdmin || (b.created_by && b.created_by === me.user.id)));
+    const canDeleteBounty = !!(me.user && (isAdmin || b.created_by === me.user.id));
     const linkedEvent = b.event_id ? events.find(ev => ev.id === b.event_id) : null;
     const isWinner = me.user && b.winner_id && b.winner_id === me.user.id;
     const hasSubmitted = me.user && submissions.some(p => p.user_id === me.user.id);
@@ -616,6 +617,9 @@ async function loadBounty() {
     const editBountyBtn = canEditBounty
       ? `<button class="btn" style="padding:9px 16px;font-size:0.82rem" onclick="openEditBountyModal()">✏️ Edit Bounty</button>`
       : '';
+    const deleteBountyBtn = canDeleteBounty
+      ? `<button class="btn btn-danger" style="padding:9px 16px;font-size:0.82rem" onclick="deleteBounty('${esc(b.id)}')">Delete Bounty</button>`
+      : '';
 
     // Build full page
     document.getElementById('bountyContent').innerHTML = `
@@ -626,6 +630,7 @@ async function loadBounty() {
           <div style="display:flex;align-items:flex-start;gap:10px;flex:1;min-width:0">
             <h1 class="bounty-hero-title" style="flex:1;min-width:0">${esc(b.title)}</h1>
             ${editBountyBtn}
+            ${deleteBountyBtn}
             <button class="bounty-share-btn" id="shareBountyBtn" onclick="shareBounty()" title="Copy link">
               &#x1F517; Share
             </button>
@@ -793,6 +798,20 @@ async function leaveBounty(id) {
     const res = await fetch('/api/bounties/' + id + '/leave', { method: 'DELETE' });
     if (res.ok) loadBounty();
   } catch { alert('Failed to leave bounty'); }
+}
+
+async function deleteBounty(bountyId) {
+  if (!confirm('Delete this bounty? This will remove its submissions, funding records, and hunter list.')) return;
+  try {
+    const res = await fetch('/api/bounties/' + bountyId, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to delete bounty');
+    }
+    window.location.href = '/build';
+  } catch (err) {
+    alert(err.message || 'Failed to delete bounty');
+  }
 }
 
 function openSubmitModal(bountyId, bountyTitle) {

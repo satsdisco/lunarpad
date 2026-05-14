@@ -1795,8 +1795,16 @@ app.delete('/api/events/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Admin: delete bounty
-app.delete('/api/bounties/:id', requireAuth, requireAdmin, (req, res) => {
+// Creator/admin: delete bounty
+app.delete('/api/bounties/:id', requireAuth, (req, res) => {
+  const bounty = db.prepare('SELECT id, created_by FROM bounties WHERE id = ?').get(req.params.id);
+  if (!bounty) return res.status(404).json({ error: 'Not found' });
+  if (!req.user.is_admin && bounty.created_by !== req.user.id) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  db.prepare('UPDATE projects SET bounty_id = NULL WHERE bounty_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM bounty_submissions WHERE bounty_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM bounty_payments WHERE bounty_id = ?').run(req.params.id);
   db.prepare('DELETE FROM bounty_participants WHERE bounty_id = ?').run(req.params.id);
   db.prepare('DELETE FROM bounties WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
