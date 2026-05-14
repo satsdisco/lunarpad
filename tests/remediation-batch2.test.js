@@ -31,5 +31,6 @@ test('auth menu trigger includes an explicit chevron affordance and menu state w
 test('global nav active state is stronger than a bare underline', () => {
   const css = read('public', 'css', 'style.css');
   assert.match(css, /\.nav-tab\.active::after/);
-  assert.match(css, /linear-gradient\(180deg, rgba\(124,92,252,0\.18\)/);
+  assert.match(css, /border-bottom-color: var\(--accent\)/);
+  assert.match(css, /background: rgba\(255,255,255,0\.02\)/);
 });
