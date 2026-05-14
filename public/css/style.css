@@ -687,9 +687,14 @@ a:hover { color: var(--accent); }
   background: var(--glass); border: 1px solid var(--border);
   padding: 14px 16px; display: flex; flex-direction: column; gap: 0;
   border-radius: var(--radius-lg);
-  transition: all .2s; backdrop-filter: blur(8px);
+  transition: all .2s;
+  background-image: linear-gradient(180deg, rgba(73,43,255,0.08), rgba(0,0,0,0) 42%);
+  box-shadow: inset 0 1px 0 rgba(73,43,255,0.12);
 }
-.event-card:hover { border-color: var(--border2); }
+.event-card:hover {
+  border-color: rgba(73,43,255,0.28);
+  transform: translateY(-1px);
+}
 .event-card:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -698,10 +703,11 @@ a:hover { color: var(--accent); }
 .event-card-body { display: flex; flex-direction: column; gap: 10px; }
 .event-details { font-size: 0.82rem; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
 .event-type-badge {
-  font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .08em; color: var(--accent);
-  border: 1px solid var(--accent); padding: 3px 10px;
-  border-radius: 100px; display: inline-block; width: fit-content;
+  font-family: var(--font-mono); font-size: 0.62rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--gold);
+  border: 1px solid rgba(255,186,13,0.24); padding: 4px 10px;
+  border-radius: 4px; display: inline-block; width: fit-content;
+  background: rgba(255,186,13,0.08);
 }
 .form-submit-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .rsvp-form-wrap {
@@ -712,25 +718,27 @@ a:hover { color: var(--accent); }
 .rsvp-form-title { font-size: 0.85rem; font-weight: 600; color: var(--text); margin-bottom: 12px; }
 .event-date-badge {
   flex-shrink: 0; width: 48px; height: 48px;
-  border: 1px solid var(--accent);
+  border: 1px solid rgba(73,43,255,0.35);
+  border-radius: 8px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, rgba(73,43,255,0.18), rgba(73,43,255,0.06));
 }
-.event-date-badge .day { font-family: var(--font-mono); font-size: 1rem; font-weight: 800; color: var(--accent); line-height: 1; }
-.event-date-badge .month { font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; }
+.event-date-badge .day { font-family: var(--font-mono); font-size: 1rem; font-weight: 500; color: var(--text); line-height: 1; }
+.event-date-badge .month { font-family: var(--font-mono); font-size: 0.58rem; font-weight: 500; color: var(--gold); text-transform: uppercase; letter-spacing: .08em; }
 .event-info { flex: 1; min-width: 0; }
-.event-name { font-size: 0.88rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
-.event-meta { font-size: 0.7rem; color: var(--muted2); margin-bottom: 6px; display: flex; gap: 10px; }
-.event-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
+.event-name { font-size: 0.92rem; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+.event-meta { font-size: 0.72rem; color: var(--text2); margin-bottom: 6px; display: flex; gap: 10px; }
+.event-desc { font-size: 0.78rem; color: var(--text2); line-height: 1.55; margin-bottom: 8px; }
 .event-secondary-date {
   margin-top: 12px;
   font-family: var(--font-mono);
   font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--muted2);
+  font-weight: 500;
+  color: var(--gold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
-.event-countdown { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; color: var(--accent); }
+.event-countdown { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; color: var(--accent); }
 .event-type {
   font-family: var(--font-mono);
   font-size: 0.6rem; font-weight: 700; padding: 1px 6px;
@@ -1484,7 +1492,7 @@ a:hover { color: var(--accent); }
   margin-top: 8px;
   background: var(--glass); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 16px 20px;
-  backdrop-filter: blur(8px); width: 100%;
+  width: 100%;
 }
 /* Calendar header */
 .mini-cal-header {
@@ -1492,19 +1500,19 @@ a:hover { color: var(--accent); }
   margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
 }
 .mini-cal-title {
-  font-family: var(--font); font-size: 1rem; font-weight: 700; color: var(--text);
+  font-family: var(--font); font-size: 1rem; font-weight: 500; color: var(--text);
 }
 .mini-cal-nav {
   display: flex; gap: 4px;
 }
 .mini-cal-nav button {
-  background: var(--glass2); border: 1px solid var(--border);
-  border-radius: 50%; width: 30px; height: 30px;
-  color: var(--muted); cursor: pointer; font-size: 0.9rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; width: 32px; height: 32px;
+  color: var(--text2); cursor: pointer; font-size: 0.9rem;
   display: flex; align-items: center; justify-content: center;
-  transition: all .15s; font-family: var(--font);
+  transition: all .15s; font-family: var(--font-mono);
 }
-.mini-cal-nav button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.mini-cal-nav button:hover { border-color: rgba(73,43,255,0.32); color: var(--text); background: rgba(73,43,255,0.12); }
 .mini-cal-months {
   display: flex;
   gap: 12px;
@@ -1518,10 +1526,10 @@ a:hover { color: var(--accent); }
   margin-bottom: 8px;
   font-family: var(--font-mono);
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text2);
+  color: var(--gold);
 }
 
 /* Calendar grid — Apple style */
@@ -1555,11 +1563,11 @@ a:hover { color: var(--accent); }
 }
 .cal-cell.has-event {
   cursor: pointer;
-  background: color-mix(in srgb, var(--ev-color, var(--accent)) 8%, transparent);
-  border-color: color-mix(in srgb, var(--ev-color, var(--accent)) 20%, transparent);
+  background: color-mix(in srgb, var(--ev-color, var(--accent)) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ev-color, var(--accent)) 28%, transparent);
 }
 .cal-cell.has-event:hover {
-  background: color-mix(in srgb, var(--ev-color, var(--accent)) 15%, transparent);
+  background: color-mix(in srgb, var(--ev-color, var(--accent)) 18%, transparent);
 }
 .cal-cell.has-event .cal-cell-num {
   color: var(--ev-color, var(--text)); font-weight: 700;
@@ -1579,17 +1587,17 @@ a:hover { color: var(--accent); }
   margin-top: auto;
 }
 .cal-event-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   background: var(--ev-color, var(--accent));
-  box-shadow: 0 0 8px color-mix(in srgb, var(--ev-color, var(--accent)) 45%, transparent);
+  box-shadow: none;
 }
 .cal-event-count {
   font-family: var(--font-mono);
   font-size: 0.48rem;
-  font-weight: 700;
-  color: var(--muted2);
+  font-weight: 500;
+  color: var(--text2);
 }
 
 /* Event type icons */
@@ -1919,13 +1927,13 @@ a:hover { color: var(--accent); }
   padding-right: 220px;
   min-height: 88px;
   font-size: 0.72rem;
-  color: var(--dim);
+  color: var(--muted2);
   border-top: 1px solid var(--border);
   font-family: var(--font-mono);
 }
 .footer-brand {
-  color: var(--muted);
-  font-weight: 700;
+  color: var(--text2);
+  font-weight: 500;
 }
 .footer-links {
   display: flex;
@@ -1933,10 +1941,10 @@ a:hover { color: var(--accent); }
   gap: 10px 14px;
 }
 .footer-links a {
-  color: var(--muted2);
+  color: var(--text2);
 }
 .footer-links a:hover {
-  color: var(--accent);
+  color: var(--gold);
 }
 @media (max-width: 980px) {
   .footer {
