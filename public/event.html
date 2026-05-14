@@ -211,6 +211,91 @@
   background: rgba(242,177,52,0.08);
   color: var(--btc-bright);
 }
+.audience-vote-card {
+  margin: 0 0 24px;
+  padding: 20px 22px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(124,92,252,0.2);
+  background: linear-gradient(180deg, rgba(18,20,36,0.92), rgba(13,15,26,0.96));
+}
+.audience-vote-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.audience-vote-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 8px;
+}
+.audience-vote-title {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.audience-vote-copy {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+.audience-vote-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.audience-vote-status.live {
+  border-color: rgba(57,217,138,0.25);
+  color: #8df0bf;
+  background: rgba(57,217,138,0.08);
+}
+.audience-vote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.audience-vote-option {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,0.03);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+.audience-vote-option-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.audience-vote-option-meta {
+  font-size: 0.78rem;
+  color: var(--muted2);
+}
+.audience-vote-option-score {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--btc-bright);
+}
+.audience-vote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
 .event-results-card {
   margin: 0 0 24px;
   padding: 20px 22px;
@@ -745,6 +830,70 @@ function renderAttendeesSection(rsvpPayload) {
     </div>`;
 }
 
+function renderAudienceVoteSection(ev, currentUser) {
+  const state = ev?.audience_vote_state || null;
+  if (!state) return '';
+  const canManage = !!(currentUser && currentUser.is_admin);
+  const speakers = Array.isArray(state.speakers) ? state.speakers : [];
+  const voteIsOpen = !!state.is_open;
+  const viewerVoteId = state.viewer_vote?.speaker_id || null;
+  const statusLabel = voteIsOpen ? 'Voting open' : 'Voting closed';
+  const statusClass = voteIsOpen ? 'live' : '';
+  const optionsHtml = speakers.length
+    ? speakers.map((speaker) => `
+        <div class="audience-vote-option">
+          <div>
+            <div class="audience-vote-option-name">${esc(speaker.name || 'Presenter')}</div>
+            <div class="audience-vote-option-meta">${esc(speaker.project_title || 'Untitled project')}</div>
+          </div>
+          <div class="audience-vote-option-score">${Number(speaker.audience_vote_count || 0).toLocaleString()} audience votes</div>
+          ${voteIsOpen ? `<button class="btn ${viewerVoteId === speaker.id ? 'btn-confirmed' : 'btn-primary'}" ${viewerVoteId ? 'disabled' : ''} onclick="castAudienceVote('${esc(speaker.id)}')">${viewerVoteId === speaker.id ? 'Your vote' : (viewerVoteId ? 'Vote locked' : 'Vote for this project')}</button>` : ''}
+        </div>`).join('')
+    : '<div class="lineup-empty">No presenters are eligible for audience voting yet.</div>';
+  const viewerCopy = !currentUser
+    ? 'Log in to cast one anonymous winner vote after the event is marked complete.'
+    : (viewerVoteId
+      ? 'Your vote is in. Audience voting is anonymous publicly and limited to one vote per event.'
+      : (voteIsOpen
+        ? 'Audience winner voting is now open. Pick one presentation; your vote is anonymous publicly and limited to one vote for this event.'
+        : 'Hosts will open audience winner voting after presentations conclude. The upvotes in the lineup do not decide the winner.'));
+  return `
+    <div class="audience-vote-card" id="audienceVote">
+      <div class="audience-vote-head">
+        <div>
+          <div class="audience-vote-kicker">Audience Vote</div>
+          <div class="audience-vote-title">Post-event winner vote</div>
+          <div class="audience-vote-copy">${viewerCopy}</div>
+        </div>
+        <div class="audience-vote-status ${statusClass}">${statusLabel}</div>
+      </div>
+      ${canManage ? `<div class="audience-vote-actions">
+        <button class="btn btn-primary" onclick="setAudienceVoteOpen(true)">Open winner voting</button>
+        <button class="btn" onclick="setAudienceVoteOpen(false)">Close winner voting</button>
+      </div>` : ''}
+      <div class="audience-vote-grid">${optionsHtml}</div>
+    </div>`;
+}
+
+async function setAudienceVoteOpen(nextOpen) {
+  const endpoint = `/api/events/${eventId}/audience-vote/${nextOpen ? 'open' : 'close'}`;
+  const res = await fetch(endpoint, { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return alert(data.error || 'Failed to update audience voting');
+  loadEvent();
+}
+
+async function castAudienceVote(speakerId) {
+  const res = await fetch(`/api/events/${eventId}/audience-vote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speaker_id: speakerId })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return alert(data.error || 'Failed to cast audience vote');
+  loadEvent();
+}
+
 function renderResultsSection(results, liveSummary, speakers) {
   const artifact = results || null;
   const winner = artifact?.winner || liveSummary?.winner || null;
@@ -916,6 +1065,7 @@ async function loadEvent() {
     const hasResults = !!(resultsArtifact || ev.result_summary || liveSummary?.results_url);
     const resultsHtml = renderResultsSection(resultsArtifact, liveSummary, speakers);
     const operatorControlsHtml = renderEventOperatorControls(ev, currentUser);
+    const audienceVoteHtml = renderAudienceVoteSection(ev, currentUser);
 
     document.getElementById('eventContent').innerHTML = `
       <div class="event-hero" style="display:flex;align-items:flex-start;gap:24px">
@@ -944,6 +1094,7 @@ async function loadEvent() {
 
       ${attendeesHtml}
       ${operatorControlsHtml}
+      ${audienceVoteHtml}
 
       ${resultsHtml}
 
@@ -1091,7 +1242,7 @@ function renderSpeaker(sp, rank) {
       </div>
       <div class="spk-card-right">
         <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--muted2);text-align:center">${rankLabel}</div>
-        <button class="vote-btn" onclick="event.stopPropagation();voteSpeaker('${esc(sp.id)}',this)" title="Audience vote for this presentation.">
+        <button class="vote-btn" onclick="event.stopPropagation();voteSpeaker('${esc(sp.id)}',this)" title="Upvote for lineup support. This does not decide the event winner.">
           <span class="arrow">▲</span><span class="vc">${sp.votes||0}</span>
         </button>
         ${_currentUser && _currentUser.is_admin && !isPresented ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:3px 8px;border-radius:12px;margin-top:6px" onclick="event.stopPropagation();markSpeakerPresented('${esc(sp.id)}')">Mark Presented</button>` : ''}
@@ -1099,7 +1250,7 @@ function renderSpeaker(sp, rank) {
         ${_currentUser && _currentUser.is_admin && isSkipped ? `<button class="btn btn-ghost" style="padding:6px 10px;font-size:0.72rem" onclick="event.stopPropagation();undoSpeakerSkipped('${esc(sp.id)}')">Undo Skip</button>` : ''}
         ${sp.user_id && _currentUser && (sp.user_id === _currentUser.id || _currentUser.is_admin) && !isPresented ? `<button class="btn btn-sm" style="font-size:0.6rem;padding:3px 8px;border-radius:12px;color:var(--danger);border-color:var(--danger);margin-top:6px" onclick="event.stopPropagation();withdrawSpeaker('${esc(sp.id)}')">Withdraw</button>` : ''}
       </div>
-      <div class="speaker-card-help">Audience vote stays session-specific here: vote for what resonated in this event.</div>
+      <div class="speaker-card-help">Use this upvote for lineup support only. The host opens a separate Audience Vote after presentations conclude.</div>
     </div>`;
 }
 

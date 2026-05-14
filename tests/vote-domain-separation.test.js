@@ -23,6 +23,8 @@ test('UI copy distinguishes persistent upvotes from event audience voting', () =
 
   assert.match(projectHtml, />▲ Upvote</);
   assert.match(deckHtml, /title="Upvote this deck/);
-  assert.match(eventHtml, /Audience vote for this presentation/);
-  assert.match(eventHtml, /Audience vote stays session-specific/);
+  assert.match(eventHtml, /Post-event winner vote/);
+  assert.match(eventHtml, /The upvotes in the lineup do not decide the winner/);
+  assert.match(eventHtml, /Upvote for lineup support\. This does not decide the event winner\./);
+  assert.match(eventHtml, /Use this upvote for lineup support only\./);
 });

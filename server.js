@@ -613,6 +613,20 @@ const MIGRATIONS = [
              OR (bs.bounty_id = p.bounty_id AND bs.user_id = p.user_id AND bs.submission_type = 'project')
        )`,
   ]},
+  { name: 'v029_event_audience_votes', sql: [
+    `CREATE TABLE IF NOT EXISTS event_audience_votes (
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      speaker_id TEXT NOT NULL,
+      voter_user_id TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_event_audience_votes_event ON event_audience_votes(event_id, speaker_id)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_event_audience_votes_one_per_user ON event_audience_votes(event_id, voter_user_id)',
+    'ALTER TABLE events ADD COLUMN audience_voting_open INTEGER DEFAULT 0',
+    'ALTER TABLE events ADD COLUMN audience_voting_opened_at TEXT',
+    'ALTER TABLE events ADD COLUMN audience_voting_closed_at TEXT',
+  ]},
 ];
 
 // Run pending migrations
@@ -1156,7 +1170,7 @@ app.get('/profile', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'publi
 app.get('/profile/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'profile.html')));
 app.get('/notifications', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'notifications.html')));
 app.get('/vote',     requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'vote.html')));
-app.get('/admin',    requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
+app.get('/admin',    requireAuth, requireAdmin, (_, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
 app.get('/bounty/:id', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'bounty.html')));
 app.get('/live/:eventId', requireAuth, (_, res) => res.sendFile(path.join(ROOT, 'public', 'live.html')));
 
@@ -2699,13 +2713,40 @@ app.get('/api/events/:id', (req, res) => {
     total_votes: Number(eventResults.total_votes || 0),
     total_zaps: Number(eventResults.total_zaps || 0),
   } : null;
+  const audience_vote_state = getAudienceVoteState(req.params.id, req.user || null);
   res.json({
     ...event,
     speakers,
     live_summary,
     result_summary,
     event_results: eventResults?.results || null,
+    audience_vote_state,
   });
+});
+
+app.post('/api/events/:id/audience-vote/open', requireAuth, requireAdmin, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  res.json({ ok: true, audience_vote_state: setAudienceVoteOpenState(req.params.id, true) });
+});
+
+app.post('/api/events/:id/audience-vote/close', requireAuth, requireAdmin, (req, res) => {
+  const event = db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  res.json({ ok: true, audience_vote_state: setAudienceVoteOpenState(req.params.id, false) });
+});
+
+app.post('/api/events/:id/audience-vote', requireAuth, (req, res) => {
+  const speakerId = String(req.body?.speaker_id || '').trim();
+  if (!speakerId) return res.status(400).json({ error: 'speaker_id required' });
+  try {
+    const audienceVoteState = castAudienceVote(req.params.id, speakerId, req.user.id);
+    res.json({ ok: true, audience_vote_state: audienceVoteState });
+  } catch (error) {
+    const message = error?.message || 'Audience vote failed';
+    const status = /not found/i.test(message) ? 404 : 409;
+    res.status(status).json({ error: message });
+  }
 });
 
 // ─── Speakers API ─────────────────────────────────────────────────────────────
@@ -3952,6 +3993,82 @@ function getRecommendedWinner(eventId, providedSpeakers = null) {
       || Number(b.zap_total || 0) - Number(a.zap_total || 0)
       || Number(a.queue_position || 2147483647) - Number(b.queue_position || 2147483647)
       || String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] || null;
+}
+
+function getAudienceVoteRows(eventId) {
+  return db.prepare(`
+    SELECT s.id,
+           s.event_id,
+           s.user_id,
+           s.name,
+           s.project_title,
+           COALESCE(s.status, 'scheduled') AS status,
+           s.presented_at,
+           COUNT(eav.id) AS audience_vote_count
+      FROM speakers s
+      LEFT JOIN event_audience_votes eav ON eav.speaker_id = s.id AND eav.event_id = s.event_id
+     WHERE s.event_id = ?
+     GROUP BY s.id, s.event_id, s.user_id, s.name, s.project_title, s.status, s.presented_at
+     ORDER BY audience_vote_count DESC, s.created_at ASC
+  `).all(eventId).map((row) => ({
+    ...row,
+    audience_vote_count: Number(row.audience_vote_count || 0),
+  }));
+}
+
+function getAudienceVoteState(eventId, viewer = null) {
+  const event = db.prepare(`
+    SELECT audience_voting_open, audience_voting_opened_at, audience_voting_closed_at
+    FROM events WHERE id = ?
+  `).get(eventId);
+  const speakers = getAudienceVoteRows(eventId);
+  const viewerVote = viewer?.id
+    ? db.prepare('SELECT speaker_id, created_at FROM event_audience_votes WHERE event_id = ? AND voter_user_id = ? LIMIT 1').get(eventId, viewer.id)
+    : null;
+  const totalVotes = speakers.reduce((sum, speaker) => sum + Number(speaker.audience_vote_count || 0), 0);
+  return {
+    is_open: !!Number(event?.audience_voting_open || 0),
+    opened_at: event?.audience_voting_opened_at || null,
+    closed_at: event?.audience_voting_closed_at || null,
+    total_votes: totalVotes,
+    viewer_vote: viewerVote ? {
+      speaker_id: viewerVote.speaker_id,
+      created_at: viewerVote.created_at,
+    } : null,
+    speakers,
+  };
+}
+
+function castAudienceVote(eventId, speakerId, voterUserId) {
+  if (!eventId || !speakerId || !voterUserId) throw new Error('event, speaker, and voter are required');
+  const event = db.prepare('SELECT audience_voting_open FROM events WHERE id = ?').get(eventId);
+  if (!event) throw new Error('Event not found');
+  if (!Number(event.audience_voting_open || 0)) throw new Error('Audience voting is not open for this event');
+  const speaker = db.prepare(`
+    SELECT id, event_id, COALESCE(status, 'scheduled') AS status
+    FROM speakers
+    WHERE id = ? AND event_id = ?
+  `).get(speakerId, eventId);
+  if (!speaker) throw new Error('Speaker not found for this event');
+  if (speaker.status === 'skipped') throw new Error('Skipped presentations are not eligible for audience voting');
+  const existing = db.prepare('SELECT id FROM event_audience_votes WHERE event_id = ? AND voter_user_id = ? LIMIT 1').get(eventId, voterUserId);
+  if (existing) throw new Error('You have already voted in this event');
+  db.prepare(`
+    INSERT INTO event_audience_votes (id, event_id, speaker_id, voter_user_id)
+    VALUES (?, ?, ?, ?)
+  `).run(crypto.randomUUID(), eventId, speakerId, voterUserId);
+  return getAudienceVoteState(eventId, { id: voterUserId });
+}
+
+function setAudienceVoteOpenState(eventId, isOpen) {
+  db.prepare(`
+    UPDATE events
+       SET audience_voting_open = ?,
+           audience_voting_opened_at = CASE WHEN ? = 1 THEN COALESCE(audience_voting_opened_at, datetime('now')) ELSE audience_voting_opened_at END,
+           audience_voting_closed_at = CASE WHEN ? = 1 THEN NULL ELSE datetime('now') END
+     WHERE id = ?
+  `).run(isOpen ? 1 : 0, isOpen ? 1 : 0, isOpen ? 1 : 0, eventId);
+  return getAudienceVoteState(eventId);
 }
 
 function getStoredEventResults(eventId) {
