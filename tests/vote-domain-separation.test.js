@@ -16,13 +16,15 @@ test('server defines explicit helpers for content votes vs event-session speaker
   assert.match(server, /toggleEventSessionVote\(type, id, voter, req\)/);
 });
 
-test('UI copy distinguishes persistent upvotes from event audience voting', () => {
+test('event presenter rows keep audience-vote wording compact and pin the vote control on the right side', () => {
   const projectHtml = read('public', 'project.html');
   const deckHtml = read('public', 'deck.html');
   const eventHtml = read('public', 'event.html');
 
   assert.match(projectHtml, />▲ Upvote</);
   assert.match(deckHtml, /title="Upvote this deck/);
-  assert.match(eventHtml, /Audience vote for this presentation/);
-  assert.match(eventHtml, /Audience vote stays session-specific/);
+  assert.match(eventHtml, /title="Audience vote for this presentation\./);
+  assert.match(eventHtml, /\.spk-card-right \{ display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; \}/);
+  assert.doesNotMatch(eventHtml, /Audience vote stays session-specific here: vote for what resonated in this event\./);
+  assert.doesNotMatch(eventHtml, /speaker-card-help/);
 });
